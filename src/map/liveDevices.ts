@@ -56,5 +56,6 @@ export class LiveDeviceTracker {
     for (const [k, d] of this.devs) if (now - d.lastSeen > REMOVE_MS) { this.devs.delete(k); this.ema.delete(k); }
     return [...this.devs.values()];
   }
+  has(key: string) { return this.devs.has(key); }
   clear() { this.devs.clear(); this.ema.clear(); }
 }

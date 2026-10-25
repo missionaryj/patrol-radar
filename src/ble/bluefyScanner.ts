@@ -1,6 +1,7 @@
 import type { Scanner, AdvListener } from './types';
 import { COMPANY_IDS } from './signatures';
 import { normalizeEvent } from './normalize';
+import { buildPoliceFilters, withoutManufacturerFilters } from './filters';
 import { ScanError, classify } from './errors';
 
 /**
@@ -19,6 +20,8 @@ export class BluefyScanner implements Scanner {
   private onAdv?: AdvListener;
   private watched = new Map<string, { dev: any; stop: () => void }>();
   onChange?: (n: number) => void;
+  pickerMode: 'police' | 'all' = 'police';
+  notice?: (msg: string) => void;
 
   async isSupported() { return !!this.bt && typeof this.bt.requestDevice === 'function'; }
   get count() { return this.watched.size; }
@@ -35,7 +38,7 @@ export class BluefyScanner implements Scanner {
   async addDevice() {
     if (!this.onAdv) throw new ScanError('other', 'Not started');
     try {
-      const dev = await this.bt.requestDevice({ acceptAllDevices: true, optionalManufacturerData: COMPANY_IDS });
+      const dev = await this.request();
       if (this.watched.has(dev.id)) return;
       if (typeof dev.watchAdvertisements !== 'function')
         throw new ScanError('unsupported', 'API not found: device.watchAdvertisements is missing. See the API debug list below.');
@@ -46,7 +49,28 @@ export class BluefyScanner implements Scanner {
       await dev.watchAdvertisements(ac ? { signal: ac.signal } : undefined);
       this.watched.set(dev.id, { dev, stop: () => { try { ac?.abort(); dev.unwatchAdvertisements?.(); } catch { /* */ } dev.removeEventListener('advertisementreceived', handler); } });
       this.onChange?.(this.watched.size);
-    } catch (e) { throw classify(e); }
+      // Immediately classify from the name the picker returned (first advert will refine it).
+      normalizeEvent({ device: dev, name: dev.name, rssi: undefined }).then(onAdv);
+    } catch (e: any) {
+      if (e?.name === 'NotFoundError' && this.pickerMode === 'police')
+        throw new ScanError('permission', 'No police-type devices found nearby (or the list was cancelled). Try All devices.');
+      throw classify(e);
+    }
+  }
+
+  private async request() {
+    if (this.pickerMode === 'all') return this.bt.requestDevice({ acceptAllDevices: true, optionalManufacturerData: COMPANY_IDS });
+    const opts = buildPoliceFilters();
+    try { return await this.bt.requestDevice(opts); }
+    catch (e: any) {
+      if (e?.name !== 'TypeError' && !(e instanceof TypeError)) throw e;
+      this.notice?.('This browser rejected manufacturer-data filters; retrying with name/service filters only.');
+      try { return await this.bt.requestDevice(withoutManufacturerFilters(opts)); }
+      catch (e2: any) {
+        if (e2?.name === 'TypeError' || e2 instanceof TypeError) throw new ScanError('unsupported', 'This browser rejected the police-gear filters. Switch the picker to All devices.');
+        throw e2;
+      }
+    }
   }
 
   stop() {

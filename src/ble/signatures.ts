@@ -27,6 +27,8 @@ export const SIGNATURES: Signature[] = [
   { id: 'taser-fe6c', label: 'TASER service UUID 0xFE6C', vendor: 'Axon', category: 'cew', rule: { kind: 'serviceUuid16', uuid: 0xfe6c }, baseConfidence: 0.6, status: 'unverified' },
   { id: 'bwc-tag', label: 'BWCDEVICE payload tag', vendor: 'multiple', category: 'body-camera', rule: { kind: 'payloadAscii', text: 'BWCDEVICE' }, baseConfidence: 0.85, status: 'unverified' },
   { id: 'utility-bodyworn', label: 'Utility BodyWorn remote (name)', vendor: 'Utility Inc.', category: 'body-camera', rule: { kind: 'namePattern', pattern: /BodyWorn Remote/i }, baseConfidence: 0.7, status: 'unverified' },
+  { id: 'axon-name', label: 'Axon (device name)', vendor: 'Axon', category: 'body-camera', rule: { kind: 'namePattern', pattern: /^(Axon|TASER)/i }, baseConfidence: 0.5, status: 'unverified', note: 'Name prefix guess; needs field validation.' },
+  { id: 'bwc-name', label: 'Body cam (BWC name)', vendor: 'multiple', category: 'body-camera', rule: { kind: 'namePattern', pattern: /^BWC/i }, baseConfidence: 0.5, status: 'unverified' },
   { id: 'moto-cid', label: 'Motorola Solutions (company ID)', vendor: 'Motorola Solutions', category: 'radio', rule: { kind: 'companyId', id: 0x04ec }, baseConfidence: 0.35, status: 'unverified', note: 'Also used by non-police products; low confidence.' },
 ];
 

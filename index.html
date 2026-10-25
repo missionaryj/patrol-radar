@@ -5,9 +5,11 @@
 <header><h1>Patrol Radar <small>passive / receive-only demo</small></h1>
 <div id="controls">
 <label>Backend <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome)</option><option value="bluefy">Bluefy (iPhone): pick devices to watch</option></select></label>
+<label>Picker <select id="picker"><option value="police">Police gear only</option><option value="all">All devices</option></select></label>
 <button id="start">Start scan</button><button id="add" hidden>+ Pick another device</button><button id="stop" disabled>Stop</button>
 <button id="recenter" title="Recenter on my location">◎ Me</button><span id="geo">Locating…</span>
 <label><input type="checkbox" id="radio"/> Mock radio incidents</label></div>
+<div id="tip"><small>The list is drawn by your browser, so labels appear after you pick.</small></div>
 <div id="status" role="status" aria-live="polite">Idle</div>
 <details id="debug" open><summary>Debug</summary>
 <div>backend <b id="d-backend">-</b> · mode <b id="d-mode">-</b> · adverts seen <b id="d-raw">0</b> · unmatched <b id="d-unmatched">0</b> · matched <b id="d-matched">0</b> · last advert <b id="d-last">never</b></div>

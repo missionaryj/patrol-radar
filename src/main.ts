@@ -5,7 +5,7 @@ import { LocalReportStore } from './reports';
 import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
 import { BluefyScanner } from './ble/bluefyScanner';
-import { LiveDeviceTracker } from './map/liveDevices';
+import { LiveDeviceTracker, colorFor } from './map/liveDevices';
 import { probeReport, findScanApis } from './ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -61,18 +61,20 @@ $('start').onclick = async () => {
     status(kind === 'mock' ? 'Mock unavailable?' : 'No Web Bluetooth in this browser. On iPhone use the Bluefy browser; on Android use Chrome. Or pick Mock.', 'err'); return;
   }
   status(kind === 'bluefy' ? 'Pick a device to watch: choose one in the Bluefy list. Use “+ Pick another device” to watch more (iOS has no all-devices scan).' : 'Starting…');
+  if (scanner instanceof BluefyScanner) { scanner.pickerMode = $<HTMLSelectElement>('picker').value as 'police' | 'all'; scanner.notice = msg => status(msg); }
   if (scanner instanceof BluefyScanner) scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
   try {
     await scanner.start(adv => {
       const m = match(adv); stats.record(!!m);
+      const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLive();
-      if (!m) return;
+      if (!m) { if (isNew && kind === 'bluefy') { const li = document.createElement('li'); li.style.borderColor = '#8a9bb0'; li.textContent = `${new Date().toLocaleTimeString()} · picked: ${$<HTMLSelectElement>('picker').value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`; $('log').prepend(li); } return; }
       if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return;
       lastSeen.set(m.sessionId, Date.now());
       const loc = kind === 'mock' ? jitterDemo() : pos;
       store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...loc, timestamp: m.timestamp });
       const li = document.createElement('li');
-      li.textContent = `${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}% · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`;
+      li.style.borderColor = colorFor(m); li.textContent = `${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}% · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`;
       $('log').prepend(li); map.render(store.list());
     });
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
@@ -84,6 +86,7 @@ $('start').onclick = async () => {
 };
 $('add').onclick = async () => {
   if (!(scanner instanceof BluefyScanner)) return;
+  scanner.pickerMode = $<HTMLSelectElement>('picker').value as 'police' | 'all';
   try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
   catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
 };

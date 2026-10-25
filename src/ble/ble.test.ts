@@ -55,14 +55,33 @@ describe('BluefyScanner (per-device)', () => {
     let n = 0; const calls: any[] = [];
     (globalThis as any).window = { isSecureContext: true };
     (globalThis as any).navigator = { bluetooth: { requestDevice: async (o: any) => { calls.push(o); return mkDev('d' + n++); }, setScreenDimEnabled: () => {} } };
-    const s = new BluefyScanner(); const got: any[] = [];
+    const s = new BluefyScanner(); s.pickerMode = 'all'; const got: any[] = [];
     await s.start(a => got.push(a)); await s.addDevice();
     expect(s.count).toBe(2);
     expect(calls[0]).toMatchObject({ acceptAllDevices: true }); expect(calls[0].optionalManufacturerData).toContain(0x034d);
     devs[1].fire({ device: devs[1], rssi: -50, manufacturerData: new Map([[0x034d, new DataView(new ArrayBuffer(1))]]) });
     await new Promise(r => setTimeout(r, 10));
-    expect(got).toHaveLength(1); s.stop(); expect(s.count).toBe(0);
+    expect(got).toHaveLength(3); s.stop(); expect(s.count).toBe(0);
   });
 });
 import { isBlueish } from './probe';
 it('Bluefy-ish filter ignores Readable/Table', () => { expect(['ReadableStream', 'HTMLTableElement', 'BLENative', 'bluefy', 'Bluetooth'].filter(isBlueish)).toEqual(['BLENative', 'bluefy', 'Bluetooth']); });
+
+describe('BluefyScanner police picker', () => {
+  const setup = (impl: (o: any) => any) => { (globalThis as any).window = { isSecureContext: true };
+    (globalThis as any).navigator = { bluetooth: { requestDevice: impl } }; };
+  const dev = () => ({ id: 'p', name: 'Axon Body 3', addEventListener() {}, removeEventListener() {}, watchAdvertisements: async () => {} });
+  it('uses generated filters, and falls back on TypeError', async () => {
+    const calls: any[] = []; let first = true;
+    setup(async (o: any) => { calls.push(o); if (first) { first = false; throw new TypeError('bad filter'); } return dev(); });
+    const s = new BluefyScanner(); const notes: string[] = []; s.notice = n => notes.push(n); const got: any[] = [];
+    await s.start(a => got.push(a)); await new Promise(r => setTimeout(r, 10));
+    expect(calls[0].filters.some((f: any) => f.manufacturerData)).toBe(true);
+    expect(calls[1].filters.some((f: any) => f.manufacturerData)).toBe(false);
+    expect(notes[0]).toMatch(/rejected/); expect(got[0].name).toBe('Axon Body 3'); expect(match(got[0])?.signature.vendor).toBe('Axon');
+  });
+  it('reports nothing found in police mode', async () => {
+    setup(async () => { throw Object.assign(new Error('User cancelled'), { name: 'NotFoundError' }); });
+    await expect(new BluefyScanner().start(() => {})).rejects.toThrow(/No police-type devices found nearby/);
+  });
+});
