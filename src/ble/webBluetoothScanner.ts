@@ -1,6 +1,6 @@
 import type { Scanner, AdvListener } from './types';
 import { COMPANY_IDS } from './signatures';
-import { ephemeralId } from '../util/hash';
+import { normalizeEvent } from './normalize';
 
 /**
  * PASSIVE ONLY. Uses advertisement events; never calls gatt.connect(), never pairs/writes.
@@ -19,14 +19,7 @@ export class WebBluetoothScanner implements Scanner {
   async isSupported() { return !!this.bt && (await this.bt.getAvailability?.().catch(() => false)) !== false; }
 
   async start(onAdv: AdvListener) {
-    this.handler = async (e: any) => {
-      const serviceData = new Map<string, DataView>();
-      e.serviceData?.forEach((v: DataView, k: string) => serviceData.set(k, v));
-      const manufacturerData = new Map<number, DataView>();
-      e.manufacturerData?.forEach((v: DataView, k: number) => manufacturerData.set(k, v));
-      onAdv({ sessionId: await ephemeralId(e.device?.id ?? 'unknown'), name: e.name ?? e.device?.name, rssi: e.rssi,
-        manufacturerData, serviceUuids: e.uuids ?? [], serviceData, timestamp: Date.now() });
-    };
+    this.handler = (e: any) => { normalizeEvent(e).then(onAdv); };
     if (typeof this.bt.requestLEScan === 'function') {
       this.scan = await this.bt.requestLEScan({ acceptAllAdvertisements: true, keepRepeatedDevices: true });
       this.bt.addEventListener('advertisementreceived', this.handler);
