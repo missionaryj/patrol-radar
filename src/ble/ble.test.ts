@@ -35,3 +35,14 @@ describe('errors/detect/stats', () => {
   });
   it('counts raw/unmatched', () => { const s = new ScanStats(); s.record(false); s.record(true); expect([s.raw, s.unmatched, s.matched]).toEqual([2, 1, 1]); });
 });
+import { propNames, findScanApis, probeReport } from './probe';
+describe('probe', () => {
+  class Proto { requestDevice() {} getAvailability() {} }
+  class BT extends Proto { watchAdvertisements() {} }
+  it('walks prototype chain', () => { expect(propNames(new BT())).toEqual(expect.arrayContaining(['requestDevice', 'watchAdvertisements', 'getAvailability'])); });
+  it('finds scan/advert methods incl. Bluefy-ish globals', () => {
+    const win: any = { navigator: { bluetooth: new Proto(), userAgent: 'x' }, BLENative: { startScan() {}, notifyAppState() {} } };
+    expect(findScanApis(win).map(f => f.path)).toEqual(['window.BLENative.startScan']);
+    expect(probeReport(win)).toContain('BLENative');
+  });
+});

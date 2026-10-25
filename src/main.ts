@@ -4,6 +4,7 @@ import { MapView, coarsen } from './map';
 import { LocalReportStore } from './reports';
 import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
+import { probeReport, findScanApis } from './ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
@@ -21,7 +22,8 @@ function renderStats() {
 setInterval(renderStats, 1000);
 
 const bt = (navigator as any).bluetooth;
-$('d-env').textContent = `navigator.bluetooth: ${bt ? 'yes' : 'no'} · requestLEScan: ${typeof bt?.requestLEScan === 'function'} · bluetooth.watchAdvertisements: ${typeof bt?.watchAdvertisements === 'function'} · secure: ${window.isSecureContext} · bluefy: ${isBluefy()}`;
+$('d-env').textContent = `navigator.bluetooth: ${bt ? 'yes' : 'no'} · requestLEScan: ${typeof bt?.requestLEScan === 'function'} · scan/advert APIs: ${findScanApis().map(f => f.path).join(', ') || 'none'} · device.watchAdvertisements: ${typeof (window as any).BluetoothDevice?.prototype?.watchAdvertisements === 'function'} · secure: ${window.isSecureContext} · bluefy: ${isBluefy()}`;
+$('d-probe').textContent = probeReport();
 const sel = $<HTMLSelectElement>('backend');
 sel.value = pickDefaultBackend();
 if (sel.value === 'bluefy') status('Bluefy detected; Bluefy backend selected. Tap Start scan.', 'ok');

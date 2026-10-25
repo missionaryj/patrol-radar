@@ -8,3 +8,4 @@ button,select{font-size:16px;min-height:40px;padding:4px 12px;border-radius:8px}
 main{display:grid;grid-template-columns:2fr 1fr;height:70vh}#map{height:100%}#log{overflow:auto;margin:0;padding:8px;font-size:.85rem}
 #log li{margin-bottom:6px;list-style:none;border-left:3px solid #e33;padding-left:6px}footer{font-size:.75rem;color:#aaa}
 @media(max-width:700px){main{grid-template-columns:1fr;height:auto}#map{height:50vh}#log{max-height:40vh}}
+#d-probe{white-space:pre-wrap;word-break:break-all;user-select:all;-webkit-user-select:all;background:#000;padding:6px;border-radius:6px;font-size:.7rem;max-height:40vh;overflow:auto}

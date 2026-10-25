@@ -2,6 +2,7 @@ import type { Scanner, AdvListener } from './types';
 import { COMPANY_IDS } from './signatures';
 import { normalizeEvent } from './normalize';
 import { ScanError, classify } from './errors';
+import { findScanApis } from './probe';
 
 /**
  * Bluefy (iOS) backend. PASSIVE ONLY: never calls gatt.connect / pair / write.
@@ -26,27 +27,32 @@ export class BluefyScanner implements Scanner {
     if (!this.bt) throw new ScanError('unsupported', 'No navigator.bluetooth. On iPhone, open this page in the Bluefy browser.');
     const handler = (e: any) => { normalizeEvent(e).then(onAdv); };
     try {
-      if (typeof this.bt.watchAdvertisements === 'function') {
-        this.mode = 'bluefy-watchAdvertisements';
-        this.bt.addEventListener?.('advertisementreceived', handler);
-        this.cleanup.push(() => this.bt.removeEventListener?.('advertisementreceived', handler));
-        const ret = await this.bt.watchAdvertisements({ acceptAllAdvertisements: true, keepRepeatedDevices: true, optionalManufacturerData: COMPANY_IDS }, handler);
+      // 1. Any global scan/advert method (navigator.bluetooth, window.bluetooth, Bluefy globals).
+      const apis = findScanApis(window);
+      const global = apis.find(a => /^watchAdvertisements$/i.test(a.name)) ?? apis.find(a => /advert/i.test(a.name) && !/unwatch|stop/i.test(a.name));
+      if (global) {
+        this.mode = global.path;
+        const tgt = global.obj;
+        for (const t of new Set([tgt, this.bt])) { t?.addEventListener?.('advertisementreceived', handler); this.cleanup.push(() => t?.removeEventListener?.('advertisementreceived', handler)); }
+        const ret = await tgt[global.name]({ acceptAllAdvertisements: true, keepRepeatedDevices: true, optionalManufacturerData: COMPANY_IDS }, handler);
         if (ret && typeof ret.stop === 'function') this.cleanup.push(() => ret.stop());
-        this.cleanup.push(() => this.bt.unwatchAdvertisements?.());
+        if (typeof tgt.unwatchAdvertisements === 'function') this.cleanup.push(() => tgt.unwatchAdvertisements());
         return;
       }
       if (typeof this.bt.requestLEScan === 'function') {
-        this.mode = 'requestLEScan';
+        this.mode = 'navigator.bluetooth.requestLEScan';
         const scan = await this.bt.requestLEScan({ acceptAllAdvertisements: true, keepRepeatedDevices: true });
         this.bt.addEventListener('advertisementreceived', handler);
         this.cleanup.push(() => { scan.stop(); this.bt.removeEventListener('advertisementreceived', handler); });
         return;
       }
-      if (/iPhone|iPad|bluefy/i.test(navigator.userAgent))
-        throw new ScanError('adv-disabled', 'Advertisement scanning is off. In Bluefy open Settings and turn on "Enable BLE Advertisements", then reload this page.');
+      // 2. Standard per-device API: requestDevice, then device.watchAdvertisements() (one device).
+      const hasDeviceWatch = typeof (window as any).BluetoothDevice?.prototype?.watchAdvertisements === 'function';
+      if (!hasDeviceWatch && typeof this.bt.requestDevice !== 'function')
+        throw new ScanError('unsupported', 'No advertisement-scanning API found. See the API debug list below and send a screenshot.');
       this.mode = 'device.watchAdvertisements (single device)';
       const dev = await this.bt.requestDevice({ acceptAllDevices: true, optionalManufacturerData: COMPANY_IDS });
-      if (typeof dev.watchAdvertisements !== 'function') throw new ScanError('unsupported', 'watchAdvertisements not supported.');
+      if (typeof dev.watchAdvertisements !== 'function') throw new ScanError('unsupported', 'API not found: device.watchAdvertisements is missing. See the API debug list below.');
       dev.addEventListener('advertisementreceived', handler);
       const ac = new AbortController();
       await dev.watchAdvertisements({ signal: ac.signal });
