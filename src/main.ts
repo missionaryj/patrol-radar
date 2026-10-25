@@ -4,6 +4,7 @@ import { MapView, coarsen } from './map';
 import { LocalReportStore } from './reports';
 import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
+import { BluefyScanner } from './ble/bluefyScanner';
 import { probeReport, findScanApis } from './ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -37,7 +38,8 @@ $('start').onclick = async () => {
   if (!(await scanner.isSupported())) {
     status(kind === 'mock' ? 'Mock unavailable?' : 'No Web Bluetooth in this browser. On iPhone use the Bluefy browser; on Android use Chrome. Or pick Mock.', 'err'); return;
   }
-  status('Starting…');
+  status(kind === 'bluefy' ? 'Pick a device to watch: choose one in the Bluefy list. Use “+ Pick another device” to watch more (iOS has no all-devices scan).' : 'Starting…');
+  if (scanner instanceof BluefyScanner) scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
   try {
     await scanner.start(adv => {
       const m = match(adv); stats.record(!!m);
@@ -53,10 +55,16 @@ $('start').onclick = async () => {
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
     $<HTMLButtonElement>('start').disabled = true; $<HTMLButtonElement>('stop').disabled = false;
-    setTimeout(() => { if (scanner && stats.raw === 0 && kind !== 'mock') status('No advertisements received in 20 s. Check Bluetooth is on, Bluefy Settings → "Enable BLE Advertisements" is ON, then reload.', 'err'); }, 20_000);
+    $('add').hidden = !(scanner instanceof BluefyScanner);
+    setTimeout(() => { if (scanner && stats.raw === 0 && kind !== 'mock') status('No advertisements received in 20 s from the watched device(s). The device may not be advertising; pick another, or check the API debug list.', 'err'); }, 20_000);
   } catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); scanner = undefined; }
 };
-$('stop').onclick = () => { scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+$('add').onclick = async () => {
+  if (!(scanner instanceof BluefyScanner)) return;
+  try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
+  catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
+};
+$('stop').onclick = () => { $('add').hidden = true; scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 

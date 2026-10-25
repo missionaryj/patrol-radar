@@ -46,3 +46,21 @@ describe('probe', () => {
     expect(probeReport(win)).toContain('BLENative');
   });
 });
+import { BluefyScanner } from './bluefyScanner';
+describe('BluefyScanner (per-device)', () => {
+  it('watches multiple picked devices passively and forwards adverts', async () => {
+    const devs: any[] = [];
+    const mkDev = (id: string) => { const l: any = {}; const d: any = { id, gatt: { connect: () => { throw new Error('must not connect'); } },
+      addEventListener: (t: string, f: any) => (l[t] = f), removeEventListener: () => {}, watchAdvertisements: async () => {}, fire: (e: any) => l.advertisementreceived(e) }; devs.push(d); return d; };
+    let n = 0; const calls: any[] = [];
+    (globalThis as any).window = { isSecureContext: true };
+    (globalThis as any).navigator = { bluetooth: { requestDevice: async (o: any) => { calls.push(o); return mkDev('d' + n++); }, setScreenDimEnabled: () => {} } };
+    const s = new BluefyScanner(); const got: any[] = [];
+    await s.start(a => got.push(a)); await s.addDevice();
+    expect(s.count).toBe(2);
+    expect(calls[0]).toMatchObject({ acceptAllDevices: true }); expect(calls[0].optionalManufacturerData).toContain(0x034d);
+    devs[1].fire({ device: devs[1], rssi: -50, manufacturerData: new Map([[0x034d, new DataView(new ArrayBuffer(1))]]) });
+    await new Promise(r => setTimeout(r, 10));
+    expect(got).toHaveLength(1); s.stop(); expect(s.count).toBe(0);
+  });
+});
