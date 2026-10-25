@@ -49,3 +49,9 @@ This tool is for awareness and research. It must not be used to harass, follow, 
 
 ## Prior art
 [RF Sentinel](https://github.com/CIS-C0/RFSentinel) is an open-source Android app that passively detects body cams, ALPRs, and similar devices over BLE and Wi-Fi, and groups signals into patrol vehicles. Its public signature list informed `signatures.ts`.
+
+## iPhone options (research, not implemented)
+- **Bluefy browser:** it doesn't implement `requestLEScan`. It has its own `bluetooth.watchAdvertisements(options)` (added in v3.8.2), which you turn on with Settings → "Enable BLE Advertisements". Supporting it would mean adding a small extra scanner backend. Pages must be served over HTTPS.
+- **Capacitor iOS + `@capacitor-community/bluetooth-le`:** `BleClient.requestLEScan` uses CoreBluetooth. In the foreground it reports the local name, manufacturer data, service UUIDs, service data and signal strength (RSSI), but never the MAC address. iOS also needs a `dataPrefix` in manufacturer-data filters.
+  - Background scanning requires `UIBackgroundModes: bluetooth-central` plus a service-UUID filter. It is throttled, gives only one event per device, and the plugin can't resume a scan after iOS suspends the app.
+  - To build it you need a Mac with Xcode. A free Apple ID can sideload the app onto your own phone, but the signature expires after 7 days. A paid account ($99/yr) is needed for TestFlight or the App Store.
