@@ -2,6 +2,7 @@ import './style.css';
 import { createScanner, match, type Scanner } from './ble';
 import { MapView, coarsen } from './map';
 import { LocalReportStore } from './reports';
+import { startMockRadioFeed } from './radio/mockFeed';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
@@ -40,3 +41,9 @@ $('start').onclick = async () => {
 $('stop').onclick = () => { scanner?.stop(); $('status').textContent = 'Stopped'; $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
+
+let stopRadio: (() => void) | undefined;
+$<HTMLInputElement>('radio').onchange = e => {
+  if ((e.target as HTMLInputElement).checked) stopRadio = startMockRadioFeed(incs => map.renderIncidents(incs));
+  else { stopRadio?.(); map.renderIncidents([]); }
+};

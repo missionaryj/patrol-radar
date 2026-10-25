@@ -5,7 +5,7 @@
 <header><h1>Patrol Radar <small>passive / receive-only demo</small></h1>
 <div id="controls">
 <label>Backend <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth</option></select></label>
-<button id="start">Start scan</button><button id="stop" disabled>Stop</button><span id="status"></span></div></header>
+<button id="start">Start scan</button><button id="stop" disabled>Stop</button><label><input type="checkbox" id="radio"/> Mock radio incidents</label><span id="status"></span></div></header>
 <main><div id="map"></div><ul id="log"></ul></main>
 <footer>Receive-only. Never connects to, pairs with or writes to devices. Not for harassing or targeting anyone. Signatures unverified.</footer>
 <script type="module" src="/src/main.ts"></script></body></html>

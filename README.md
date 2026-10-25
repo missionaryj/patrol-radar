@@ -55,3 +55,12 @@ This tool is for awareness and research. It must not be used to harass, follow, 
 - **Capacitor iOS + `@capacitor-community/bluetooth-le`:** `BleClient.requestLEScan` uses CoreBluetooth. In the foreground it reports the local name, manufacturer data, service UUIDs, service data and signal strength (RSSI), but never the MAC address. iOS also needs a `dataPrefix` in manufacturer-data filters.
   - Background scanning requires `UIBackgroundModes: bluetooth-central` plus a service-UUID filter. It is throttled, gives only one event per device, and the plugin can't resume a scan after iOS suspends the app.
   - To build it you need a Mac with Xcode. A free Apple ID can sideload the app onto your own phone, but the signature expires after 7 days. A paid account ($99/yr) is needed for TestFlight or the App Store.
+
+## Radio incidents (prototype, mock only)
+`src/radio` parses dispatch transcripts into **incidents**: a call type plus a coarse area. It never tracks units or officers.
+- Unit IDs, badge numbers and names are scrubbed out before any other processing.
+- Locations are snapped to a 150–250 m grid.
+- Shared output must wait at least 10 minutes (default 12) before it is published.
+- An "on scene" status only raises an incident's confidence. It never becomes a separate pin.
+
+Tick "Mock radio incidents" to see the demo layer. See `docs/accuracy-plan.md`. Run the tests with `npm test`.
