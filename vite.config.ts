@@ -1,2 +1,6 @@
 import { defineConfig } from 'vite';
-export default defineConfig({ server: { host: true, allowedHosts: ['.trycloudflare.com', '.loca.lt'] } });
+// GITHUB_PAGES=true → served from https://<user>.github.io/patrol-radar/
+export default defineConfig({
+  base: process.env.GITHUB_PAGES ? '/patrol-radar/' : '/',
+  server: { host: true, allowedHosts: ['.trycloudflare.com', '.loca.lt'] },
+});
