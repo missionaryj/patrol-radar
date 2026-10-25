@@ -5,6 +5,7 @@ import { LocalReportStore } from './reports';
 import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
 import { BluefyScanner } from './ble/bluefyScanner';
+import { LiveDeviceTracker } from './map/liveDevices';
 import { probeReport, findScanApis } from './ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,12 +31,17 @@ sel.value = pickDefaultBackend();
 if (sel.value === 'bluefy') status('Bluefy detected; Bluefy backend selected. Tap Start scan.', 'ok');
 
 let geoWatch: number | undefined;
+let here: { lat: number; lng: number } | undefined; // precise, in-memory, display-only
+const live = new LiveDeviceTracker();
+const drawLive = () => map.renderLive(live.list(), here ?? pos);
+setInterval(drawLive, 2000);
 function startGeo() {
   if (!navigator.geolocation) { $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
   geoWatch = navigator.geolocation.watchPosition(p => {
     // precise position: display only (map dot); never stored/logged/reported
     map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
+    here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
     pos = coarsen(p.coords.latitude, p.coords.longitude); // reports use the coarse grid only
     $('geo').textContent = `Location ±${Math.round(p.coords.accuracy)} m`;
   }, err => {
@@ -59,6 +65,7 @@ $('start').onclick = async () => {
   try {
     await scanner.start(adv => {
       const m = match(adv); stats.record(!!m);
+      live.update(adv.sessionId, adv.rssi, m); drawLive();
       if (!m) return;
       if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return;
       lastSeen.set(m.sessionId, Date.now());
@@ -80,7 +87,7 @@ $('add').onclick = async () => {
   try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
   catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
 };
-$('stop').onclick = () => { $('add').hidden = true; scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+$('stop').onclick = () => { $('add').hidden = true; live.clear(); drawLive(); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 

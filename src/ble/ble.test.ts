@@ -64,3 +64,5 @@ describe('BluefyScanner (per-device)', () => {
     expect(got).toHaveLength(1); s.stop(); expect(s.count).toBe(0);
   });
 });
+import { isBlueish } from './probe';
+it('Bluefy-ish filter ignores Readable/Table', () => { expect(['ReadableStream', 'HTMLTableElement', 'BLENative', 'bluefy', 'Bluetooth'].filter(isBlueish)).toEqual(['BLENative', 'bluefy', 'Bluetooth']); });
