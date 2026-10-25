@@ -1,0 +1,4 @@
+body{margin:0;font-family:system-ui;background:#111;color:#eee}header,footer{padding:8px 12px}h1{margin:0;font-size:1.2rem}
+main{display:grid;grid-template-columns:2fr 1fr;height:75vh}#map{height:100%}#log{overflow:auto;margin:0;padding:8px;font-size:.85rem}
+#log li{margin-bottom:6px;list-style:none;border-left:3px solid #e33;padding-left:6px}footer{font-size:.75rem;color:#aaa}
+@media(max-width:700px){main{grid-template-columns:1fr;height:auto}#map{height:55vh}}

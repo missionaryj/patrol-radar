@@ -1,0 +1,51 @@
+# Patrol Radar (passive, receive-only prototype)
+
+A modular Vite + TypeScript web app (PWA-friendly, so it can be wrapped with Capacitor for Android later). It listens **passively** for Bluetooth Low Energy advertisements from public-safety equipment, such as Axon body cameras and TASERs, and plots your own detections on a coarse, time-decaying OpenStreetMap map.
+
+## Quick start
+```bash
+npm install
+npm run dev     # open the printed URL; Mock backend is the default
+npm run build
+```
+Mock mode sends simulated advertisements, including non-matching "noise", every 1.5 s. The demo points are scattered around your coarse location, or around Chicago if geolocation is denied.
+
+### Real BLE (experimental)
+- Use Chrome on Android or desktop over HTTPS or localhost, and enable `chrome://flags/#enable-experimental-web-platform-features`. That turns on `navigator.bluetooth.requestLEScan`, which scans continuously.
+- Without the flag, the app falls back to `requestDevice({acceptAllDevices})` plus `watchAdvertisements()`. That only watches **one device you pick by hand**, so it is a demo rather than a detector.
+- iOS Safari has no Web Bluetooth. For reliable background scanning you need a native wrapper (Capacitor + a BLE plugin).
+
+## Architecture
+```
+src/ble/       Scanner interface, MockScanner, WebBluetoothScanner, signatures.ts (data-driven), matcher.ts
+src/map/       Leaflet MapView (decay rendering), coarsen() ~150 m grid
+src/reports/   Report type, LocalReportStore (localStorage, 15 min TTL), ReportBackend interface + NotImplementedBackend
+src/util/      ephemeralId(): salted per-session SHA-256 → 8 hex chars
+docs/          scanner-streams.md
+```
+`match(adv)` returns `{signature, confidence, rssi, timestamp, sessionId}`. Independent hits are fused with 1−Π(1−c). Every signature is flagged **"unverified, needs field validation"**.
+
+## Passive-only and privacy design
+- **Receive-only.** The app never connects, pairs, reads or writes GATT, or probes devices.
+- MACs, device IDs, and serials are never stored or shown. Only a salted hash is kept, and the salt changes every page load.
+- Locations are rounded to about 150 m. Detections fade out and expire after 15 minutes, and nothing leaves the device.
+- Any future shared or crowdsourced map **must** aggregate, coarsen, and delay data before showing it. It must not identify or track individual officers, and it must not keep a persistent device history.
+
+## Legal notes (not legal advice)
+- In the US, federal law generally allows receiving unencrypted public radio. Some states restrict scanners in vehicles or their use while committing a crime. Check your local law.
+- Passively receiving BLE advertisements is receive-only, but laws and terms vary by place.
+- Don't interfere, jam, spoof, decrypt, or interact with any device or radio system. Doing so may be illegal and is out of scope for this project.
+- Third-party feeds such as Broadcastify and OpenMHz have restrictive terms. See [docs/scanner-streams.md](docs/scanner-streams.md).
+
+## Limitations
+- BLE range is short, typically tens of meters and up to about 100 m in ideal conditions.
+- Web Bluetooth scanning sits behind a flag and is Chrome-only. There is no iOS support.
+- Many agencies encrypt their radios, and much equipment doesn't advertise or uses randomized addresses.
+- False positives happen: vendor company IDs are shared with civilian products, and the signatures are unverified.
+- App stores may restrict or reject apps like this.
+
+## Responsible use
+This tool is for awareness and research. It must not be used to harass, follow, target, obstruct, or endanger officers or anyone else. Don't build features that identify or track individuals.
+
+## Prior art
+[RF Sentinel](https://github.com/CIS-C0/RFSentinel) is an open-source Android app that passively detects body cams, ALPRs, and similar devices over BLE and Wi-Fi, and groups signals into patrol vehicles. Its public signature list informed `signatures.ts`.
