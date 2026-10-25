@@ -35,4 +35,14 @@ export class MapView {
         .addTo(this.incidentLayer);
     }
   }
+  private me?: L.CircleMarker; private meAcc?: L.Circle; private centered = false;
+  /** Display-only "my location". Precise coords live only in these Leaflet layers, never stored or reported. */
+  setUserLocation(lat: number, lng: number, accuracy: number) {
+    if (!this.me) {
+      this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false }).addTo(this.map);
+      this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false }).addTo(this.map);
+    } else { this.me.setLatLng([lat, lng]); this.meAcc!.setLatLng([lat, lng]).setRadius(accuracy); }
+    if (!this.centered) { this.centered = true; this.map.setView([lat, lng], 16); }
+  }
+  recenter(): boolean { if (!this.me) return false; this.map.setView(this.me.getLatLng(), Math.max(this.map.getZoom(), 15)); return true; }
 }

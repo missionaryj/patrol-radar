@@ -29,7 +29,23 @@ const sel = $<HTMLSelectElement>('backend');
 sel.value = pickDefaultBackend();
 if (sel.value === 'bluefy') status('Bluefy detected; Bluefy backend selected. Tap Start scan.', 'ok');
 
-navigator.geolocation?.watchPosition(p => { pos = coarsen(p.coords.latitude, p.coords.longitude); map.setCenter(pos.lat, pos.lng); }, () => {}, { enableHighAccuracy: false });
+let geoWatch: number | undefined;
+function startGeo() {
+  if (!navigator.geolocation) { $('geo').textContent = 'Location unavailable'; return; }
+  if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
+  geoWatch = navigator.geolocation.watchPosition(p => {
+    // precise position: display only (map dot); never stored/logged/reported
+    map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
+    pos = coarsen(p.coords.latitude, p.coords.longitude); // reports use the coarse grid only
+    $('geo').textContent = `Location ±${Math.round(p.coords.accuracy)} m`;
+  }, err => {
+    $('geo').textContent = err.code === err.PERMISSION_DENIED
+      ? 'Location denied: map stays at default. Allow location for this site (Bluefy/iOS Settings → Privacy → Location), then tap ◎.'
+      : `Location error: ${err.message}`;
+  }, { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 });
+}
+startGeo();
+$('recenter').onclick = () => { if (!map.recenter()) startGeo(); };
 const jitterDemo = () => coarsen(pos.lat + (Math.random() - 0.5) * 0.01, pos.lng + (Math.random() - 0.5) * 0.01);
 
 $('start').onclick = async () => {
