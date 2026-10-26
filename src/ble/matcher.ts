@@ -1,7 +1,7 @@
 import type { Advertisement } from './types';
 import { SIGNATURES, type Signature } from './signatures';
 
-export interface Match { signature: Signature; corroborated: boolean; confidence: number; rssi?: number; timestamp: number; sessionId: string; }
+export interface Match { signature: Signature; corroborated?: boolean; confidence: number; rssi?: number; timestamp: number; sessionId: string; }
 
 const uuid16 = (u: number) => `0000${u.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
 function ascii(dv: DataView): string { let s = ''; for (let i = 0; i < dv.byteLength; i++) s += String.fromCharCode(dv.getUint8(i)); return s; }
