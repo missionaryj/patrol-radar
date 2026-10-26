@@ -17,7 +17,7 @@
   <button id="sheet-handle" class="handle" aria-label="Expand detections"><span></span></button>
   <div class="sheet-head">
     <div><h2>Live detections</h2><small id="geo">Locating…</small><small class="fine">Receive-only · signatures unverified</small></div>
-    <div class="legend"><i class="c-axon"></i>Axon <i class="c-moto"></i>Radio <i class="c-other"></i>Other <i class="c-unk"></i>Unknown</div>
+    <div class="legend"><i class="c-axon"></i>Axon <i class="c-moto"></i>Radio <i class="c-other"></i>Other <i class="c-unk"></i>Unknown <i class="c-inc"></i>Incident</div>
   </div>
   <ul id="cards" class="cards"><li class="empty">No detections yet. Tap <b>Scan</b> to start listening.</li></ul>
   <p class="disclaimer">Receive-only: never connects, pairs or writes. Signatures unverified; positions are rough estimates. Don't use this to harass or target anyone.</p>
@@ -40,7 +40,10 @@
     <select id="picker"><option value="police">Police gear only</option><option value="all">All devices</option></select>
     <small>The list is drawn by your browser, so labels appear after you pick.</small></label>
   <label class="switch"><input type="checkbox" id="showother"/><span></span>Show other devices (phones, earbuds…)</label>
-  <label class="switch"><input type="checkbox" id="radio"/><span></span>Mock radio incidents</label>
+  <label class="field">Radio incidents (delayed ≥12 min)
+    <select id="radiosrc"><option value="off">Off</option><option value="mock">Mock: sample Champaign dispatch</option><option value="champaign-replay">Real data replay: Champaign fire/EMS 2023-24</option></select>
+    <small id="radio-status">Pins are ~200 m areas, unit IDs/names/plates removed, transcripts discarded.</small></label>
+  <label class="switch"><input type="checkbox" id="radio" checked/><span></span>Show incident layer</label>
   <div id="status-full" class="status-full">Idle</div>
   <details id="debug"><summary>Debug</summary>
     <div class="grid">

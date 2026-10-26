@@ -17,9 +17,11 @@ export class MapView {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', className: opts.dark ? 'tiles-dark' : '' }).addTo(this.map);
     this.layer.addTo(this.map); this.incidentLayer.addTo(this.map); this.liveLayer.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
-    if (opts.layersControl ?? true) L.control.layers(undefined, { 'BLE detections': this.layer, 'Radio incidents (demo)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer }).addTo(this.map);
+    if (opts.layersControl ?? true) L.control.layers(undefined, { 'BLE detections': this.layer, 'Radio incidents (delayed)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer }).addTo(this.map);
   }
   invalidate() { this.map.invalidateSize(); }
+  showIncidents(on: boolean) { if (on) this.incidentLayer.addTo(this.map); else this.incidentLayer.remove(); }
+  fitIncidents() { const b = this.incidentLayer.getLayers().map(l => (l as L.Rectangle).getBounds()); if (b.length) this.map.fitBounds(b.reduce((a, x) => a.extend(x), L.latLngBounds(b[0].getSouthWest(), b[0].getNorthEast())), { padding: [30, 30], maxZoom: 15 }); }
   setCenter(lat: number, lng: number) { this.map.setView([lat, lng]); }
   /** Coarse cells, opacity decays linearly to 0 at TTL. */
   render(reports: Report[], now = Date.now()) {
@@ -36,8 +38,9 @@ export class MapView {
     this.incidentLayer.clearLayers();
     for (const i of incs) {
       const d = 0.0009;
-      L.rectangle([[i.cell.lat - d, i.cell.lng - d * 1.3], [i.cell.lat + d, i.cell.lng + d * 1.3]], { color: '#39f', dashArray: '4', fillOpacity: 0.15 + 0.3 * i.confidence })
-        .bindPopup(`Incident: ${i.callType}<br>conf ${(i.confidence * 100).toFixed(0)}% · ${i.reports} msgs<br>${Math.round((now - i.firstSeen) / 60000)} min ago<br><i>demo, undelayed</i>`)
+      L.rectangle([[i.cell.lat - d, i.cell.lng - d * 1.3], [i.cell.lat + d, i.cell.lng + d * 1.3]], { color: '#39f', weight: 2, dashArray: '5 4', fillColor: '#39f', fillOpacity: 0.12 + 0.3 * i.confidence, className: 'incident-pin' })
+        .bindTooltip('📻', { permanent: true, direction: 'center', className: 'incident-icon' })
+        .bindPopup(`📻 <b>${i.callType}</b><br>conf ${(i.confidence * 100).toFixed(0)}% · ${i.reports} msg${i.reports > 1 ? 's' : ''}<br>${Math.round((now - i.firstSeen) / 60000)} min ago (≥12 min delay)<br><small>~200 m area, not a unit position</small>`)
         .addTo(this.incidentLayer);
     }
   }

@@ -1,19 +1,16 @@
-import { MOCK_FEED } from './fixtures/transcripts';
-import { parseTranscript } from './parser';
-import { MockGeocoder } from './geocoder';
-import { IncidentMerger } from './incidentMerger';
-import { coarsenPoint } from './privacy';
+import { CHAMPAIGN_MOCK_FEED } from './fixtures/champaign';
+import { LocalLookupGeocoder, MockGeocoder, ChainGeocoder } from './geocoder';
+import { DispatchPipeline } from './pipeline';
+import { MockTranscriptSource, ChampaignArcgisReplaySource } from './sources';
 import type { Incident } from './types';
 
-/** Simulates the pipeline: transcript -> parse(scrub) -> geocode -> coarsen -> merge. Transcript is discarded after parsing.
- *  Local demo shows incidents immediately (labelled "demo, undelayed"); shared output must go through publishable(). */
-export function startMockRadioFeed(onUpdate: (incs: Incident[]) => void, intervalMs = 2500) {
-  const geo = new MockGeocoder(); const merger = new IncidentMerger(); let i = 0;
-  const t = setInterval(async () => {
-    const ev = parseTranscript(MOCK_FEED[i++ % MOCK_FEED.length]);
-    if (!ev?.location) return;
-    const p = await geo.geocode(ev.location); if (!p) return;
-    merger.add(ev, coarsenPoint(p)); merger.expire(Date.now()); onUpdate(merger.list());
-  }, intervalMs);
-  return () => clearInterval(t);
+export type RadioSourceKind = 'mock' | 'champaign-replay';
+/** Runs the dispatch pipeline. Mock transcripts are back-dated 40 min so the 12-min delay gate releases them right away. */
+export function startRadio(kind: RadioSourceKind, onUpdate: (incs: Incident[], pending: number) => void) {
+  const geo = new ChainGeocoder([new LocalLookupGeocoder(), new MockGeocoder()]);
+  const p: DispatchPipeline = new DispatchPipeline(geo, incs => onUpdate(incs, p.pending()));
+  p.add(kind === 'mock' ? new MockTranscriptSource(CHAMPAIGN_MOCK_FEED, 700) : new ChampaignArcgisReplaySource());
+  const tick = setInterval(() => p.emit(), 30_000);
+  return () => { clearInterval(tick); p.stop(); };
 }
+export function startMockRadioFeed(onUpdate: (incs: Incident[]) => void) { return startRadio('mock', i => onUpdate(i)); }

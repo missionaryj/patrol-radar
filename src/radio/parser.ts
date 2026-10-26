@@ -12,14 +12,9 @@ const STREET = String.raw`(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|d
 const ADDRESS_RE = new RegExp(String.raw`\b(\d{1,6})\s+((?:[nsew]\.?\s+)?[a-z0-9]+(?:\s+[a-z0-9]+){0,3}?\s+${STREET})\b`, 'i');
 const INTERSECTION_RE = new RegExp(String.raw`\b([a-z0-9]+(?:\s+[a-z0-9]+)?(?:\s+${STREET})?)\s+(?:and|&|at)\s+([a-z0-9]+(?:\s+[a-z0-9]+)?(?:\s+${STREET})?)\b`, 'i');
 
-/** Remove unit IDs, badge numbers and personal names BEFORE any other processing. */
-export function scrub(text: string): string {
-  return text
-    .replace(/\b(?:unit|car|badge|officer|ofc|sgt|sergeant|deputy|lt|lieutenant|detective|det)\.?\s+(?:#\s*)?[a-z]*\d[\w-]*/gi, '[unit]')
-    .replace(/\b(?:[Oo]fficer|[Oo]fc|[Ss]gt|[Ss]ergeant|[Dd]eputy|[Ll]t|[Ll]ieutenant|[Dd]etective|[Dd]et)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?/g, '[person]')
-    .replace(/\b\d{1,3}[a-z]{1,2}\d{1,3}\b/gi, '[unit]')     // e.g. 2A12, 1L23
-    .replace(/\bbadge\s*(?:number|no\.?|#)?\s*\d+/gi, '[unit]');
-}
+import { redact } from './redact';
+/** Remove unit IDs, names, plates BEFORE any other processing. */
+export const scrub = redact;
 
 function detectStatus(t: string): Status {
   for (const [code, s] of Object.entries(STATUS_CODES)) if (new RegExp(`\\b${code}\\b`).test(t)) return s;
@@ -37,7 +32,7 @@ export function parseTranscript(raw: string, now = Date.now(), tenCodes = DEFAUL
   if (!callType) callType = [...CALL_KEYWORDS].sort((a,b)=>b.length-a.length).find(k => new RegExp(`\\b${k}\\b`, 'i').test(t)) ?? '';
   const status = detectStatus(t);
   // Search for location only after "to"/"at"/"of" to avoid catching code numbers.
-  const tail = t.replace(/\[unit\]|\[person\]|\b10-\d+\b/g, ' ');
+  const tail = t.replace(/\s*(?:,|\bfor\b|\bwith\b|\bregarding\b|\breference\b|\bon a\b).*?(?=\b(?:at|to|of)\b|$)/gi, ' ').replace(/\[(?:unit|person|plate|phone|dob)\]|\b10-\d+\b/g, ' ');
   let location: string | undefined;
   const a = tail.match(ADDRESS_RE);
   if (a) location = `${a[1]} ${a[2]}`.toLowerCase();

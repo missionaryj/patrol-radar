@@ -2,7 +2,7 @@ import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
 import { MapView, coarsen } from '../map';
 import { LocalReportStore } from '../reports';
-import { startMockRadioFeed } from '../radio/mockFeed';
+import { startRadio, type RadioSourceKind } from '../radio/mockFeed';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { LiveDeviceTracker, colorFor, type LiveDevice } from '../map/liveDevices';
@@ -157,11 +157,21 @@ $('add').onclick = async () => {
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
-let stopRadio: (() => void) | undefined;
-$<HTMLInputElement>('radio').onchange = e => {
-  if ((e.target as HTMLInputElement).checked) stopRadio = startMockRadioFeed(incs => map.renderIncidents(incs));
-  else { stopRadio?.(); map.renderIncidents([]); }
-};
+let stopRadio: (() => void) | undefined; let fitted = false;
+const radioSrc = $<HTMLSelectElement>('radiosrc');
+function setRadio(kind: string) {
+  stopRadio?.(); stopRadio = undefined; map.renderIncidents([]); fitted = false;
+  if (kind === 'off') { $('radio-status').textContent = 'Off'; return; }
+  stopRadio = startRadio(kind as RadioSourceKind, (incs, pending) => {
+    map.renderIncidents(incs);
+    $('radio-status').textContent = `${incs.length} incident(s) shown · ${pending} held for delay`;
+    if (!fitted && incs.length >= 3) { fitted = true; map.fitIncidents(); }
+  });
+}
+radioSrc.onchange = () => setRadio(radioSrc.value);
+$<HTMLInputElement>('radio').onchange = e => map.showIncidents((e.target as HTMLInputElement).checked);
+const qsRadio = new URLSearchParams(location.search).get('radio');
+if (qsRadio) { radioSrc.value = qsRadio; setRadio(qsRadio); }
 if (new URLSearchParams(location.search).get('autostart') === '1') start();
 
 const recorder = new SessionRecorder();
