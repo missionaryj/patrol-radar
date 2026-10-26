@@ -3,6 +3,7 @@ export interface Advertisement {
   sessionId: string;              // ephemeral salted hash, never the MAC/device id
   name?: string;
   rssi?: number;
+  txPower?: number;
   manufacturerData: Map<number, DataView>;
   serviceUuids: string[];
   serviceData: Map<string, DataView>;

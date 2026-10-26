@@ -39,6 +39,7 @@ export async function normalizeEvent(e: any): Promise<Advertisement> {
     sessionId: await ephemeralId(String(e.device?.id ?? e.id ?? e.deviceId ?? 'unknown')),
     name: e.name ?? e.device?.name ?? undefined,
     rssi: typeof e.rssi === 'number' ? e.rssi : undefined,
+    txPower: typeof e.txPower === 'number' ? e.txPower : undefined,
     manufacturerData, serviceUuids: uuids.map(normUuid), serviceData, timestamp: Date.now(),
   };
 }

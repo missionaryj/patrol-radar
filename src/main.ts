@@ -6,6 +6,8 @@ import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
 import { BluefyScanner } from './ble/bluefyScanner';
 import { LiveDeviceTracker, colorFor } from './map/liveDevices';
+import { SessionRecorder } from './recorder/recorder';
+import { mountRecorder } from './recorder/ui';
 import { probeReport, findScanApis } from './ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -68,7 +70,7 @@ $('start').onclick = async () => {
   if (scanner instanceof BluefyScanner) scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
   try {
     await scanner.start(adv => {
-      const m = match(adv); stats.record(!!m); allDevs.add(adv.sessionId); if (m) policeDevs.add(adv.sessionId);
+      const m = match(adv); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) policeDevs.add(adv.sessionId);
       const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLive();
       if (!m) { if (isNew && kind === 'bluefy') { const li = document.createElement('li'); li.style.borderColor = '#8a9bb0'; li.textContent = `${new Date().toLocaleTimeString()} · picked: ${$<HTMLSelectElement>('picker').value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`; $('log').prepend(li); } return; }
@@ -102,3 +104,7 @@ $<HTMLInputElement>('radio').onchange = e => {
   if ((e.target as HTMLInputElement).checked) stopRadio = startMockRadioFeed(incs => map.renderIncidents(incs));
   else { stopRadio?.(); map.renderIncidents([]); }
 };
+
+const recorder = new SessionRecorder();
+const recHost = document.getElementById('start')!.parentElement!;
+mountRecorder(recHost, recorder, () => sel.value);

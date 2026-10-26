@@ -6,6 +6,8 @@ import { startMockRadioFeed } from '../radio/mockFeed';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { LiveDeviceTracker, colorFor, type LiveDevice } from '../map/liveDevices';
+import { SessionRecorder } from '../recorder/recorder';
+import { mountRecorder } from '../recorder/ui';
 import { probeReport, findScanApis } from '../ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -127,7 +129,7 @@ async function start() {
   }
   try {
     await scanner.start(adv => {
-      const m = match(adv); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, m); }
+      const m = match(adv); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, m); }
       const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLive();
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
@@ -161,3 +163,7 @@ $<HTMLInputElement>('radio').onchange = e => {
   else { stopRadio?.(); map.renderIncidents([]); }
 };
 if (new URLSearchParams(location.search).get('autostart') === '1') start();
+
+const recorder = new SessionRecorder();
+const recHost = document.createElement('div'); document.querySelector('.sheet-head')!.after(recHost);
+mountRecorder(recHost, recorder, () => sel.value);

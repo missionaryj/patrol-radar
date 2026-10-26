@@ -11,3 +11,6 @@ main{display:grid;grid-template-columns:2fr 1fr;height:70vh}#map{height:100%}#lo
 #d-probe{white-space:pre-wrap;word-break:break-all;user-select:all;-webkit-user-select:all;background:#000;padding:6px;border-radius:6px;font-size:.7rem;max-height:40vh;overflow:auto}
 #geo{font-size:.8rem;color:#bbb}
 .legend{background:rgba(17,17,17,.85);color:#eee;padding:6px 8px;border-radius:6px;font-size:11px;line-height:1.5}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.recorder{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0;font-size:13px}
+.recorder button{padding:6px 10px;border-radius:8px;border:1px solid #888;background:#fff;color:#222}
+.recorder .rec-btn.on{background:#e53935;color:#fff;border-color:#e53935}
