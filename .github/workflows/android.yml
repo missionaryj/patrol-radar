@@ -1,0 +1,33 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'v2/**', 'index.html', 'public/**', 'android/**', 'package*.json', 'capacitor.config.json', 'vite.config.ts', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions: { contents: write }
+concurrency: { group: android-apk, cancel-in-progress: true }
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm test
+      - run: npm run build          # base '/', loaded from the app bundle
+      - run: npx cap sync android
+      - run: cd android && ./gradlew assembleDebug --no-daemon
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk patrol-radar-debug.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: patrol-radar-debug-apk, path: patrol-radar-debug.apk }
+      - name: Publish to the rolling "android-latest" release (stable download link)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest --title "Android debug APK (latest)" --notes "Debug build of the Patrol Radar Android app. Install steps: docs/android.md" --prerelease
+          git tag -f android-latest && git push -f origin android-latest
+          gh release upload android-latest patrol-radar-debug.apk --clobber
+          gh release edit android-latest --notes "Debug build from ${GITHUB_SHA::7} ($(date -u +%F)). Install steps: docs/android.md"

@@ -1,4 +1,6 @@
 import './style.css';
+// In the Android app, open the v2 UI.
+if ((globalThis as any).Capacitor?.isNativePlatform?.()) location.replace('v2/index.html');
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind } from './ble';
 import { MapView, coarsen } from './map';
 import { LocalReportStore } from './reports';

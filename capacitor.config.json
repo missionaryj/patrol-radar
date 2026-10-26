@@ -1,0 +1,6 @@
+{
+  "appId": "io.github.missionaryj.patrolradar",
+  "appName": "Patrol Radar",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false }
+}

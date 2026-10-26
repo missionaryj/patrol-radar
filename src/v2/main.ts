@@ -5,6 +5,7 @@ import { LocalReportStore } from '../reports';
 import { startRadio, type RadioSourceKind } from '../radio/mockFeed';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
+import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
 import { LiveDeviceTracker, colorFor, type LiveDevice } from '../map/liveDevices';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
@@ -48,6 +49,9 @@ $('d-probe').textContent = probeReport();
 const sel = $<HTMLSelectElement>('backend');
 const picker = $<HTMLSelectElement>('picker');
 sel.value = new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
+{ const sm = document.getElementById('scanmode') as HTMLSelectElement | null; const v = localStorage.getItem('pr.scanmode'); if (sm && v) sm.value = v; }
+{ const pl = nativePlugin(); const b = document.getElementById('battery') as HTMLButtonElement | null; if (pl && b) { b.hidden = false; b.onclick = () => pl.openBatterySettings(); } }
+if (sel.value === 'native') status('Android app: tap Scan. Scanning keeps running with the screen off (see the notification).', 'ok');
 if (sel.value === 'bluefy') status('Bluefy detected; Bluefy backend selected. Tap Scan.', 'ok');
 
 // ---- sheets ----
@@ -126,6 +130,10 @@ async function start() {
   if (scanner instanceof BluefyScanner) {
     scanner.pickerMode = picker.value as 'police' | 'all'; scanner.notice = msg => status(msg);
     scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
+  }
+  if (scanner instanceof NativeScanner) {
+    const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
+    scanner.filtered = picker.value !== 'all';
   }
   try {
     await scanner.start(adv => {

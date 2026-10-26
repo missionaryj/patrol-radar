@@ -35,8 +35,11 @@
 <aside id="settings" class="drawer" aria-label="Settings" aria-hidden="true">
   <header><h2>Settings</h2><button id="close-settings" class="icon-btn" aria-label="Close">✕</button></header>
   <label class="field">Scanner backend
-    <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome / Android)</option><option value="bluefy">Bluefy (iPhone): pick devices</option></select></label>
-  <label class="field">Device picker (Bluefy)
+    <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome / Android)</option><option value="bluefy">Bluefy (iPhone): pick devices</option><option value="native">Android app (background)</option></select></label>
+  <label class="field" id="scanmode-wrap">Android app scan mode
+    <select id="scanmode"><option value="lowPower">Battery saver (slower)</option><option value="balanced" selected>Balanced</option><option value="lowLatency">Fastest (more battery)</option></select></label>
+  <button type="button" id="battery" hidden>Let it run in the background (battery settings)</button>
+  <label class="field">Devices (Bluefy picker / Android app filter)
     <select id="picker"><option value="police">Police gear only</option><option value="all">All devices</option></select>
     <small>The list is drawn by your browser, so labels appear after you pick.</small></label>
   <label class="switch"><input type="checkbox" id="showother"/><span></span>Show other devices (phones, earbuds…)</label>
