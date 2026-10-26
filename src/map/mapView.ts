@@ -5,18 +5,21 @@ import type { Incident } from '../radio/types';
 import { type LiveDevice, BAND_RADIUS_M, offsetFor, applyOffset, opacityFor } from './liveDevices';
 import { TTL_MS } from '../reports/localStore';
 
+export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; }
 export class MapView {
   private map: L.Map;
   private layer = L.layerGroup();
   readonly incidentLayer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
-  constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63]) {
-    this.map = L.map(el).setView(center, 15);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(this.map);
+  constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
+    this.map = L.map(el, { zoomControl: opts.zoomControl ?? true }).setView(center, 15);
+    // dark: OSM tiles darkened via CSS filter (.tiles-dark), no API key needed
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', className: opts.dark ? 'tiles-dark' : '' }).addTo(this.map);
     this.layer.addTo(this.map); this.incidentLayer.addTo(this.map); this.liveLayer.addTo(this.map);
-    this.addLegend();
-    L.control.layers(undefined, { 'BLE detections': this.layer, 'Radio incidents (demo)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer }).addTo(this.map);
+    if (opts.legend ?? true) this.addLegend();
+    if (opts.layersControl ?? true) L.control.layers(undefined, { 'BLE detections': this.layer, 'Radio incidents (demo)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer }).addTo(this.map);
   }
+  invalidate() { this.map.invalidateSize(); }
   setCenter(lat: number, lng: number) { this.map.setView([lat, lng]); }
   /** Coarse cells, opacity decays linearly to 0 at TTL. */
   render(reports: Report[], now = Date.now()) {

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
+<meta name="theme-color" content="#0b0f14"/><link rel="manifest" href="../manifest.webmanifest"/><title>Patrol Radar · v2</title></head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <div id="pill" class="pill idle" role="status" aria-live="polite">
+    <span class="dot"></span><span id="pill-text">Idle</span>
+    <span class="sep"></span><span class="count" title="Distinct police-gear devices this session"><b id="pill-count">0</b> gear</span>
+  </div>
+  <button id="open-settings" class="icon-btn" aria-label="Settings">⚙</button>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<section id="sheet" class="sheet collapsed" aria-label="Detections">
+  <button id="sheet-handle" class="handle" aria-label="Expand detections"><span></span></button>
+  <div class="sheet-head">
+    <div><h2>Live detections</h2><small id="geo">Locating…</small><small class="fine">Receive-only · signatures unverified</small></div>
+    <div class="legend"><i class="c-axon"></i>Axon <i class="c-moto"></i>Radio <i class="c-other"></i>Other <i class="c-unk"></i>Unknown</div>
+  </div>
+  <ul id="cards" class="cards"><li class="empty">No detections yet. Tap <b>Scan</b> to start listening.</li></ul>
+  <p class="disclaimer">Receive-only: never connects, pairs or writes. Signatures unverified; positions are rough estimates. Don't use this to harass or target anyone.</p>
+</section>
+
+<div class="fab-col">
+  <button id="recenter" class="icon-btn round" aria-label="Recenter on my location" title="Recenter">◎</button>
+  <button id="add" class="icon-btn round" hidden aria-label="Pick another device" title="Pick another device">＋</button>
+</div>
+<button id="scan" class="fab" aria-label="Start scan"><span class="fab-ring"></span><span id="scan-label">Scan</span></button>
+
+
+
+<div id="scrim" class="scrim" hidden></div>
+<aside id="settings" class="drawer" aria-label="Settings" aria-hidden="true">
+  <header><h2>Settings</h2><button id="close-settings" class="icon-btn" aria-label="Close">✕</button></header>
+  <label class="field">Scanner backend
+    <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome / Android)</option><option value="bluefy">Bluefy (iPhone): pick devices</option></select></label>
+  <label class="field">Device picker (Bluefy)
+    <select id="picker"><option value="police">Police gear only</option><option value="all">All devices</option></select>
+    <small>The list is drawn by your browser, so labels appear after you pick.</small></label>
+  <label class="switch"><input type="checkbox" id="radio"/><span></span>Mock radio incidents</label>
+  <div id="status-full" class="status-full">Idle</div>
+  <details id="debug"><summary>Debug</summary>
+    <div class="grid">
+      <span>backend</span><b id="d-backend">-</b><span>mode</span><b id="d-mode">-</b>
+      <span>adverts seen</span><b id="d-raw">0</b><span>unmatched</span><b id="d-unmatched">0</b>
+      <span>matched</span><b id="d-matched">0</b><span>devices</span><b id="d-devs">0</b>
+      <span>police-gear</span><b id="d-pdevs">0</b><span>last advert</span><b id="d-last">never</b>
+    </div>
+    <div id="d-env" class="mono"></div><pre id="d-probe" class="mono"></pre>
+    <h3>Event log</h3><ul id="log" class="log"></ul>
+  </details>
+  <p class="links"><a href="../">← Classic UI</a></p>
+</aside>
+<script type="module" src="/src/v2/main.ts"></script>
+</body></html>
