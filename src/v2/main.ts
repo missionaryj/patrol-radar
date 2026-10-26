@@ -66,8 +66,10 @@ if (location.hash === '#sheet') sheet.classList.remove('collapsed');
 let geoWatch: number | undefined;
 let here: { lat: number; lng: number } | undefined;
 const live = new LiveDeviceTracker();
-const drawLive = () => { map.renderLive(live.list(), here ?? pos); renderCards(); };
+const visible = () => live.list().filter(d => d.kind === 'match' || (document.getElementById('showother') as HTMLInputElement | null)?.checked || scanner?.name?.toLowerCase().includes('bluefy'));
+const drawLive = () => { map.renderLive(visible(), here ?? pos); renderCards(); };
 setInterval(drawLive, 2000);
+document.getElementById('showother')?.addEventListener('change', () => drawLive());
 function startGeo() {
   if (!navigator.geolocation) { $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
@@ -93,7 +95,7 @@ function badgeFor(d: LiveDevice, m?: Match) {
   return c === '#e53935' ? { cls: 'axon', text: m.signature.vendor === 'Axon' ? 'Axon' : 'Body cam' } : c === '#fb8c00' ? { cls: 'moto', text: 'Motorola' } : { cls: 'other', text: 'Other' };
 }
 function renderCards() {
-  const devs = live.list().sort((a, b) => (a.kind === b.kind ? b.lastSeen - a.lastSeen : a.kind === 'match' ? -1 : 1));
+  const devs = visible().sort((a, b) => (a.kind === b.kind ? b.lastSeen - a.lastSeen : a.kind === 'match' ? -1 : 1));
   const ul = $('cards');
   if (!devs.length) { ul.innerHTML = `<li class="empty">${scanner ? 'Listening… nothing nearby yet.' : 'No detections yet. Tap <b>Scan</b> to start listening.'}</li>`; return; }
   ul.innerHTML = devs.map(d => {

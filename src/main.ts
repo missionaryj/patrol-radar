@@ -34,8 +34,10 @@ if (sel.value === 'bluefy') status('Bluefy detected; Bluefy backend selected. Ta
 let geoWatch: number | undefined;
 let here: { lat: number; lng: number } | undefined; // precise, in-memory, display-only
 const live = new LiveDeviceTracker();
-const drawLive = () => map.renderLive(live.list(), here ?? pos);
+const visible = () => live.list().filter(d => d.kind === 'match' || (document.getElementById('showother') as HTMLInputElement | null)?.checked || scanner?.name?.toLowerCase().includes('bluefy'));
+const drawLive = () => map.renderLive(visible(), here ?? pos);
 setInterval(drawLive, 2000);
+document.getElementById('showother')?.addEventListener('change', () => drawLive());
 function startGeo() {
   if (!navigator.geolocation) { $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
