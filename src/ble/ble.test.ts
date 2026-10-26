@@ -85,3 +85,10 @@ describe('BluefyScanner police picker', () => {
     await expect(new BluefyScanner().start(() => {})).rejects.toThrow(/No police-type devices found nearby/);
   });
 });
+
+import { match as _m } from './matcher';
+import { test as _t, expect as _e } from 'vitest';
+_t('corroborated company ID + service UUID scores >= 0.85 before RSSI penalty', () => {
+  const r = _m({ sessionId: 's', timestamp: 0, rssi: -60, manufacturerData: new Map([[0x034D, new DataView(new ArrayBuffer(1))]]), serviceUuids: ['0000fc81-0000-1000-8000-00805f9b34fb'], serviceData: new Map() } as any);
+  _e(r?.corroborated).toBe(true); _e(r!.confidence).toBeGreaterThanOrEqual(0.85);
+});

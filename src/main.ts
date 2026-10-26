@@ -15,10 +15,11 @@ let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
 const lastSeen = new Map<string, number>();
 const stats = new ScanStats();
+const allDevs = new Set<string>(), policeDevs = new Set<string>();
 
 function status(msg: string, cls: '' | 'ok' | 'err' = '') { const s = $('status'); s.textContent = msg; s.className = cls; }
 function renderStats() {
-  $('d-raw').textContent = String(stats.raw); $('d-unmatched').textContent = String(stats.unmatched); $('d-matched').textContent = String(stats.matched);
+  $('d-raw').textContent = String(stats.raw); $('d-unmatched').textContent = String(stats.unmatched); $('d-matched').textContent = String(stats.matched); $('d-devs').textContent = String(allDevs.size); $('d-pdevs').textContent = String(policeDevs.size);
   $('d-last').textContent = stats.lastAt ? `${Math.round((Date.now() - stats.lastAt) / 1000)}s ago` : 'never';
 }
 setInterval(renderStats, 1000);
@@ -65,7 +66,7 @@ $('start').onclick = async () => {
   if (scanner instanceof BluefyScanner) scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
   try {
     await scanner.start(adv => {
-      const m = match(adv); stats.record(!!m);
+      const m = match(adv); stats.record(!!m); allDevs.add(adv.sessionId); if (m) policeDevs.add(adv.sessionId);
       const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLive();
       if (!m) { if (isNew && kind === 'bluefy') { const li = document.createElement('li'); li.style.borderColor = '#8a9bb0'; li.textContent = `${new Date().toLocaleTimeString()} · picked: ${$<HTMLSelectElement>('picker').value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`; $('log').prepend(li); } return; }
@@ -74,7 +75,7 @@ $('start').onclick = async () => {
       const loc = kind === 'mock' ? jitterDemo() : pos;
       store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...loc, timestamp: m.timestamp });
       const li = document.createElement('li');
-      li.style.borderColor = colorFor(m); li.textContent = `${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}% · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`;
+      li.style.borderColor = colorFor(m); li.textContent = `${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.corroborated ? ' (2 signals agree)' : ''} · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`;
       $('log').prepend(li); map.render(store.list());
     });
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
