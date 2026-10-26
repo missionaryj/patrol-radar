@@ -25,6 +25,7 @@ export class WebBluetoothScanner implements Scanner {
       this.bt.addEventListener('advertisementreceived', this.handler);
       return;
     }
+    if (/Android/i.test(navigator.userAgent)) throw new Error('Open scan is off. In Chrome open chrome://flags, enable "Experimental Web Platform features", tap Relaunch, then reload this page.');
     // Fallback: one user-picked device; only advertisements are watched, no GATT connection.
     this.dev = await this.bt.requestDevice({ acceptAllDevices: true, optionalManufacturerData: COMPANY_IDS });
     if (typeof this.dev.watchAdvertisements !== 'function') throw new Error('watchAdvertisements unsupported; enable experimental web platform features flag.');

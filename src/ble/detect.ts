@@ -6,5 +6,6 @@ export function isBluefy(nav: any = navigator): boolean {
 }
 export function pickDefaultBackend(nav: any = navigator): BackendKind {
   if (isBluefy(nav)) return 'bluefy';
+  if (typeof nav.bluetooth?.requestLEScan === 'function') return 'web';
   return 'mock';
 }
