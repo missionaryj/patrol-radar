@@ -6,15 +6,19 @@ const ver = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 export function mountRecorder(host: HTMLElement, rec: SessionRecorder, backend: () => string) {
   const box = document.createElement('div'); box.className = 'recorder'; box.id = 'recorder';
   box.innerHTML = `<button id="rec-toggle" class="rec-btn"></button><button id="rec-export">Export</button><button id="rec-clear">Clear</button>
-    <span class="rec-stats"><b id="rec-count">0</b> adverts · <b id="rec-devs">0</b> devices</span>`;
+    <span class="rec-stats"><b id="rec-count">0</b> adverts · <b id="rec-devs">0</b> devices</span>
+    <div class="rec-health" id="rec-health" style="font-size:12px;opacity:.85;width:100%"></div>`;
   host.appendChild(box);
   const q = (id: string) => box.querySelector<HTMLElement>('#' + id)!;
   const render = () => {
     q('rec-toggle').textContent = rec.recording ? '■ Stop rec' : '● Record';
     q('rec-toggle').classList.toggle('on', rec.recording);
     q('rec-count').textContent = String(rec.count); q('rec-devs').textContent = String(rec.devices);
+    q('rec-health').textContent = rec.s.startedAt ? rec.healthLine() : '';
   };
-  q('rec-toggle').onclick = () => { rec.recording ? rec.stop() : rec.start(backend()); render(); };
+  q('rec-toggle').onclick = () => {
+    if (rec.recording) { rec.stop(); render(); alert(`Recording stopped.\n${rec.healthLine()}`); } else { rec.start(backend()); render(); }
+  };
   q('rec-clear').onclick = () => { if (confirm('Clear recorded adverts?')) { rec.clear(); render(); } };
   q('rec-export').onclick = () => {
     const blob = new Blob([JSON.stringify(rec.exportObject(ver), null, 2)], { type: 'application/json' });

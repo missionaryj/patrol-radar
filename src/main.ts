@@ -50,9 +50,11 @@ function startGeo() {
     // precise position: display only (map dot); never stored/logged/reported
     map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
     here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
+    recorder.fix(p.coords.accuracy, here);
     pos = coarsen(p.coords.latitude, p.coords.longitude); // reports use the coarse grid only
     $('geo').textContent = `Location ±${Math.round(p.coords.accuracy)} m`;
   }, err => {
+    recorder.event(err.code === err.PERMISSION_DENIED ? 'location-denied' : 'location-error', undefined, err.message);
     $('geo').textContent = err.code === err.PERMISSION_DENIED
       ? 'Location denied: map stays at default. Allow location for this site (Bluefy/iOS Settings → Privacy → Location), then tap ◎.'
       : `Location error: ${err.message}`;
@@ -65,7 +67,7 @@ const jitterDemo = () => coarsen(pos.lat + (Math.random() - 0.5) * 0.01, pos.lng
 $('start').onclick = async () => {
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
-  scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
+  recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
   if (!(await scanner.isSupported())) {
     status(kind === 'mock' ? 'Mock unavailable?' : 'No Web Bluetooth in this browser. On iPhone use the Bluefy browser; on Android use Chrome. Or pick Mock.', 'err'); return;
   }
@@ -93,7 +95,7 @@ $('start').onclick = async () => {
     $<HTMLButtonElement>('start').disabled = true; $<HTMLButtonElement>('stop').disabled = false;
     $('add').hidden = !(scanner instanceof BluefyScanner);
     setTimeout(() => { if (scanner && stats.raw === 0 && kind !== 'mock') status('No advertisements received in 20 s from the watched device(s). The device may not be advertising; pick another, or check the API debug list.', 'err'); }, 20_000);
-  } catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); scanner = undefined; }
+  } catch (e) { const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); scanner = undefined; }
 };
 $('add').onclick = async () => {
   if (!(scanner instanceof BluefyScanner)) return;
@@ -101,7 +103,7 @@ $('add').onclick = async () => {
   try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
   catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
 };
-$('stop').onclick = () => { $('add').hidden = true; live.clear(); drawLive(); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+$('stop').onclick = () => { $('add').hidden = true; live.clear(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 

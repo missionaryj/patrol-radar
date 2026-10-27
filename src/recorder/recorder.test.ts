@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SessionRecorder, maskedHex, MAX_RECORDS } from './recorder';
+import { SessionRecorder, maskedHex, MAX_RECORDS, parseExport } from './recorder';
 import { match } from '../ble/matcher';
 import { SIGNATURES } from '../ble/signatures';
 import type { Advertisement } from '../ble/types';
@@ -49,5 +49,33 @@ describe('SessionRecorder', () => {
     const o = r.exportObject('t');
     expect(o.header.truncated).toBe(true); expect(o.header.distinctDevices).toBe(2); expect(o.devices).toHaveLength(2);
     expect(o.devices[0].minRssi).toBeLessThan(o.devices[0].maxRssi!);
+  });
+
+  it('v2 health: counts unmatched without storing ids/names/coords', () => {
+    const r = new SessionRecorder(mem()); r.start('native'); r.event('start', 'native');
+    r.fix(12, PRECISE); r.fix(80, { lat: PRECISE.lat + 0.01, lng: PRECISE.lng });
+    const now = Date.now();
+    for (let i = 0; i < 5; i++) { const p = { ...phone(), sessionId: 'hash-phone' + (i % 3), timestamp: now + i * 1000 }; r.add(p, match(p), PRECISE); }
+    const o = r.exportObject('t'); const h = o.health;
+    expect(o.header.schemaVersion).toBe(2); expect(o.records).toHaveLength(0);
+    expect(h.advertsSeen).toBe(5); expect(h.unmatchedAdverts).toBe(5); expect(h.distinctDevicesSeen).toBe(3);
+    expect(h.gridCellsVisited).toBe(2); expect(h.location.fixes).toBe(2); expect(h.location.accuracyMeanM).toBe(46);
+    expect(h.verdict).toBe('healthy'); expect(h.events[0].kind).toBe('start');
+    expect(h.advertsPerMinute.reduce((a, b) => a + b.adverts, 0)).toBe(5);
+    const json = JSON.stringify(o);
+    expect(json).not.toContain('hash-phone'); expect(json).not.toContain('Jordan'); expect(json).not.toContain('40.116'); expect(json).not.toContain('1005');
+  });
+  it('verdicts and v1 import', () => {
+    const r = new SessionRecorder(mem()); r.start('web');
+    expect(r.verdict()).toBe('no adverts');
+    r.event('permission-denied', 'web'); expect(r.verdict()).toBe('scanner errors');
+    const p = { ...phone(), timestamp: Date.now() }; r.add(p, null); expect(r.verdict()).toBe('no location');
+    r.s.health!.lastAdvert = Date.now() - 300_000; expect(r.verdict()).toBe('scanner idle');
+    const v1 = parseExport(JSON.stringify({ header: { app: 'patrol-radar', schemaVersion: 1 }, devices: [], records: [] }));
+    expect(v1.schemaVersion).toBe(1); expect(v1.health).toBeNull();
+    expect(parseExport(JSON.stringify(r.exportObject('t'))).health?.advertsSeen).toBe(1);
+    // old v1 localStorage state upgrades
+    const s = mem(); s.setItem('patrol-radar.recorder.v1', JSON.stringify({ recording: true, records: [], dropped: 0 }));
+    expect(new SessionRecorder(s).health.adverts).toBe(0);
   });
 });
