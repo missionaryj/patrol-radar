@@ -144,7 +144,7 @@ async function start() {
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
       if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return;
       lastSeen.set(m.sessionId, Date.now());
-      if (kind !== 'mock') void crowd.report({ kind: m.signature.category, confidence: m.confidence, time: m.timestamp }, pos);
+      if (kind !== 'mock' && m.signature.category !== 'fixed') void crowd.report({ kind: m.signature.category, confidence: m.confidence, time: m.timestamp }, pos);
       const loc = kind === 'mock' ? jitterDemo() : pos; // coarse grid only
       store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...loc, timestamp: m.timestamp });
       logLine(`${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.corroborated ? ' (2 signals agree)' : ''} · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`, colorFor(m));

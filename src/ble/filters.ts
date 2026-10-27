@@ -4,7 +4,7 @@ export interface RequestFilter { manufacturerData?: { companyIdentifier: number 
 export interface PoliceRequestOptions { filters: RequestFilter[]; optionalManufacturerData: number[]; optionalServices: number[]; }
 
 /** Extra name prefixes for the picker (name rules are regexes, so prefixes are listed explicitly). */
-export const NAME_PREFIXES = ['BWC', 'Axon', 'AXON', 'BodyWorn', 'TASER'];
+export const NAME_PREFIXES = ['BWC', 'Axon', 'AXON', 'BodyWorn', 'TASER', 'Penguin-', 'FS Ext Battery'];
 
 /** Builds requestDevice filters from signatures.ts so they stay in sync. Only valid, non-empty fields are emitted. */
 export function buildPoliceFilters(sigs: Signature[] = SIGNATURES, prefixes = NAME_PREFIXES): PoliceRequestOptions {

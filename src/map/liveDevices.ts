@@ -18,6 +18,7 @@ export function colorFor(m: Match | null): string {
   const s = m.signature;
   if (s.vendor === 'Axon' || s.category === 'body-camera' || s.category === 'cew') return '#e53935'; // red
   if (s.category === 'radio') return '#fb8c00';   // orange
+  if (s.category === 'fixed') return '#ab47bc';   // purple: fixed infrastructure (Flock ALPR)
   return '#fdd835';                               // other match: yellow
 }
 

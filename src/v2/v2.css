@@ -38,7 +38,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .sheet-head h2{margin:0;font-size:17px}.sheet-head small{color:var(--mut);font-size:12px}
 .legend{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 8px;font-size:11px;color:var(--mut);max-width:210px;white-space:nowrap}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px}
-.c-axon{background:var(--axon)}.c-moto{background:var(--moto)}.c-other{background:var(--other)}.c-unk{background:var(--unk)}
+.c-axon{background:var(--axon)}.c-moto{background:var(--moto)}.c-other{background:var(--other)}.c-unk{background:var(--unk)}.c-fixed{background:#ab47bc}
 .cards{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
 .cards .empty{color:var(--mut);text-align:center;padding:24px 8px;font-size:14px}
 .card{background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:7px}
