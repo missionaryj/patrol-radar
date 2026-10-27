@@ -84,9 +84,8 @@ public class PatrolScanPlugin extends Plugin {
         boolean ignoring = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
         r.put("ignoring", ignoring);
         if (!ignoring) {
-            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getContext().getPackageName()));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try { getContext().startActivity(i); } catch (Exception e) { getContext().startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+            // Play policy: no REQUEST_IGNORE_BATTERY_OPTIMIZATIONS. Open the system list; the user picks the app.
+            getContext().startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
         call.resolve(r);
     }

@@ -30,3 +30,31 @@ jobs:
           git tag -f android-latest && git push -f origin android-latest
           gh release upload android-latest patrol-radar-debug.apk --clobber
           gh release edit android-latest --notes "Debug build from ${GITHUB_SHA::7} ($(date -u +%F)). Install steps: docs/android.md"
+
+  aab:
+    # Signed release bundle for Google Play (upload key from repo secrets).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build signed release AAB
+        env:
+          KS_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export ANDROID_UPLOAD_KEYSTORE="$RUNNER_TEMP/upload.jks"
+          cd android && ./gradlew bundleRelease --no-daemon
+          rm -f "$RUNNER_TEMP/upload.jks"
+          cp app/build/outputs/bundle/release/app-release.aab ../patrol-radar-release.aab
+      - uses: actions/upload-artifact@v4
+        with: { name: patrol-radar-release-aab, path: patrol-radar-release.aab }
