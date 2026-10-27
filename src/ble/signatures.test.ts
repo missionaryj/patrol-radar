@@ -14,6 +14,15 @@ describe('new signatures', () => {
     expect(match(adv({ serviceData: new Map([[u(0xfd8e), dv(0)]]) }))?.signature.id).toBe('moto-fd8e');
   });
   it('Flock Penguin name -> fixed', () => { const m = match(adv({ name: 'Penguin-1234567890' })); expect(m?.signature.category).toBe('fixed'); });
+  it('Flock FS-hex name is hint-grade; FS-100 and Flock-Party style names do not match', () => {
+    expect(match(adv({ name: 'FS-BEC46A' }))?.signature.id).toBe('flock-fs-hex-name');
+    expect(match(adv({ name: 'FS-100' }))).toBeFalsy();
+    expect(match(adv({ name: 'FS-Speaker' }))).toBeFalsy();
+  });
+  it('Flock Raven exact services match; other values in range do not', () => {
+    expect(match(adv({ serviceUuids: ['00003100-0000-1000-8000-00805f9b34fb'] }))?.signature.category).toBe('fixed');
+    expect(match(adv({ serviceUuids: ['00003150-0000-1000-8000-00805f9b34fb'] }))).toBeFalsy();
+  });
   it('Flock FS Ext Battery name', () => expect(match(adv({ name: 'FS Ext Battery' }))?.signature.id).toBe('flock-fsbatt-name'));
   it('Flock XUNTONG CID is weak alone, corroborated with name', () => {
     expect(match(adv({ manufacturerData: new Map([[0x09c8, dv(1)]]) }))!.confidence).toBe(0.3);

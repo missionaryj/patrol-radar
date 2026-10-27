@@ -42,8 +42,12 @@ export const SIGNATURES: Signature[] = [
   // "Penguin" battery packs, name Penguin-NNNNNNNNNN / "FS Ext Battery", mfr CID 0x09C8 XUNTONG). Same README notes BLE
   // detection "stopped working some time in the spring" on newer firmware, so expect few hits. XUNTONG is a generic
   // OEM CID -> low weight alone; name + CID corroborate to 0.85.
-  { id: 'flock-penguin-name', label: 'Flock ALPR battery (Penguin name)', vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'namePattern', pattern: /^Penguin-\d{10}$/ }, baseConfidence: 0.7, status: 'unverified' },
-  { id: 'flock-fsbatt-name', label: 'Flock ALPR battery (FS Ext Battery)', vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'namePattern', pattern: /^FS Ext Battery$/ }, baseConfidence: 0.7, status: 'unverified' },
+  { id: 'flock-penguin-name', label: 'Flock ALPR battery (Penguin name)', vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'namePattern', pattern: /^Penguin-\d{10}$/ }, baseConfidence: 0.5, status: 'unverified', note: 'Reported unreliable since spring 2026 (flock-you issue #20); kept as legacy.' },
+  { id: 'flock-fsbatt-name', label: 'Flock ALPR battery (FS Ext Battery)', vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'namePattern', pattern: /^FS Ext Battery$/ }, baseConfidence: 0.5, status: 'unverified', note: 'Legacy; unreliable since spring 2026.' },
+  // 2026 additions. FS-<hex> name: single public field capture (all-cameras-are-beacons, 2026-06), generic white-label prefix -> hint-grade.
+  { id: 'flock-fs-hex-name', label: 'Flock-type battery (FS-<hex> name)', vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'namePattern', pattern: /^FS-[0-9A-F]{4,}$/ }, baseConfidence: 0.4, status: 'unverified', note: 'Single 2026-06 field capture; FS- is a generic white-label prefix.' },
+  // Flock Raven (gunshot detector) advertised services, exact named values only (GainSec; flock-you-esp32 2026). Unnamed values in 0x3100-0x3500 are NOT matched (proven FP).
+  ...([0x3100, 0x3200, 0x3300, 0x3400, 0x3500] as const).map((u): Signature => ({ id: `flock-raven-${u.toString(16)}`, label: `Flock Raven service 0x${u.toString(16).toUpperCase()}`, vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'serviceUuid16', uuid: u }, baseConfidence: 0.5, status: 'unverified', note: 'Raven acoustic sensor (not ALPR). Unassigned SIG range -> medium FP risk.' })),
   { id: 'flock-xuntong-cid', label: 'Flock-type battery (XUNTONG company ID)', vendor: 'Flock Safety', category: 'fixed', rule: { kind: 'companyId', id: 0x09c8 }, baseConfidence: 0.3, status: 'unverified', note: 'Generic OEM CID; weak alone.' },
 ];
 
