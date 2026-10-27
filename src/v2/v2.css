@@ -89,3 +89,4 @@ details summary{cursor:pointer;font-weight:700}
 .legend i.c-inc{border-radius:1px;background:rgba(51,153,255,.35);outline:1px dashed #39f}
 .leaflet-tooltip.incident-icon{background:none;border:none;box-shadow:none;font-size:14px;padding:0}
 .leaflet-tooltip.incident-icon::before{display:none}
+.crowd-note{display:block;opacity:.7;font-size:12px;margin:-4px 0 10px}

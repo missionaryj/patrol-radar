@@ -66,3 +66,6 @@ This tool is for awareness and research. It must not be used to harass, follow, 
 - An "on scene" status only raises an incident's confidence. It never becomes a separate pin.
 
 Tick "Mock radio incidents" to see the demo layer. See `docs/accuracy-plan.md`. Run the tests with `npm test`.
+
+## Shared crowd map (opt-in)
+v2 Settings → "Share police-gear hits to the crowd map" (off by default). Uploads only `{cell (~200 m grid), bucket (5 min), kind, conf (low/med/high), reporter (random per-session token)}` to `https://patrol-radar-api.vercel.app/api/crowd` (source in `crowd-api/`, protocol in `src/crowd/protocol.ts`). Public reads are aggregated, ≥12 min delayed, expire after 2 h; a cell is "confirmed" with ≥2 distinct reporters or high confidence. Storage: Upstash Redis if `UPSTASH_REDIS_REST_URL/TOKEN` (or `KV_REST_API_URL/TOKEN`) are set, else ephemeral memory.

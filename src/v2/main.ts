@@ -9,6 +9,7 @@ import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeS
 import { LiveDeviceTracker, colorFor, type LiveDevice } from '../map/liveDevices';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
+import { CrowdClient } from '../crowd/client';
 import { probeReport, findScanApis } from '../ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -143,6 +144,7 @@ async function start() {
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
       if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return;
       lastSeen.set(m.sessionId, Date.now());
+      if (kind !== 'mock') void crowd.report({ kind: m.signature.category, confidence: m.confidence, time: m.timestamp }, pos);
       const loc = kind === 'mock' ? jitterDemo() : pos; // coarse grid only
       store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...loc, timestamp: m.timestamp });
       logLine(`${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.corroborated ? ' (2 signals agree)' : ''} · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`, colorFor(m));
@@ -185,3 +187,15 @@ if (new URLSearchParams(location.search).get('autostart') === '1') start();
 const recorder = new SessionRecorder();
 const recHost = document.createElement('div'); document.querySelector('.sheet-head')!.after(recHost);
 mountRecorder(recHost, recorder, () => sel.value);
+
+// ---- crowd map (opt-in sharing; public layer is aggregated + delayed server-side) ----
+const crowd = new CrowdClient();
+const shareBox = $<HTMLInputElement>('crowdshare'); shareBox.checked = crowd.sharing;
+shareBox.onchange = () => { crowd.sharing = shareBox.checked; toast(shareBox.checked ? 'Sharing coarse police-gear hits to the crowd map' : 'Crowd sharing off'); };
+$<HTMLInputElement>('crowd').onchange = e => map.showCrowd((e.target as HTMLInputElement).checked);
+async function pollCrowd() {
+  try { const cells = await crowd.cells(); map.renderCrowd(cells); const conf = cells.filter(c => c.confirmed).length;
+    $('crowd-status').textContent = `${cells.length} crowd area(s) · ${conf} confirmed · updated ${new Date().toLocaleTimeString()}`; }
+  catch (e) { $('crowd-status').textContent = `Crowd map unavailable (${(e as Error).message})`; }
+}
+pollCrowd(); setInterval(pollCrowd, 90_000);

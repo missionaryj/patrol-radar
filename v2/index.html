@@ -47,6 +47,10 @@
     <select id="radiosrc"><option value="off">Off</option><option value="mock">Mock: sample Champaign dispatch</option><option value="champaign-replay">Real data replay: Champaign fire/EMS 2023-24</option></select>
     <small id="radio-status">Pins are ~200 m areas, unit IDs/names/plates removed, transcripts discarded.</small></label>
   <label class="switch"><input type="checkbox" id="radio" checked/><span></span>Show incident layer</label>
+  <label class="switch"><input type="checkbox" id="crowdshare"/><span></span>Share police-gear hits to the crowd map</label>
+  <small class="crowd-note">Off by default. Sends only a ~200 m area, 5-min time slot, gear type and confidence level, with a random ID that changes every session. Never device IDs, signal data, your exact location or who you are.</small>
+  <label class="switch"><input type="checkbox" id="crowd" checked/><span></span>Show crowd layer (other users, ≥12 min delayed)</label>
+  <small id="crowd-status">Loading…</small>
   <div id="status-full" class="status-full">Idle</div>
   <details id="debug"><summary>Debug</summary>
     <div class="grid">
