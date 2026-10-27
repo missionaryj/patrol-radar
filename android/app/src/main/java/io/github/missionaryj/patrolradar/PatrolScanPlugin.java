@@ -89,4 +89,27 @@ public class PatrolScanPlugin extends Plugin {
         }
         call.resolve(r);
     }
+    /** Police-ping notification (used when the app is in the background). Sound = res/raw/police_ping.ogg on its own channel. */
+    @PluginMethod public void alert(PluginCall call) {
+        android.content.Context ctx = getContext();
+        android.app.NotificationManager nm = (android.app.NotificationManager) ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        boolean soft = call.getBoolean("soft", false);
+        String ch = soft ? "police_ping_soft" : "police_ping";
+        Uri snd = Uri.parse("android.resource://" + ctx.getPackageName() + "/" + R.raw.police_ping);
+        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(ch) == null) {
+            android.app.NotificationChannel c = new android.app.NotificationChannel(ch, soft ? "Fixed camera ping" : "Police ping",
+                soft ? android.app.NotificationManager.IMPORTANCE_DEFAULT : android.app.NotificationManager.IMPORTANCE_HIGH);
+            c.setSound(snd, new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            nm.createNotificationChannel(c);
+        }
+        Intent open = new Intent(ctx, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(ctx, 1, open, android.app.PendingIntent.FLAG_IMMUTABLE);
+        android.app.Notification n = new androidx.core.app.NotificationCompat.Builder(ctx, ch)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(call.getString("title", "Police gear nearby")).setContentText(call.getString("text", ""))
+            .setSound(snd).setAutoCancel(true).setContentIntent(pi)
+            .setPriority(soft ? androidx.core.app.NotificationCompat.PRIORITY_DEFAULT : androidx.core.app.NotificationCompat.PRIORITY_HIGH).build();
+        try { nm.notify(2001, n); call.resolve(); } catch (SecurityException e) { call.reject("notifications not allowed"); }
+    }
 }

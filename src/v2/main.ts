@@ -10,6 +10,7 @@ import { LiveDeviceTracker, colorFor, type LiveDevice } from '../map/liveDevices
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
 import { CrowdClient } from '../crowd/client';
+import { PingGate, PingPlayer, soundEnabled, setSoundEnabled } from '../alert/ping';
 import { probeReport, findScanApis } from '../ble/probe';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -121,6 +122,7 @@ function setScanning(on: boolean) {
   const b = $<HTMLButtonElement>('scan'); b.classList.toggle('on', on); $('scan-label').textContent = on ? 'Stop' : 'Scan'; b.setAttribute('aria-label', on ? 'Stop scan' : 'Start scan');
 }
 async function start() {
+  void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
   scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
   if (!(await scanner.isSupported())) {
@@ -149,6 +151,7 @@ async function start() {
       store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...loc, timestamp: m.timestamp });
       logLine(`${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.corroborated ? ' (2 signals agree)' : ''} · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`, colorFor(m));
       map.render(store.list());
+      firePing(m, loc);
     });
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
@@ -182,7 +185,7 @@ radioSrc.onchange = () => setRadio(radioSrc.value);
 $<HTMLInputElement>('radio').onchange = e => map.showIncidents((e.target as HTMLInputElement).checked);
 const qsRadio = new URLSearchParams(location.search).get('radio');
 if (qsRadio) { radioSrc.value = qsRadio; setRadio(qsRadio); }
-if (new URLSearchParams(location.search).get('autostart') === '1') start();
+if (new URLSearchParams(location.search).get('autostart') === '1') setTimeout(start, 0);
 
 const recorder = new SessionRecorder();
 const recHost = document.createElement('div'); document.querySelector('.sheet-head')!.after(recHost);
@@ -199,3 +202,18 @@ async function pollCrowd() {
   catch (e) { $('crowd-status').textContent = `Crowd map unavailable (${(e as Error).message})`; }
 }
 pollCrowd(); setInterval(pollCrowd, 90_000);
+
+// ---- police ping (audio alert on NEW police-gear match) ----
+const ping = new PingPlayer(), pingGate = new PingGate();
+const soundBox = $<HTMLInputElement>('sound'); soundBox.checked = soundEnabled();
+soundBox.onchange = () => { setSoundEnabled(soundBox.checked); if (soundBox.checked) { void ping.unlock().then(() => ping.play('soft')); } };
+function firePing(m: Match, loc: { lat: number; lng: number }) {
+  const c = coarsen(loc.lat, loc.lng); const level = pingGate.check({ deviceKey: m.sessionId, cell: `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`, category: m.signature.category, matched: true });
+  if (!level) return;
+  toast(`🔔 Police gear nearby: ${m.signature.label} (${(m.confidence * 100).toFixed(0)}%)`);
+  document.body.classList.add('pinging'); setTimeout(() => document.body.classList.remove('pinging'), 2500);
+  if (!soundEnabled()) return;
+  const pl = nativePlugin();
+  if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft' }).catch(() => {}); return; }
+  ping.play(level);
+}

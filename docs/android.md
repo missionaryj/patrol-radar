@@ -50,3 +50,11 @@ screen off. "All devices" scans everything but Android pauses unfiltered scans w
 npm ci && npm run build && npx cap sync android
 cd android && ./gradlew assembleDebug   # needs JDK 21 and ANDROID_HOME
 ```
+
+## Police ping
+A short two-tone ping (`public/sounds/police-ping.*`, original, synthesized) plays when a NEW police-gear match first appears:
+once per device per session, once per ~150 m cell per 10 min, and at most once every 45 s. Fixed cameras (Flock/Raven) get a
+softer ping. Phones/consumer devices never ping. Toggle: Settings → "Police ping sound" (saved in localStorage, default on).
+With the app in the background the web layer asks the plugin to post a "Police ping" notification that uses
+`res/raw/police_ping.ogg` on its own channel (users can change/mute it in Android notification settings). This depends on the
+WebView still receiving adverts while backgrounded; if Android suspends the WebView, no ping fires until the app is reopened.

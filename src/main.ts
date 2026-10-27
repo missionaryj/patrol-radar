@@ -1,3 +1,4 @@
+import { PingGate, PingPlayer, soundEnabled, setSoundEnabled } from './alert/ping';
 import './style.css';
 // In the Android app, open the v2 UI.
 if ((globalThis as any).Capacitor?.isNativePlatform?.()) location.replace('v2/index.html');
@@ -62,6 +63,7 @@ $('recenter').onclick = () => { if (!map.recenter()) startGeo(); };
 const jitterDemo = () => coarsen(pos.lat + (Math.random() - 0.5) * 0.01, pos.lng + (Math.random() - 0.5) * 0.01);
 
 $('start').onclick = async () => {
+  void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
   scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
   if (!(await scanner.isSupported())) {
@@ -83,6 +85,8 @@ $('start').onclick = async () => {
       const li = document.createElement('li');
       li.style.borderColor = colorFor(m); li.textContent = `${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.corroborated ? ' (2 signals agree)' : ''} · RSSI ${m.rssi ?? '?'} · session ${m.sessionId} (${m.signature.status})`;
       $('log').prepend(li); map.render(store.list());
+      { const c = coarsen(loc.lat, loc.lng); const lv = pingGate.check({ deviceKey: m.sessionId, cell: `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`, category: m.signature.category, matched: true });
+        if (lv) { status(`🔔 Police gear nearby: ${m.signature.label}`, 'ok'); if (soundEnabled()) ping.play(lv); } }
     });
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
@@ -110,3 +114,7 @@ $<HTMLInputElement>('radio').onchange = e => {
 const recorder = new SessionRecorder();
 const recHost = document.getElementById('start')!.parentElement!;
 mountRecorder(recHost, recorder, () => sel.value);
+
+const ping = new PingPlayer(), pingGate = new PingGate();
+const soundBox = document.getElementById('sound') as HTMLInputElement; soundBox.checked = soundEnabled();
+soundBox.onchange = () => { setSoundEnabled(soundBox.checked); if (soundBox.checked) void ping.unlock().then(() => ping.play('soft')); };
