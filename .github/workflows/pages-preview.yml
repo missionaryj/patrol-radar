@@ -1,0 +1,38 @@
+name: Deploy v2 preview (live site + /v2-preview/)
+on:
+  push: { branches: [ui-refresh] }
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, path: live }
+      - uses: actions/checkout@v4
+        with: { path: preview }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build live site from main (unchanged)
+        working-directory: live
+        run: npm ci && npm run build
+        env: { GITHUB_PAGES: 'true' }
+      - name: Test + build preview
+        working-directory: preview
+        run: npm ci && npm test && npx tsc --noEmit && npx vite build --base /patrol-radar/v2-preview/
+      - name: Merge preview into live dist
+        run: |
+          mkdir -p live/dist/v2-preview
+          cp -r preview/dist/assets live/dist/v2-preview/assets
+          cp preview/dist/v2/index.html live/dist/v2-preview/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: live/dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
