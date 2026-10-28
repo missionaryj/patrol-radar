@@ -46,7 +46,7 @@ public class ScanService extends Service {
     public static volatile Sink sink;
     public static volatile boolean running;
 
-    static final String CHANNEL = "patrol_scan";
+    static final String CHANNEL = "patrol_scan_v2"; // v2: IMPORTANCE_DEFAULT (silent); old LOW channel was hidden on some OEM Android 7-11 builds
     static final int NOTIF_ID = 4711;
     private BluetoothLeScanner scanner;
     private ScanCallback callback;
@@ -65,7 +65,8 @@ public class ScanService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startAsForeground();
+        try { startAsForeground(); }
+        catch (Exception e) { emitState("error", "Could not show scan notification: " + e); stopSelf(); return START_NOT_STICKY; }
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
         stopScan();
         salt = new byte[16]; new SecureRandom().nextBytes(salt);
@@ -73,21 +74,26 @@ public class ScanService extends Service {
         boolean filtered = intent.getBooleanExtra("filtered", true);
         int[] cids = intent.getIntArrayExtra("companyIds");
         String[] uuids = intent.getStringArrayExtra("uuids");
-        startScan(mode == null ? "balanced" : mode, filtered, cids, uuids);
+        try { startScan(mode == null ? "balanced" : mode, filtered, cids, uuids); }
+        catch (Exception e) { emitState("error", "Scan could not start: " + e); stopSelf(); }
         return START_NOT_STICKY; // no silent auto-restart after the OS kills us; the user restarts from the app
     }
 
     private void startAsForeground() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null)
-            nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Background scan", NotificationManager.IMPORTANCE_LOW));
+        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
+            if (nm.getNotificationChannel("patrol_scan") != null) nm.deleteNotificationChannel("patrol_scan");
+            NotificationChannel c = new NotificationChannel(CHANNEL, "Background scan", NotificationManager.IMPORTANCE_DEFAULT);
+            c.setSound(null, null); c.enableVibration(false); c.setShowBadge(false);
+            nm.createNotificationChannel(c);
+        }
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("Patrol Radar is scanning")
             .setContentText("Passive Bluetooth scan. Open the app and tap Stop to end.")
-            .setOngoing(true).setContentIntent(pi).setPriority(NotificationCompat.PRIORITY_LOW).build();
+            .setOngoing(true).setContentIntent(pi).setOnlyAlertOnce(true).setSilent(true).setCategory(NotificationCompat.CATEGORY_SERVICE).setPriority(NotificationCompat.PRIORITY_DEFAULT).build();
         int type = 0;
         if (Build.VERSION.SDK_INT >= 29) {
             type = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
@@ -107,7 +113,8 @@ public class ScanService extends Service {
         int sm = "lowLatency".equals(mode) ? ScanSettings.SCAN_MODE_LOW_LATENCY : "lowPower".equals(mode) ? ScanSettings.SCAN_MODE_LOW_POWER : ScanSettings.SCAN_MODE_BALANCED;
         ScanSettings.Builder sb = new ScanSettings.Builder().setScanMode(sm);
         if (Build.VERSION.SDK_INT >= 23) sb.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES).setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE);
-        if (Build.VERSION.SDK_INT >= 26) sb.setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED);
+        // Older chipsets (many Android 7-11 phones) reject non-legacy scans; only use extended scanning when supported.
+        if (Build.VERSION.SDK_INT >= 26 && ad.isLeExtendedAdvertisingSupported()) sb.setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED);
         List<ScanFilter> filters = new ArrayList<>();
         if (filtered) {
             if (cids != null) for (int c : cids) filters.add(new ScanFilter.Builder().setManufacturerData(c, new byte[0]).build());

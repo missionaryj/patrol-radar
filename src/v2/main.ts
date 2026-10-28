@@ -139,6 +139,7 @@ async function start() {
   if (scanner instanceof NativeScanner) {
     const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
     scanner.filtered = picker.value !== 'all';
+    scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
   }
   try {
     await scanner.start(adv => {

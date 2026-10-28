@@ -36,6 +36,9 @@ export class NativeScanner implements Scanner {
   filtered = true;
   private plugin = nativePlugin();
   private handle?: { remove(): Promise<void> | void };
+  private stateHandle?: { remove(): Promise<void> | void };
+  /** Called when the native service reports a failure after start (Bluetooth off, scan failed, service stopped by OS). */
+  onError?: (message: string) => void;
 
   async isSupported() { return !!this.plugin; }
   async start(onAdv: AdvListener) {
@@ -43,7 +46,12 @@ export class NativeScanner implements Scanner {
     const perm = await this.plugin.requestScanPermissions();
     if (perm?.ble !== 'granted') throw new ScanError('permission', 'Allow "Nearby devices" for Patrol Radar in Android Settings > Apps > Patrol Radar > Permissions.');
     this.handle = await this.plugin.addListener('advert', (a: NativeAdvert) => { normalizeEvent(toEvent(a)).then(onAdv); });
-    await this.plugin.start({ mode: this.mode, filtered: this.filtered, ...nativeFilters() });
+    this.stateHandle = await this.plugin.addListener('state', (s: { state: string; detail?: string }) => {
+      if (s?.state === 'error') { const msg = s.detail || 'Native scan failed'; this.cleanup(); this.onError?.(msg); }
+    });
+    try { await this.plugin.start({ mode: this.mode, filtered: this.filtered, ...nativeFilters() }); }
+    catch (e) { this.cleanup(); throw new ScanError('other', (e as any)?.message ?? String(e)); }
   }
-  stop() { this.plugin?.stop?.(); this.handle?.remove(); this.handle = undefined; }
+  private cleanup() { this.handle?.remove(); this.handle = undefined; this.stateHandle?.remove(); this.stateHandle = undefined; }
+  stop() { this.plugin?.stop?.(); this.cleanup(); }
 }

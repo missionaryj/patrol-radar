@@ -8,6 +8,7 @@ import { LocalReportStore } from './reports';
 import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
 import { BluefyScanner } from './ble/bluefyScanner';
+import { NativeScanner } from './ble/nativeScanner';
 import { LiveDeviceTracker, colorFor } from './map/liveDevices';
 import { SessionRecorder } from './recorder/recorder';
 import { mountRecorder } from './recorder/ui';
@@ -74,6 +75,7 @@ $('start').onclick = async () => {
   status(kind === 'bluefy' ? 'Pick a device to watch: choose one in the Bluefy list. Use “+ Pick another device” to watch more (iOS has no all-devices scan).' : 'Starting…');
   if (scanner instanceof BluefyScanner) { scanner.pickerMode = $<HTMLSelectElement>('picker').value as 'police' | 'all'; scanner.notice = msg => status(msg); }
   if (scanner instanceof BluefyScanner) scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
+  if (scanner instanceof NativeScanner) scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; status(`[scan] ${msg}`, 'err'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
   try {
     await scanner.start(adv => {
       const m = match(adv); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) policeDevs.add(adv.sessionId);

@@ -71,6 +71,10 @@ public class PatrolScanPlugin extends Plugin {
             JSArray u = call.getArray("serviceUuids", new JSArray());
             uuids = new String[u.length()]; for (int i = 0; i < u.length(); i++) uuids[i] = u.getString(i);
         } catch (Exception e) { call.reject("bad filters"); return; }
+        android.bluetooth.BluetoothManager bm = (android.bluetooth.BluetoothManager) getContext().getSystemService(android.content.Context.BLUETOOTH_SERVICE);
+        android.bluetooth.BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
+        if (ad == null) { call.reject("This phone has no Bluetooth LE adapter."); return; }
+        if (!ad.isEnabled()) { call.reject("Bluetooth is off. Turn on Bluetooth, then tap Start again."); return; }
         try { ScanService.start(getContext(), mode, filtered, cids, uuids); call.resolve(); }
         catch (Exception e) { call.reject("Could not start background scan: " + e.getMessage()); }
     }
