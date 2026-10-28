@@ -12,6 +12,7 @@ import { mountRecorder } from '../recorder/ui';
 import { CrowdClient } from '../crowd/client';
 import { PingGate, PingPlayer, soundEnabled, setSoundEnabled } from '../alert/ping';
 import { probeReport, findScanApis } from '../ble/probe';
+import { mountSegmented } from './segmented';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
@@ -53,6 +54,7 @@ const picker = $<HTMLSelectElement>('picker');
 sel.value = new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
 { const sm = document.getElementById('scanmode') as HTMLSelectElement | null; const v = localStorage.getItem('pr.scanmode'); if (sm && v) sm.value = v; }
 { const pl = nativePlugin(); const b = document.getElementById('battery') as HTMLButtonElement | null; if (pl && b) { b.hidden = false; b.onclick = () => pl.openBatterySettings(); } }
+document.querySelectorAll<HTMLSelectElement>('select[data-seg]').forEach(mountSegmented);
 if (sel.value === 'native') status('Android app: tap Scan. Scanning keeps running with the screen off (see the notification).', 'ok');
 if (sel.value === 'bluefy') status('Bluefy detected; Bluefy backend selected. Tap Scan.', 'ok');
 
@@ -107,6 +109,9 @@ function badgeFor(d: LiveDevice, m?: Match) {
 function renderCards() {
   const devs = visible().sort((a, b) => (a.kind === b.kind ? b.lastSeen - a.lastSeen : a.kind === 'match' ? -1 : 1));
   const ul = $('cards');
+  const n: Record<string, number> = { axon: 0, moto: 0, other: 0, unk: 0 };
+  devs.forEach(d => { n[badgeFor(d, matches.get(d.key)).cls]++; });
+  for (const k in n) { const el = document.getElementById(`n-${k}`); if (el) el.textContent = String(n[k]); }
   if (!devs.length) { ul.innerHTML = `<li class="empty">${scanner ? 'Listening… nothing nearby yet.' : 'No detections yet. Tap <b>Scan</b> to start listening.'}</li>`; return; }
   ul.innerHTML = devs.map(d => {
     const m = matches.get(d.key); const b = badgeFor(d, m); const conf = d.confidence ?? 0; const stale = Date.now() - d.lastSeen > 30_000;

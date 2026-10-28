@@ -1,59 +1,91 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
-<meta name="theme-color" content="#0b0f14"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title></head>
+<meta name="theme-color" content="#07080a"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title></head>
 <body>
 <div id="map"></div>
 
 <div class="top">
   <div id="pill" class="pill idle" role="status" aria-live="polite">
-    <span class="dot"></span><span id="pill-text">Idle</span>
+    <span class="dot"><i></i></span><span id="pill-text">Idle</span>
     <span class="sep"></span><span class="count" title="Distinct police-gear devices this session"><b id="pill-count">0</b> gear</span>
   </div>
-  <button id="open-settings" class="icon-btn" aria-label="Settings">⚙</button>
+  <button id="open-settings" class="icon-btn" aria-label="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
 <div id="toast" class="toast" hidden></div>
 
 <section id="sheet" class="sheet collapsed" aria-label="Detections">
   <button id="sheet-handle" class="handle" aria-label="Expand detections"><span></span></button>
   <div class="sheet-head">
-    <div><h2>Live detections</h2><small id="geo">Locating…</small><small class="fine">Receive-only · signatures unverified</small></div>
-    <div class="legend"><i class="c-axon"></i>Axon <i class="c-moto"></i>Radio <i class="c-fixed"></i>Fixed (ALPR) <i class="c-other"></i>Other <i class="c-unk"></i>Unknown <i class="c-inc"></i>Incident</div>
+    <div class="sheet-title"><h2>Live detections</h2><small><span id="geo">Locating…</span> · <span class="fine">Receive-only · signatures unverified</span></small></div>
   </div>
+  <div class="stats" aria-label="Counts by category">
+    <div class="stat" style="--c:var(--axon)"><b id="n-axon">0</b><span>Axon</span></div>
+    <div class="stat" style="--c:var(--moto)"><b id="n-moto">0</b><span>Radio</span></div>
+    <div class="stat" style="--c:var(--other)"><b id="n-other">0</b><span>Other</span></div>
+    <div class="stat" style="--c:var(--unk)"><b id="n-unk">0</b><span>Unknown</span></div>
+  </div>
+  <div class="legend"><span><i class="c-axon"></i>Axon</span><span><i class="c-moto"></i>Radio</span><span><i class="c-fixed"></i>Fixed (ALPR)</span><span><i class="c-other"></i>Other</span><span><i class="c-unk"></i>Unknown</span><span><i class="c-inc"></i>Incident</span></div>
   <ul id="cards" class="cards"><li class="empty">No detections yet. Tap <b>Scan</b> to start listening.</li></ul>
   <p class="disclaimer">Receive-only: never connects, pairs or writes. Signatures unverified; positions are rough estimates. Don't use this to harass or target anyone.</p>
 </section>
 
 <div class="fab-col">
-  <button id="recenter" class="icon-btn round" aria-label="Recenter on my location" title="Recenter">◎</button>
-  <button id="add" class="icon-btn round" hidden aria-label="Pick another device" title="Pick another device">＋</button>
+  <button id="recenter" class="icon-btn round" aria-label="Recenter on my location" title="Recenter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+  <button id="add" class="icon-btn round" hidden aria-label="Pick another device" title="Pick another device"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
-<button id="scan" class="fab" aria-label="Start scan"><span class="fab-ring"></span><span id="scan-label">Scan</span></button>
-
-
+<button id="scan" class="fab" aria-label="Start scan"><span class="fab-ring"></span><span class="fab-ring r2"></span><span class="fab-core"><span class="fab-ico" aria-hidden="true"></span><span id="scan-label">Scan</span></span></button>
 
 <div id="scrim" class="scrim" hidden></div>
 <aside id="settings" class="drawer" aria-label="Settings" aria-hidden="true">
-  <header><h2>Settings</h2><button id="close-settings" class="icon-btn" aria-label="Close">✕</button></header>
-  <label class="field">Scanner backend
-    <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome / Android)</option><option value="bluefy">Bluefy (iPhone): pick devices</option><option value="native">Android app (background)</option></select></label>
-  <label class="field" id="scanmode-wrap">Android app scan mode
-    <select id="scanmode"><option value="lowPower">Battery saver (slower)</option><option value="balanced" selected>Balanced</option><option value="lowLatency">Fastest (more battery)</option></select></label>
-  <button type="button" id="battery" hidden>Let it run in the background (battery settings)</button>
-  <label class="field">Devices (Bluefy picker / Android app filter)
-    <select id="picker"><option value="police">Police gear only</option><option value="all">All devices</option></select>
-    <small>The list is drawn by your browser, so labels appear after you pick.</small></label>
-  <label class="switch"><input type="checkbox" id="showother"/><span></span>Show other devices (phones, earbuds…)</label>
-  <label class="field">Radio incidents (delayed ≥12 min)
-    <select id="radiosrc"><option value="off">Off</option><option value="mock">Mock: sample Champaign dispatch</option><option value="champaign-replay">Real data replay: Champaign fire/EMS 2023-24</option></select>
-    <small id="radio-status">Pins are ~200 m areas, unit IDs/names/plates removed, transcripts discarded.</small></label>
-  <label class="switch"><input type="checkbox" id="radio" checked/><span></span>Show incident layer</label>
-  <label class="switch"><input type="checkbox" id="sound" checked/><span></span>Police ping sound</label>
-  <label class="switch"><input type="checkbox" id="crowdshare"/><span></span>Share police-gear hits to the crowd map</label>
-  <small class="crowd-note">Off by default. Sends only a ~200 m area, 5-min time slot, gear type and confidence level, with a random ID that changes every session. Never device IDs, signal data, your exact location or who you are.</small>
-  <label class="switch"><input type="checkbox" id="crowd" checked/><span></span>Show crowd layer (other users, ≥12 min delayed)</label>
-  <small id="crowd-status">Loading…</small>
+  <header><h2>Settings</h2><button id="close-settings" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div id="status-full" class="status-full">Idle</div>
-  <details id="debug"><summary>Debug</summary>
+
+  <h3 class="group-title">Scanning</h3>
+  <div class="group">
+    <label class="field">Scanner backend
+      <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome / Android)</option><option value="bluefy">Bluefy (iPhone): pick devices</option><option value="native">Android app (background)</option></select></label>
+    <div class="field" id="scanmode-wrap"><span>Android app scan mode</span>
+      <select id="scanmode" data-seg data-labels="Saver|Balanced|Fastest"><option value="lowPower">Battery saver (slower)</option><option value="balanced" selected>Balanced</option><option value="lowLatency">Fastest (more battery)</option></select>
+      <small>Faster finds gear sooner but uses more battery.</small></div>
+    <button type="button" id="battery" class="row-btn" hidden>Let it run in the background (battery settings)</button>
+    <div class="field"><span>Devices (Bluefy picker / Android app filter)</span>
+      <select id="picker" data-seg data-labels="Police gear|All devices"><option value="police">Police gear only</option><option value="all">All devices</option></select>
+      <small>The list is drawn by your browser, so labels appear after you pick.</small></div>
+    <label class="switch"><input type="checkbox" id="showother"/><span></span><em>Show other devices<small>Phones, earbuds… hidden by default</small></em></label>
+  </div>
+
+  <h3 class="group-title">Map layers</h3>
+  <div class="group">
+    <label class="field">Radio incidents (delayed ≥12 min)
+      <select id="radiosrc"><option value="off">Off</option><option value="mock">Mock: sample Champaign dispatch</option><option value="champaign-replay">Real data replay: Champaign fire/EMS 2023-24</option></select>
+      <small id="radio-status">Pins are ~200 m areas, unit IDs/names/plates removed, transcripts discarded.</small></label>
+    <label class="switch"><input type="checkbox" id="radio" checked/><span></span><em>Show incident layer</em></label>
+  </div>
+
+  <h3 class="group-title">Sounds</h3>
+  <div class="group">
+    <label class="switch"><input type="checkbox" id="sound" checked/><span></span><em>Police ping sound<small>Plays when new police gear is detected</small></em></label>
+  </div>
+
+  <h3 class="group-title">Crowd map</h3>
+  <div class="group">
+    <label class="switch"><input type="checkbox" id="crowdshare"/><span></span><em>Share police-gear hits</em></label>
+    <small class="crowd-note">Off by default. Sends only a ~200 m area, 5-min time slot, gear type and confidence level, with a random ID that changes every session. Never device IDs, signal data, your exact location or who you are.</small>
+    <label class="switch"><input type="checkbox" id="crowd" checked/><span></span><em>Show crowd layer<small>Other users, ≥12 min delayed</small></em></label>
+    <small id="crowd-status">Loading…</small>
+  </div>
+
+  <h3 class="group-title">Privacy</h3>
+  <div class="group privacy">
+    <ul>
+      <li>Receive-only: never connects, pairs or writes to a device.</li>
+      <li>Device IDs are salted hashes that change every session.</li>
+      <li>Saved locations are ~200 m areas; your exact spot stays on screen only.</li>
+      <li>Radio incidents are delayed ≥12 min with names and unit IDs removed.</li>
+    </ul>
+  </div>
+
+  <details id="debug" class="group"><summary>Debug</summary>
     <div class="grid">
       <span>backend</span><b id="d-backend">-</b><span>mode</span><b id="d-mode">-</b>
       <span>adverts seen</span><b id="d-raw">0</b><span>unmatched</span><b id="d-unmatched">0</b>
