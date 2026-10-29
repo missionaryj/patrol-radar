@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+// Node 21+ exposes a getter-only global navigator; make it assignable for these browser-API mocks.
+Object.defineProperty(globalThis, 'navigator', { value: (globalThis as any).navigator, configurable: true, writable: true });
 import { normalizeEvent, normUuid } from './normalize';
 import { match } from './matcher';
 import { classify } from './errors';
@@ -69,7 +71,7 @@ it('Bluefy-ish filter ignores Readable/Table', () => { expect(['ReadableStream',
 
 describe('BluefyScanner police picker', () => {
   const setup = (impl: (o: any) => any) => { (globalThis as any).window = { isSecureContext: true };
-    (globalThis as any).navigator = { bluetooth: { requestDevice: impl } }; };
+    Object.defineProperty(globalThis, "navigator", { value: { bluetooth: { requestDevice: impl } }, configurable: true, writable: true }); };
   const dev = () => ({ id: 'p', name: 'Axon Body 3', addEventListener() {}, removeEventListener() {}, watchAdvertisements: async () => {} });
   it('uses generated filters, and falls back on TypeError', async () => {
     const calls: any[] = []; let first = true;

@@ -2,6 +2,7 @@ import type { Advertisement } from '../ble/types';
 import type { Match } from '../ble/matcher';
 import { SIGNATURES } from '../ble/signatures';
 import { coarsen } from '../map/coarsen';
+import type { WifiMatch } from '../wifi/rules';
 
 /**
  * Session recorder: keeps raw advert payloads for POLICE-GEAR MATCHES ONLY.
@@ -22,7 +23,7 @@ export interface RecordEntry {
   rules: string[]; bestRule: string; confidence: number; corroborated: boolean;
   cell?: { lat: number; lng: number; meters: number };
 }
-export type ScanEventKind = 'start' | 'stop' | 'restart' | 'error' | 'permission-denied' | 'location-denied' | 'location-error';
+export type ScanEventKind = 'start' | 'stop' | 'restart' | 'stall' | 'auto-restart' | 'possible-patrol-car' | 'error' | 'permission-denied' | 'location-denied' | 'location-error';
 export interface ScanEvent { t: number; kind: ScanEventKind; backend?: string; detail?: string }
 /** Counts-only scan health. Never holds unmatched ids, names, payloads or coordinates. */
 export interface Health {
@@ -50,6 +51,21 @@ export function maskedHex(dv: DataView): { hex: string; masked: boolean } {
     i = j === i ? i + 1 : j;
   }
   return { hex: b.map((x, k) => (mask[k] ? '**' : x.toString(16).padStart(2, '0'))).join(''), masked: mask.some(Boolean) };
+}
+
+/** Dense per-minute timeline when the span fits MAX_TIMELINE_MIN; otherwise sparse (non-zero minutes only, every
+ * one kept) plus zero markers at the edges of each gap. Previously a dense loop from startedAt stopped after
+ * 1,440 entries, so a recorder started more than a day earlier dropped all of tonight's minutes. */
+export const MAX_TIMELINE_MIN = 1440;
+export function perMinuteTimeline(perMinute: Record<string, number>, lo: number | undefined, hi: number): { minute: string; adverts: number }[] {
+  const iso = (m: number) => new Date(m * 60000).toISOString();
+  const mins = Object.keys(perMinute).map(Number).sort((a, b) => a - b);
+  if (lo === undefined) lo = mins[0]; if (lo === undefined) return [];
+  hi = Math.max(hi, mins[mins.length - 1] ?? hi);
+  if (hi - lo + 1 <= MAX_TIMELINE_MIN) { const out = []; for (let m = lo; m <= hi; m++) out.push({ minute: iso(m), adverts: perMinute[m] ?? 0 }); return out; }
+  const keep = new Set<number>();
+  for (const m of mins) { keep.add(m); if (!(m - 1 in perMinute) && m - 1 >= lo) keep.add(m - 1); if (!(m + 1 in perMinute) && m + 1 <= hi) keep.add(m + 1); }
+  return [...keep].sort((a, b) => a - b).map(m => ({ minute: iso(m), adverts: perMinute[m] ?? 0 }));
 }
 
 const uuid16 = (u: number) => `0000${u.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
@@ -124,8 +140,7 @@ export class SessionRecorder {
     const longest = Math.max(h.longestGapMs, tailGap);
     const mins = Object.keys(h.perMinute).map(Number).sort((a, b) => a - b);
     const lo = this.s.startedAt ? Math.floor(this.s.startedAt / 60000) : mins[0]; const hi = Math.floor(end / 60000);
-    const timeline: { minute: string; adverts: number }[] = [];
-    if (lo !== undefined) for (let m = lo; m <= hi && timeline.length < 1440; m++) timeline.push({ minute: new Date(m * 60000).toISOString(), adverts: h.perMinute[m] ?? 0 });
+    const timeline = perMinuteTimeline(h.perMinute, lo, hi);
     return {
       verdict: this.verdict(), advertsSeen: h.adverts, matchedAdverts: h.matched, unmatchedAdverts: h.adverts - h.matched,
       distinctDevicesSeen: h.distinctDevices, firstAdvert: iso(h.firstAdvert), lastAdvert: iso(h.lastAdvert),
@@ -164,6 +179,17 @@ export class SessionRecorder {
     if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
     this.save();
     return true;
+  }
+
+  /** Wi-Fi rule match (Android). Stores ONLY rule ids, confidence, RSSI and the coarse cell: no SSID, BSSID or hash. */
+  addWifi(m: WifiMatch, rssi: number | undefined, loc?: { lat: number; lng: number }, t = Date.now()): boolean {
+    if (!this.s.recording) return false;
+    if (loc) this.cell(loc);
+    const c = loc ? coarsen(loc.lat, loc.lng, 150) : undefined;
+    this.s.records.push({ t, dev: `wifi:${m.best.id}`, rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...m.rules], bestRule: m.best.id,
+      confidence: m.confidence, corroborated: m.corroborated, cell: c && { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), meters: 150 } });
+    if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
+    this.save(); return true;
   }
 
   summary() {

@@ -42,7 +42,7 @@ import org.json.JSONObject;
  * or uploaded here; adverts are only handed to the in-app web UI.
  */
 public class ScanService extends Service {
-    public interface Sink { void onAdvert(JSONObject advert); void onState(String state, String detail); }
+    public interface Sink { void onAdvert(JSONObject advert); void onState(String state, String detail); default void onWifi(JSONObject match) { } }
     public static volatile Sink sink;
     public static volatile boolean running;
 
@@ -53,9 +53,12 @@ public class ScanService extends Service {
     private byte[] salt;
     private PowerManager.WakeLock wakeLock;
     private long count;
+    private WifiWatcher wifi;
 
-    public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16) {
+    public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16) { start(ctx, mode, filtered, companyIds, uuids16, null); }
+    public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16, String wifiRulesJson) {
         Intent i = new Intent(ctx, ScanService.class);
+        if (wifiRulesJson != null) i.putExtra("wifiRules", wifiRulesJson);
         i.putExtra("mode", mode); i.putExtra("filtered", filtered); i.putExtra("companyIds", companyIds); i.putExtra("uuids", uuids16);
         ContextCompat.startForegroundService(ctx, i);
     }
@@ -76,6 +79,13 @@ public class ScanService extends Service {
         String[] uuids = intent.getStringArrayExtra("uuids");
         try { startScan(mode == null ? "balanced" : mode, filtered, cids, uuids); }
         catch (Exception e) { emitState("error", "Scan could not start: " + e); stopSelf(); }
+        String wr = intent.getStringExtra("wifiRules");
+        if (wr != null && running) {
+            try {
+                wifi = new WifiWatcher(this, new JSONArray(wr), this::hash, m -> { Sink s = sink; if (s != null) s.onWifi(m); });
+                wifi.start();
+            } catch (Exception e) { emitState("wifi-error", String.valueOf(e.getMessage())); }
+        }
         return START_NOT_STICKY; // no silent auto-restart after the OS kills us; the user restarts from the app
     }
 
@@ -175,6 +185,7 @@ public class ScanService extends Service {
 
     @SuppressLint("MissingPermission")
     private void stopScan() {
+        if (wifi != null) { wifi.stop(); wifi = null; }
         try { if (scanner != null && callback != null) scanner.stopScan(callback); } catch (Exception ignored) { }
         scanner = null; callback = null;
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();

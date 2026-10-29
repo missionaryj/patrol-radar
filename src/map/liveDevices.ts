@@ -17,6 +17,7 @@ export function colorFor(m: Match | null): string {
   if (!m) return '#8a9bb0';                       // unmatched / picked: blue-gray
   const s = m.signature;
   if (s.vendor === 'Axon' || s.category === 'body-camera' || s.category === 'cew') return '#e53935'; // red
+  if (s.category === 'vehicle') return '#ff1744';  // patrol-car gear (Axon Fleet / Cradlepoint Wi-Fi)
   if (s.category === 'radio') return '#fb8c00';   // orange
   if (s.category === 'fixed') return '#ab47bc';   // purple: fixed infrastructure (Flock ALPR)
   return '#fdd835';                               // other match: yellow

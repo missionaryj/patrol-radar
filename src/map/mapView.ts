@@ -5,6 +5,8 @@ import type { Incident } from '../radio/types';
 import type { CrowdCell } from '../crowd/protocol';
 import { type LiveDevice, BAND_RADIUS_M, offsetFor, applyOffset, opacityFor } from './liveDevices';
 import { TTL_MS } from '../reports/localStore';
+import { FollowController } from './follow';
+import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
 export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; }
 export class MapView {
@@ -13,13 +15,22 @@ export class MapView {
   readonly incidentLayer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
   readonly crowdLayer = L.layerGroup();
+  readonly flockLayer = L.layerGroup();
+  readonly follow: FollowController;
+  /** Called when follow-me pauses (manual pan) or resumes. */
+  onFollowChange?: (following: boolean) => void;
+  private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
+  private flockRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
     this.map = L.map(el, { zoomControl: opts.zoomControl ?? true }).setView(center, 15);
     // dark: OSM tiles darkened via CSS filter (.tiles-dark), no API key needed
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', className: opts.dark ? 'tiles-dark' : '' }).addTo(this.map);
     this.layer.addTo(this.map); this.incidentLayer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
-    if (opts.layersControl ?? true) L.control.layers(undefined, { 'BLE detections': this.layer, 'Radio incidents (delayed)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
+    this.follow = new FollowController(true, f => this.onFollowChange?.(f));
+    this.map.on('dragstart', () => this.follow.userPanned());
+    this.map.on('moveend', () => { if (this.flockOn) void this.drawFlock(); });
+    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'BLE detections': this.layer, 'Radio incidents (delayed)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
   }
   invalidate() { this.map.invalidateSize(); }
   showIncidents(on: boolean) { if (on) this.incidentLayer.addTo(this.map); else this.incidentLayer.remove(); }
@@ -66,11 +77,40 @@ export class MapView {
       this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false }).addTo(this.map);
     } else { this.me.setLatLng([lat, lng]); this.meAcc!.setLatLng([lat, lng]).setRadius(accuracy); }
     if (!this.centered) { this.centered = true; this.map.setView([lat, lng], 16); }
+    else if (this.follow.onFix()) this.map.panTo([lat, lng], { animate: true, duration: 0.5, noMoveStart: true });
   }
-  recenter(): boolean { if (!this.me) return false; this.map.setView(this.me.getLatLng(), Math.max(this.map.getZoom(), 15)); return true; }
+  /** Recenter and resume follow-me. */
+  recenter(): boolean { this.follow.resume(); if (!this.me) return false; this.map.setView(this.me.getLatLng(), Math.max(this.map.getZoom(), 15)); return true; }
+  // ---- Flock camera (mapped) layer: static OSM export, lazy-loaded, only visible-bounds points drawn ----
+  /** baseUrl = folder holding index.json + <lat>_<lng>.geojson tiles. */
+  async showFlock(on: boolean, baseUrl: string) {
+    this.flockOn = on;
+    if (!on) { this.flockLayer.remove(); this.map.attributionControl.removeAttribution(FLOCK_ATTRIBUTION); return; }
+    this.flockLayer.addTo(this.map); this.map.attributionControl.addAttribution(FLOCK_ATTRIBUTION);
+    this.flockBase = baseUrl;
+    this.flockLoading ??= fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(i => { this.flockIdx = i; });
+    await this.flockLoading; await this.drawFlock();
+  }
+  get flockInfo() { return this.flockIdx ? { count: this.flockIdx.count, osmBase: this.flockIdx.osm_base } : undefined; }
+  private tile(k: string) {
+    let p = this.flockTiles.get(k);
+    if (!p) { p = fetch(`${this.flockBase}${k}.geojson`).then(r => r.json()); p.catch(() => this.flockTiles.delete(k)); this.flockTiles.set(k, p); }
+    return p;
+  }
+  private async drawFlock() {
+    const gen = ++this.flockDraw;
+    if (!this.flockIdx || this.map.getZoom() < FLOCK_MIN_ZOOM) { this.flockLayer.clearLayers(); return; }
+    const b = this.map.getBounds().pad(0.2); const bb = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
+    const tiles = await Promise.all(tilesFor(this.flockIdx, bb).map(k => this.tile(k).catch(() => undefined)));
+    if (gen !== this.flockDraw) return; this.flockLayer.clearLayers();
+    for (const t of tiles) if (t) for (const p of flockInBounds(t, bb))
+      L.circleMarker([p.lat, p.lng], { renderer: this.flockRenderer, radius: 5, color: '#00e5ff', weight: 2, fillColor: '#0b3d4a', fillOpacity: 0.9, className: 'flock-mapped' })
+        .bindPopup(`📷 <b>Flock camera (mapped)</b>${p.dir ? `<br>facing ${p.dir}°` : ''}<br><small>From OpenStreetMap, not a scan hit. <a href="https://www.openstreetmap.org/node/${p.id}" target="_blank" rel="noopener">OSM node</a></small>`)
+        .addTo(this.flockLayer);
+  }
   private addLegend() {
     const Legend = L.Control.extend({ onAdd: () => { const d = L.DomUtil.create('div', 'legend');
-      d.innerHTML = '<b>Live devices</b><br><i style="background:#e53935"></i>Axon / body cam / CEW<br><i style="background:#fb8c00"></i>Radio (Motorola)<br><i style="background:#fdd835"></i>Other match<br><i style="background:#8a9bb0"></i>Unmatched / picked<br><small>Dot position is illustrative; ring = rough RSSI range estimate</small>';
+      d.innerHTML = '<b>Live devices</b><br><i style="background:#e53935"></i>Axon / body cam / CEW<br><i style="background:#fb8c00"></i>Radio (Motorola)<br><i style="background:#fdd835"></i>Other match<br><i style="background:#8a9bb0"></i>Unmatched / picked<br><i style="background:#0b3d4a;border:2px solid #00e5ff"></i>Flock camera (mapped, OSM)<br><small>Dot position is illustrative; ring = rough RSSI range estimate</small>';
       return d; } });
     new Legend({ position: 'bottomleft' }).addTo(this.map);
   }

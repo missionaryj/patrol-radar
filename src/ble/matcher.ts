@@ -24,11 +24,15 @@ function hit(sig: Signature, adv: Advertisement): boolean {
 export function match(adv: Advertisement): Match | null {
   const hits = SIGNATURES.filter(s => hit(s, adv));
   if (!hits.length) return null;
-  let conf = 1 - hits.reduce((p, s) => p * (1 - s.baseConfidence), 1);
+  // flock-xuntong-cid is a generic OEM company ID: it never corroborates other rules and is boosted ONLY by a
+  // Flock name hit here (or a Flock Wi-Fi SSID in the same cell, see fusion/gearFusion.ts).
+  const flockName = hits.some(h => h.vendor === 'Flock Safety' && h.rule.kind === 'namePattern');
+  const counted = flockName || hits.length === 1 ? hits : hits.filter(h => h.id !== 'flock-xuntong-cid');
+  let conf = 1 - counted.reduce((p, s) => p * (1 - s.baseConfidence), 1);
   // Corroboration: hits from different rule kinds (e.g. company ID + service UUID) are much stronger evidence.
-  const kinds = new Set(hits.map(h => h.rule.kind));
-  if (kinds.size >= 2) conf = Math.max(conf, 0.85);
+  const independent = new Set(counted.map(h => h.rule.kind)).size;
+  if (independent >= 2) conf = Math.max(conf, 0.85);
   if (adv.rssi !== undefined && adv.rssi < -90) conf *= 0.85;
   const best = hits.reduce((a, b) => (b.baseConfidence > a.baseConfidence ? b : a));
-  return { signature: best, corroborated: kinds.size >= 2, confidence: Math.min(0.99, +conf.toFixed(2)), rssi: adv.rssi, timestamp: adv.timestamp, sessionId: adv.sessionId };
+  return { signature: best, corroborated: independent >= 2, confidence: Math.min(0.99, +conf.toFixed(2)), rssi: adv.rssi, timestamp: adv.timestamp, sessionId: adv.sessionId };
 }

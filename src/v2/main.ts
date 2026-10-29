@@ -12,6 +12,9 @@ import { mountRecorder } from '../recorder/ui';
 import { CrowdClient } from '../crowd/client';
 import { PingGate, PingPlayer, soundEnabled, setSoundEnabled } from '../alert/ping';
 import { probeReport, findScanApis } from '../ble/probe';
+import { ScanSupervisor } from '../session/supervisor';
+import { ScanFusion, wifiAsMatch, toWifiMatch } from '../session/extras';
+import { NativeScanner as _NS } from '../ble/nativeScanner';
 import { mountSegmented } from './segmented';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -146,9 +149,12 @@ async function start() {
     scanner.filtered = picker.value !== 'all';
     scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
   }
+  if (scanner instanceof _NS) scanner.onWifi = nm => onWifi(nm);
   try {
-    await scanner.start(adv => {
-      const m = match(adv); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, m); }
+    let advCb: (adv: any) => void;
+    await scanner.start(advCb = adv => {
+      supervisor.advert();
+      const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, m); }
       const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLive();
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
@@ -161,13 +167,15 @@ async function start() {
       map.render(store.list());
       firePing(m, loc);
     });
+    void supervisor.started(kind, scanner, advCb);
+    map.follow.resume();
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
     setScanning(true); $('add').hidden = !(scanner instanceof BluefyScanner);
     setTimeout(() => { if (scanner && stats.raw === 0 && kind !== 'mock') status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err'); }, 20_000);
   } catch (e) { scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
 }
-function stop() { $('add').hidden = true; live.clear(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
+function stop() { supervisor.stopped(); fusion.fusion.clear(); $('add').hidden = true; live.clear(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
 $('add').onclick = async () => {
   if (!(scanner instanceof BluefyScanner)) return;
@@ -225,3 +233,36 @@ function firePing(m: Match, loc: { lat: number; lng: number }) {
   if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft' }).catch(() => {}); return; }
   ping.play(level);
 }
+
+// ---- scan supervisor (stall watchdog + wake lock), Wi-Fi rules, patrol-car fusion, follow-me, Flock layer ----
+const supervisor = new ScanSupervisor({ recorder, warn: (msg, err) => (err ? status(msg, 'err') : status(msg, 'ok')) });
+const fusion = new ScanFusion();
+const addLog = (text: string, color: string) => logLine(text, color);
+function patrolFlag(f: { possiblePatrolCar: boolean; gearTypes: string[] }, loc: { lat: number; lng: number }) {
+  if (!f.possiblePatrolCar) return; const c = coarsen(loc.lat, loc.lng); const key = `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
+  if (!fusion.fusion.shouldAlert(key, Date.now())) return;
+  recorder.event('possible-patrol-car', sel.value, f.gearTypes.join('+'));
+  store.add({ id: crypto.randomUUID(), category: 'vehicle', label: `Possible patrol car (${f.gearTypes.join(' + ')})`, confidence: 0.8, ...c, timestamp: Date.now() });
+  map.render(store.list());
+  addLog(`${new Date().toLocaleTimeString()} · 🚓 Possible patrol car: ${f.gearTypes.join(' + ')} in the same ~150 m area within 30 s`, '#ff1744');
+  status(`🚓 Possible patrol car nearby (${f.gearTypes.join(' + ')})`, 'ok');
+}
+function onWifi(nm: import('../ble/nativeScanner').NativeWifiMatch) {
+  const w = toWifiMatch(nm); if (!w) return;
+  recorder.addWifi(w, nm.rssi, pos);
+  const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
+  live.update(m.sessionId, m.rssi, m); drawLive();
+  if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
+  store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp });
+  map.render(store.list());
+  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}% · RSSI ${m.rssi ?? '?'} (unverified)`, colorFor(m));
+}
+// Follow-me: on by default; a manual pan pauses it and the recenter button resumes it.
+{ const rb = document.getElementById('recenter'); map.onFollowChange = on => { rb?.classList.toggle('follow-paused', !on); if (rb) rb.title = on ? 'Following your location' : 'Recenter and follow'; }; }
+// Pre-loaded Flock cameras from OpenStreetMap (separate from scan hits).
+const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
+{ const fb = document.getElementById('flockmap') as HTMLInputElement | null; const fs = document.getElementById('flock-status');
+  const setFlock = (on: boolean) => { localStorage.setItem('pr.flockmap', on ? '1' : '0');
+    map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
+      .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
+  const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }

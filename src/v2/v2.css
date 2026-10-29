@@ -146,3 +146,5 @@ details.group{margin-top:14px}
 .leaflet-tooltip.incident-icon{background:none;border:none;box-shadow:none;font-size:14px;padding:0}
 .leaflet-tooltip.incident-icon::before{display:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+#recenter.follow-paused { box-shadow: 0 0 0 2px #2a7fff; animation: pr-pulse 1.5s infinite; }
+@keyframes pr-pulse { 50% { opacity: .6; } }
