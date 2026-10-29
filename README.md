@@ -69,3 +69,6 @@ Tick "Mock radio incidents" to see the demo layer. See `docs/accuracy-plan.md`. 
 
 ## Shared crowd map (opt-in)
 v2 Settings → "Share police-gear hits to the crowd map" (off by default). Uploads only `{cell (~200 m grid), bucket (5 min), kind, conf (low/med/high), reporter (random per-session token)}` to `https://patrol-radar-api.vercel.app/api/crowd` (source in `crowd-api/`, protocol in `src/crowd/protocol.ts`). Public reads are aggregated, ≥12 min delayed, expire after 2 h; a cell is "confirmed" with ≥2 distinct reporters or high confidence. Storage: Upstash Redis if `UPSTASH_REDIS_REST_URL/TOKEN` (or `KV_REST_API_URL/TOKEN`) are set, else ephemeral memory.
+
+## Flock camera (mapped) layer
+`public/data/flock/` holds US Flock ALPR nodes from OpenStreetMap (`surveillance:type=ALPR` + `manufacturer`/`brand` ~ Flock, the tags DeFlock.me uses), split into 5° tiles plus `index.json`. Refresh with `node scripts/fetch-flock.mjs` (Overpass API). Data © OpenStreetMap contributors, ODbL 1.0.

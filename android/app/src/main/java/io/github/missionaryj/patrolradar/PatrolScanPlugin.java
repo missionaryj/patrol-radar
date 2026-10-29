@@ -33,6 +33,9 @@ public class PatrolScanPlugin extends Plugin {
             @Override public void onAdvert(JSONObject a) {
                 try { notifyListeners("advert", JSObject.fromJSONObject(a)); } catch (Exception ignored) { }
             }
+            @Override public void onWifi(JSONObject m) {
+                try { notifyListeners("wifi", JSObject.fromJSONObject(m)); } catch (Exception ignored) { }
+            }
             @Override public void onState(String st, String d) { JSObject o = new JSObject(); o.put("state", st); o.put("detail", d); notifyListeners("state", o); }
         };
     }
@@ -65,6 +68,8 @@ public class PatrolScanPlugin extends Plugin {
         String mode = call.getString("mode", "balanced");
         boolean filtered = call.getBoolean("filtered", true);
         int[] cids = new int[0]; String[] uuids = new String[0];
+        JSArray wr = call.getArray("wifiRules", null);
+        String wifiRules = wr == null ? null : wr.toString();
         try {
             JSArray c = call.getArray("companyIds", new JSArray());
             cids = new int[c.length()]; for (int i = 0; i < c.length(); i++) cids[i] = c.getInt(i);
@@ -75,7 +80,7 @@ public class PatrolScanPlugin extends Plugin {
         android.bluetooth.BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
         if (ad == null) { call.reject("This phone has no Bluetooth LE adapter."); return; }
         if (!ad.isEnabled()) { call.reject("Bluetooth is off. Turn on Bluetooth, then tap Start again."); return; }
-        try { ScanService.start(getContext(), mode, filtered, cids, uuids); call.resolve(); }
+        try { ScanService.start(getContext(), mode, filtered, cids, uuids, wifiRules); call.resolve(); }
         catch (Exception e) { call.reject("Could not start background scan: " + e.getMessage()); }
     }
     @PluginMethod public void stop(PluginCall call) { ScanService.stop(getContext()); call.resolve(); }

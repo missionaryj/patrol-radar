@@ -13,6 +13,9 @@ import { LiveDeviceTracker, colorFor } from './map/liveDevices';
 import { SessionRecorder } from './recorder/recorder';
 import { mountRecorder } from './recorder/ui';
 import { probeReport, findScanApis } from './ble/probe';
+import { ScanSupervisor } from './session/supervisor';
+import { ScanFusion, wifiAsMatch, toWifiMatch } from './session/extras';
+import { NativeScanner as _NS } from './ble/nativeScanner';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
@@ -76,9 +79,12 @@ $('start').onclick = async () => {
   if (scanner instanceof BluefyScanner) { scanner.pickerMode = $<HTMLSelectElement>('picker').value as 'police' | 'all'; scanner.notice = msg => status(msg); }
   if (scanner instanceof BluefyScanner) scanner.onChange = n => { $('d-mode').textContent = `per-device watchAdvertisements · watching ${n} device(s)`; };
   if (scanner instanceof NativeScanner) scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; status(`[scan] ${msg}`, 'err'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+  if (scanner instanceof _NS) scanner.onWifi = nm => onWifi(nm);
   try {
-    await scanner.start(adv => {
-      const m = match(adv); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) policeDevs.add(adv.sessionId);
+    let advCb: (adv: any) => void;
+    await scanner.start(advCb = adv => {
+      supervisor.advert();
+      const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) policeDevs.add(adv.sessionId);
       const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLive();
       if (!m) { if (isNew && kind === 'bluefy') { const li = document.createElement('li'); li.style.borderColor = '#8a9bb0'; li.textContent = `${new Date().toLocaleTimeString()} · picked: ${$<HTMLSelectElement>('picker').value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`; $('log').prepend(li); } return; }
@@ -92,6 +98,8 @@ $('start').onclick = async () => {
       { const c = coarsen(loc.lat, loc.lng); const lv = pingGate.check({ deviceKey: m.sessionId, cell: `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`, category: m.signature.category, matched: true });
         if (lv) { status(`🔔 Police gear nearby: ${m.signature.label}`, 'ok'); if (soundEnabled()) ping.play(lv); } }
     });
+    void supervisor.started(kind, scanner, advCb);
+    map.follow.resume();
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
     $<HTMLButtonElement>('start').disabled = true; $<HTMLButtonElement>('stop').disabled = false;
@@ -105,7 +113,7 @@ $('add').onclick = async () => {
   try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
   catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
 };
-$('stop').onclick = () => { $('add').hidden = true; live.clear(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+$('stop').onclick = () => { supervisor.stopped(); fusion.fusion.clear(); $('add').hidden = true; live.clear(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
@@ -122,3 +130,36 @@ mountRecorder(recHost, recorder, () => sel.value);
 const ping = new PingPlayer(), pingGate = new PingGate();
 const soundBox = document.getElementById('sound') as HTMLInputElement; soundBox.checked = soundEnabled();
 soundBox.onchange = () => { setSoundEnabled(soundBox.checked); if (soundBox.checked) void ping.unlock().then(() => ping.play('soft')); };
+
+// ---- scan supervisor (stall watchdog + wake lock), Wi-Fi rules, patrol-car fusion, follow-me, Flock layer ----
+const supervisor = new ScanSupervisor({ recorder, warn: (msg, err) => (err ? status(msg, 'err') : status(msg, 'ok')) });
+const fusion = new ScanFusion();
+const addLog = (text: string, color: string) => { const li = document.createElement('li'); li.style.borderColor = color; li.textContent = text; $('log').prepend(li); };
+function patrolFlag(f: { possiblePatrolCar: boolean; gearTypes: string[] }, loc: { lat: number; lng: number }) {
+  if (!f.possiblePatrolCar) return; const c = coarsen(loc.lat, loc.lng); const key = `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
+  if (!fusion.fusion.shouldAlert(key, Date.now())) return;
+  recorder.event('possible-patrol-car', sel.value, f.gearTypes.join('+'));
+  store.add({ id: crypto.randomUUID(), category: 'vehicle', label: `Possible patrol car (${f.gearTypes.join(' + ')})`, confidence: 0.8, ...c, timestamp: Date.now() });
+  map.render(store.list());
+  addLog(`${new Date().toLocaleTimeString()} · 🚓 Possible patrol car: ${f.gearTypes.join(' + ')} in the same ~150 m area within 30 s`, '#ff1744');
+  status(`🚓 Possible patrol car nearby (${f.gearTypes.join(' + ')})`, 'ok');
+}
+function onWifi(nm: import('./ble/nativeScanner').NativeWifiMatch) {
+  const w = toWifiMatch(nm); if (!w) return;
+  recorder.addWifi(w, nm.rssi, pos);
+  const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
+  live.update(m.sessionId, m.rssi, m); drawLive();
+  if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
+  store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp });
+  map.render(store.list());
+  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}% · RSSI ${m.rssi ?? '?'} (unverified)`, colorFor(m));
+}
+// Follow-me: on by default; a manual pan pauses it and the recenter button resumes it.
+{ const rb = document.getElementById('recenter'); map.onFollowChange = on => { rb?.classList.toggle('follow-paused', !on); if (rb) rb.title = on ? 'Following your location' : 'Recenter and follow'; }; }
+// Pre-loaded Flock cameras from OpenStreetMap (separate from scan hits).
+const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
+{ const fb = document.getElementById('flockmap') as HTMLInputElement | null; const fs = document.getElementById('flock-status');
+  const setFlock = (on: boolean) => { localStorage.setItem('pr.flockmap', on ? '1' : '0');
+    map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
+      .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
+  const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
