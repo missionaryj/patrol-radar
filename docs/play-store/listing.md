@@ -14,7 +14,6 @@ How it works
 • Coarse by design: detections are snapped to a 150–250 m grid, never exact positions.
 • Private: device IDs are hashed with a salt that changes every session. No MAC addresses or serial numbers are kept. Your precise location is shown on your screen only and never saved.
 • Optional shared map: if you turn it on, only the grid cell, a 5-minute time slot, the gear category and a confidence level are shared. Shared reports are delayed 12–17 minutes and expire after 2 hours.
-• Optional dispatch layer: public incident data is shown on the coarse grid, delayed at least 10 minutes, with names, unit IDs and plates removed.
 • Background scanning shows a persistent notification and stops when you tap Stop.
 • No accounts, ads or analytics.
 

@@ -1,18 +1,17 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Report } from '../reports/types';
-import type { Incident } from '../radio/types';
 import type { CrowdCell } from '../crowd/protocol';
 import { type LiveDevice, BAND_RADIUS_M, offsetFor, applyOffset, opacityFor } from './liveDevices';
 import { TTL_MS } from '../reports/localStore';
 import { FollowController } from './follow';
+import { SmoothLocation } from './smoothFollow';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
 export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; }
 export class MapView {
   private map: L.Map;
   private layer = L.layerGroup();
-  readonly incidentLayer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
@@ -25,16 +24,16 @@ export class MapView {
     this.map = L.map(el, { zoomControl: opts.zoomControl ?? true }).setView(center, 15);
     // dark: OSM tiles darkened via CSS filter (.tiles-dark), no API key needed
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', className: opts.dark ? 'tiles-dark' : '' }).addTo(this.map);
-    this.layer.addTo(this.map); this.incidentLayer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
+    this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
     this.follow = new FollowController(true, f => this.onFollowChange?.(f));
     this.map.on('dragstart', () => this.follow.userPanned());
-    this.map.on('moveend', () => { if (this.flockOn) void this.drawFlock(); });
-    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'BLE detections': this.layer, 'Radio incidents (delayed)': this.incidentLayer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
+    // Follow-me moves the map every frame, so redraw Flock dots at most every ~400 ms instead of on every moveend.
+    this.map.on('moveend', () => { if (this.flockOn && this.flockTimer === undefined) this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.kick(); });
+    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
   }
   invalidate() { this.map.invalidateSize(); }
-  showIncidents(on: boolean) { if (on) this.incidentLayer.addTo(this.map); else this.incidentLayer.remove(); }
-  fitIncidents() { const b = this.incidentLayer.getLayers().map(l => (l as L.Rectangle).getBounds()); if (b.length) this.map.fitBounds(b.reduce((a, x) => a.extend(x), L.latLngBounds(b[0].getSouthWest(), b[0].getNorthEast())), { padding: [30, 30], maxZoom: 15 }); }
   showCrowd(on: boolean) { if (on) this.crowdLayer.addTo(this.map); else this.crowdLayer.remove(); }
   /** Crowd cells: purple ~200 m squares; solid when confirmed (2+ reporters or high conf), faint dotted when single-reporter. */
   renderCrowd(cells: CrowdCell[], now = Date.now()) {
@@ -42,7 +41,7 @@ export class MapView {
     for (const c of cells) {
       const d = 0.0009, f = c.confirmed;
       L.rectangle([[c.lat - d, c.lng - d * 1.3], [c.lat + d, c.lng + d * 1.3]], { color: '#b03cff', weight: f ? 2.5 : 1, dashArray: f ? undefined : '2 4', opacity: f ? 0.95 : 0.45, fillColor: '#b03cff', fillOpacity: f ? 0.32 : 0.08, className: 'crowd-pin' })
-        .bindTooltip(f ? '👥' : '·', { permanent: true, direction: 'center', className: 'incident-icon' })
+        .bindTooltip(f ? '👥' : '·', { permanent: true, direction: 'center', className: 'cell-icon' })
         .bindPopup(`👥 <b>${c.kind}</b> · ${f ? 'crowd confirmed' : 'single report'}<br>${c.reporters} reporter${c.reporters > 1 ? 's' : ''} · conf ${c.conf}<br>~${Math.round((now - c.last) / 60000)} min ago (≥12 min delay)<br><small>~200 m area, shared by other users</small>`)
         .addTo(this.crowdLayer);
     }
@@ -58,29 +57,33 @@ export class MapView {
         .addTo(this.layer);
     }
   }
-  /** Incidents: blue dashed squares = coarse area of a call, never a unit position. */
-  renderIncidents(incs: Incident[], now = Date.now()) {
-    this.incidentLayer.clearLayers();
-    for (const i of incs) {
-      const d = 0.0009;
-      L.rectangle([[i.cell.lat - d, i.cell.lng - d * 1.3], [i.cell.lat + d, i.cell.lng + d * 1.3]], { color: '#39f', weight: 2, dashArray: '5 4', fillColor: '#39f', fillOpacity: 0.12 + 0.3 * i.confidence, className: 'incident-pin' })
-        .bindTooltip('📻', { permanent: true, direction: 'center', className: 'incident-icon' })
-        .bindPopup(`📻 <b>${i.callType}</b><br>conf ${(i.confidence * 100).toFixed(0)}% · ${i.reports} msg${i.reports > 1 ? 's' : ''}<br>${Math.round((now - i.firstSeen) / 60000)} min ago (≥12 min delay)<br><small>~200 m area, not a unit position</small>`)
-        .addTo(this.incidentLayer);
-    }
-  }
   private me?: L.CircleMarker; private meAcc?: L.Circle; private centered = false;
-  /** Display-only "my location". Precise coords live only in these Leaflet layers, never stored or reported. */
-  setUserLocation(lat: number, lng: number, accuracy: number) {
+  private smooth = new SmoothLocation(); private raf?: number; private lastFrame = 0; private flockTimer?: number;
+  /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
+  setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
+    const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
     if (!this.me) {
       this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false }).addTo(this.map);
       this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false }).addTo(this.map);
-    } else { this.me.setLatLng([lat, lng]); this.meAcc!.setLatLng([lat, lng]).setRadius(accuracy); }
-    if (!this.centered) { this.centered = true; this.map.setView([lat, lng], 16); }
-    else if (this.follow.onFix()) this.map.panTo([lat, lng], { animate: true, duration: 0.5, noMoveStart: true });
+    }
+    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16), { animate: false }); }
+    this.kick();
   }
+  /** Start the frame loop if it isn't running. It stops itself once the dot settles (or the page is hidden) to save battery. */
+  private kick() {
+    if (this.raf !== undefined || !this.me || document.hidden) return;
+    this.lastFrame = performance.now(); this.raf = requestAnimationFrame(this.frame);
+  }
+  private frame = (ts: number) => {
+    this.raf = undefined;
+    const dt = Math.min(100, ts - this.lastFrame); this.lastFrame = ts;
+    const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
+    this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
+    if (this.follow.onFix()) this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions);
+    if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
+  };
   /** Recenter and resume follow-me. */
-  recenter(): boolean { this.follow.resume(); if (!this.me) return false; this.map.setView(this.me.getLatLng(), Math.max(this.map.getZoom(), 15)); return true; }
+  recenter(): boolean { this.follow.resume(); if (!this.me) return false; this.map.setView(this.smooth.disp ?? this.me.getLatLng(), Math.max(this.map.getZoom(), 15)); this.kick(); return true; }
   // ---- Flock camera (mapped) layer: static OSM export, lazy-loaded, only visible-bounds points drawn ----
   /** baseUrl = folder holding index.json + <lat>_<lng>.geojson tiles. */
   async showFlock(on: boolean, baseUrl: string) {

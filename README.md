@@ -58,14 +58,7 @@ This tool is for awareness and research. It must not be used to harass, follow, 
   - Background scanning requires `UIBackgroundModes: bluetooth-central` plus a service-UUID filter. It is throttled, gives only one event per device, and the plugin can't resume a scan after iOS suspends the app.
   - To build it you need a Mac with Xcode. A free Apple ID can sideload the app onto your own phone, but the signature expires after 7 days. A paid account ($99/yr) is needed for TestFlight or the App Store.
 
-## Radio incidents (prototype, mock only)
-`src/radio` parses dispatch transcripts into **incidents**: a call type plus a coarse area. It never tracks units or officers.
-- Unit IDs, badge numbers and names are scrubbed out before any other processing.
-- Locations are snapped to a 150–250 m grid.
-- Shared output must wait at least 10 minutes (default 12) before it is published.
-- An "on scene" status only raises an incident's confidence. It never becomes a separate pin.
-
-Tick "Mock radio incidents" to see the demo layer. See `docs/accuracy-plan.md`. Run the tests with `npm test`.
+Run the tests with `npm test`.
 
 ## Shared crowd map (opt-in)
 v2 Settings → "Share police-gear hits to the crowd map" (off by default). Uploads only `{cell (~200 m grid), bucket (5 min), kind, conf (low/med/high), reporter (random per-session token)}` to `https://patrol-radar-api.vercel.app/api/crowd` (source in `crowd-api/`, protocol in `src/crowd/protocol.ts`). Public reads are aggregated, ≥12 min delayed, expire after 2 h; a cell is "confirmed" with ≥2 distinct reporters or high confidence. Storage: Upstash Redis if `UPSTASH_REDIS_REST_URL/TOKEN` (or `KV_REST_API_URL/TOKEN`) are set, else ephemeral memory.

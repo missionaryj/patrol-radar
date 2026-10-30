@@ -1,13 +1,14 @@
 # Accuracy plan (v0.2)
 
+> Note (Oct 2026): the radio dispatch/incident layer described in parts of this plan was removed from the app; those sections are historical.
+
 ## Current state
 - **BLE (`src/ble`):** the scanner has two backends, mock and Web Bluetooth.
   - `signatures.ts` holds 7 rules, all unverified.
   - `matcher.ts` combines independent hits with 1−Π(1−c) and gives a small penalty when RSSI is below −90.
   - Device IDs are reduced to a salted hash that changes every session.
-- **Map (`src/map`):** Leaflet with a ~150 m grid. BLE circles fade out over 15 minutes. Radio incidents are a separate layer you can toggle on and off, drawn as blue dashed squares.
+- **Map (`src/map`):** Leaflet with a ~150 m grid. BLE circles fade out over 15 minutes.
 - **Reports (`src/reports`):** stored in localStorage. The backend interface is a stub.
-- **Radio (`src/radio`, new):** parser, privacy module, incident merger and a mock geocoder, plus a mock feed. These incidents are the only longer-range data source.
 
 ## BLE accuracy improvements
 1. **Signature validation.** Collect real captures with the user's consent. Hash the payload, not the device. Promote a rule to `field-validated` only after N independent sightings, and track a precision estimate for each rule.

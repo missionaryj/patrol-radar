@@ -5,7 +5,6 @@ if ((globalThis as any).Capacitor?.isNativePlatform?.()) location.replace('v2/in
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind } from './ble';
 import { MapView, coarsen } from './map';
 import { LocalReportStore } from './reports';
-import { startMockRadioFeed } from './radio/mockFeed';
 import { ScanStats } from './ble/stats';
 import { BluefyScanner } from './ble/bluefyScanner';
 import { NativeScanner } from './ble/nativeScanner';
@@ -52,7 +51,7 @@ function startGeo() {
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
   geoWatch = navigator.geolocation.watchPosition(p => {
     // precise position: display only (map dot); never stored/logged/reported
-    map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
+    map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading, p.timestamp);
     here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
     recorder.fix(p.coords.accuracy, here);
     pos = coarsen(p.coords.latitude, p.coords.longitude); // reports use the coarse grid only
@@ -62,7 +61,7 @@ function startGeo() {
     $('geo').textContent = err.code === err.PERMISSION_DENIED
       ? 'Location denied: map stays at default. Allow location for this site (Bluefy/iOS Settings → Privacy → Location), then tap ◎.'
       : `Location error: ${err.message}`;
-  }, { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 });
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 });
 }
 startGeo();
 $('recenter').onclick = () => { if (!map.recenter()) startGeo(); };
@@ -117,11 +116,6 @@ $('stop').onclick = () => { supervisor.stopped(); fusion.fusion.clear(); $('add'
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
-let stopRadio: (() => void) | undefined;
-$<HTMLInputElement>('radio').onchange = e => {
-  if ((e.target as HTMLInputElement).checked) stopRadio = startMockRadioFeed(incs => map.renderIncidents(incs));
-  else { stopRadio?.(); map.renderIncidents([]); }
-};
 
 const recorder = new SessionRecorder();
 const recHost = document.getElementById('start')!.parentElement!;
