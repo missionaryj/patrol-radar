@@ -66,11 +66,16 @@ body.pinging .toast{box-shadow:0 0 0 2px var(--acc),0 0 28px var(--acc-glow)}
 .stat::before{content:"";position:absolute;left:10px;top:12px;width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
 .stat b{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;padding-left:12px;line-height:1.1}
 .stat span{font-size:11px;color:var(--mut)}
+/* Count + dot on the left, category label right-aligned on the same row (was stacked under the count). */
+.stat{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.stat::before{top:50%;transform:translateY(-50%)}
+.stat{padding:8px 7px 7px}
+.stat b{font-size:19px}
+.stat span{text-align:right;margin-left:auto;font-size:10px;letter-spacing:-.1px;white-space:nowrap}
 .legend{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;font-size:11.5px;color:var(--mut);white-space:nowrap}
 .legend::-webkit-scrollbar{display:none}
 .legend span{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
 .legend i{display:inline-block;width:7px;height:7px;border-radius:50%}
-.legend i.c-inc{border-radius:2px;background:rgba(51,153,255,.35);outline:1px dashed #39f}
 .c-axon{background:var(--axon)}.c-moto{background:var(--moto)}.c-other{background:var(--other)}.c-unk{background:var(--unk)}.c-fixed{background:#ab47bc}
 .cards{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
 .cards .empty{color:var(--mut);text-align:center;padding:22px 8px;font-size:14px;border:1px dashed var(--line);border-radius:16px}
@@ -126,7 +131,6 @@ select.seg-src{position:absolute;width:1px;height:1px;opacity:0;pointer-events:n
 .switch input:checked+span{background:var(--acc)}.switch input:checked+span::after{left:23px}
 .switch input:focus-visible+span{outline:2px solid #fff;outline-offset:2px}
 .crowd-note,#crowd-status{display:block;color:var(--dim);font-size:12px;line-height:1.45}
-#radio-status{line-height:1.45}
 .privacy ul{margin:0;padding:12px 0 12px 18px;font-size:13px;color:var(--mut);line-height:1.5}
 .privacy li::marker{color:var(--acc)}
 .status-full{font-size:13px;padding:11px 13px;border-radius:14px;background:#141518;border:1px solid var(--line);color:var(--mut)}
@@ -143,8 +147,19 @@ details.group{margin-top:14px}
 .recorder .rec-btn.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .recorder .rec-stats{opacity:.8}
 .sheet.collapsed .recorder{visibility:hidden}
-.leaflet-tooltip.incident-icon{background:none;border:none;box-shadow:none;font-size:14px;padding:0}
-.leaflet-tooltip.incident-icon::before{display:none}
+.leaflet-tooltip.cell-icon{background:none;border:none;box-shadow:none;font-size:14px;padding:0}
+.leaflet-tooltip.cell-icon::before{display:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 #recenter.follow-paused { box-shadow: 0 0 0 2px #2a7fff; animation: pr-pulse 1.5s infinite; }
 @keyframes pr-pulse { 50% { opacity: .6; } }
+/* Always-visible map key (top-left, under the status pill). Non-interactive so it never blocks map gestures or buttons. */
+.map-key{position:fixed;z-index:999;top:calc(58px + var(--st));left:calc(12px + var(--sl));display:flex;flex-direction:column;gap:3px;padding:6px 9px;border-radius:12px;background:rgba(10,12,16,.72);border:1px solid var(--line);font-size:11px;line-height:1.2;color:var(--txt);pointer-events:none;max-width:45vw}
+.map-key span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.map-key i,.legend i.c-flock{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+.map-key i.k-flock,.legend i.c-flock{background:#0b3d4a;border:2px solid #00e5ff;width:8px;height:8px;box-sizing:border-box}
+.map-key i.k-hit{background:rgba(238,51,51,.45);border:1.5px solid #e33;box-sizing:border-box}
+.map-key i.k-me{background:#2a7fff;border:1.5px solid #fff;box-sizing:border-box}
+.field[hidden],.map-key[hidden]{display:none!important}
+/* Gear-type color key: right side under the settings button; stays on the map when the sheet is collapsed. */
+.gear-key{left:auto;right:calc(12px + var(--sr));top:calc(60px + var(--st));align-items:flex-start}
+@media (max-width:360px){.map-key{font-size:10px;padding:5px 7px}}

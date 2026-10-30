@@ -12,6 +12,12 @@
   <button id="open-settings" class="icon-btn" aria-label="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
 <div id="toast" class="toast" hidden></div>
+<div id="map-key" class="map-key" aria-label="Map key">
+  <span><i class="k-flock"></i>Flock camera</span><span><i class="k-hit"></i>Gear hit</span><span><i class="k-me"></i>You</span>
+</div>
+<div id="gear-key" class="map-key gear-key" aria-label="Detection colors">
+  <span><i class="c-axon"></i>Axon</span><span><i class="c-moto"></i>Radio</span><span><i class="c-fixed"></i>Fixed (ALPR)</span><span><i class="c-other"></i>Other</span><span><i class="c-unk"></i>Unknown</span>
+</div>
 
 <section id="sheet" class="sheet collapsed" aria-label="Detections">
   <button id="sheet-handle" class="handle" aria-label="Expand detections"><span></span></button>
@@ -24,7 +30,6 @@
     <div class="stat" style="--c:var(--other)"><b id="n-other">0</b><span>Other</span></div>
     <div class="stat" style="--c:var(--unk)"><b id="n-unk">0</b><span>Unknown</span></div>
   </div>
-  <div class="legend"><span><i class="c-axon"></i>Axon</span><span><i class="c-moto"></i>Radio</span><span><i class="c-fixed"></i>Fixed (ALPR)</span><span><i class="c-other"></i>Other</span><span><i class="c-unk"></i>Unknown</span><span><i class="c-inc"></i>Incident</span></div>
   <ul id="cards" class="cards"><li class="empty">No detections yet. Tap <b>Scan</b> to start listening.</li></ul>
   <p class="disclaimer">Receive-only: never connects, pairs or writes. Signatures unverified; positions are rough estimates. Don't use this to harass or target anyone.</p>
 </section>
@@ -42,7 +47,7 @@
 
   <h3 class="group-title">Scanning</h3>
   <div class="group">
-    <label class="field">Scanner backend
+    <label class="field" id="backend-wrap">Scanner backend
       <select id="backend"><option value="mock">Mock (simulated)</option><option value="web">Web Bluetooth (Chrome / Android)</option><option value="bluefy">Bluefy (iPhone): pick devices</option><option value="native">Android app (background)</option></select></label>
     <div class="field" id="scanmode-wrap"><span>Android app scan mode</span>
       <select id="scanmode" data-seg data-labels="Saver|Balanced|Fastest"><option value="lowPower">Battery saver (slower)</option><option value="balanced" selected>Balanced</option><option value="lowLatency">Fastest (more battery)</option></select>
@@ -56,10 +61,6 @@
 
   <h3 class="group-title">Map layers</h3>
   <div class="group">
-    <label class="field">Radio incidents (delayed ≥12 min)
-      <select id="radiosrc"><option value="off">Off</option><option value="mock">Mock: sample Champaign dispatch</option><option value="champaign-replay">Real data replay: Champaign fire/EMS 2023-24</option></select>
-      <small id="radio-status">Pins are ~200 m areas, unit IDs/names/plates removed, transcripts discarded.</small></label>
-    <label class="switch"><input type="checkbox" id="radio" checked/><span></span><em>Show incident layer</em></label>
     <label class="switch"><input type="checkbox" id="flockmap" checked/><span></span><em>Flock camera (mapped)<small>Known Flock plate-reader cameras from OpenStreetMap. Not scan hits. © OpenStreetMap contributors (ODbL)</small></em></label>
     <small id="flock-status">Loading mapped cameras…</small>
   </div>
@@ -83,7 +84,6 @@
       <li>Receive-only: never connects, pairs or writes to a device.</li>
       <li>Device IDs are salted hashes that change every session.</li>
       <li>Saved locations are ~200 m areas; your exact spot stays on screen only.</li>
-      <li>Radio incidents are delayed ≥12 min with names and unit IDs removed.</li>
     </ul>
   </div>
 

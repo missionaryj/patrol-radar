@@ -2,7 +2,6 @@ import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
 import { MapView, coarsen } from '../map';
 import { LocalReportStore } from '../reports';
-import { startRadio, type RadioSourceKind } from '../radio/mockFeed';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
@@ -16,6 +15,7 @@ import { ScanSupervisor } from '../session/supervisor';
 import { ScanFusion, wifiAsMatch, toWifiMatch } from '../session/extras';
 import { NativeScanner as _NS } from '../ble/nativeScanner';
 import { mountSegmented } from './segmented';
+import { nativeAppPresent, applyPlatformSettings } from './platform';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
@@ -54,7 +54,11 @@ $('d-env').textContent = `navigator.bluetooth: ${bt ? 'yes' : 'no'} · requestLE
 $('d-probe').textContent = probeReport();
 const sel = $<HTMLSelectElement>('backend');
 const picker = $<HTMLSelectElement>('picker');
-sel.value = new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
+// In the Android app the native scanner is the only sensible choice (background + Wi-Fi), so lock it and hide the picker.
+// On the web, the Android-only scan-mode setting does nothing, so hide that instead.
+const isNativeApp = nativeAppPresent();
+sel.value = isNativeApp ? 'native' : new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
+applyPlatformSettings(document, isNativeApp);
 { const sm = document.getElementById('scanmode') as HTMLSelectElement | null; const v = localStorage.getItem('pr.scanmode'); if (sm && v) sm.value = v; }
 { const pl = nativePlugin(); const b = document.getElementById('battery') as HTMLButtonElement | null; if (pl && b) { b.hidden = false; b.onclick = () => pl.openBatterySettings(); } }
 document.querySelectorAll<HTMLSelectElement>('select[data-seg]').forEach(mountSegmented);
@@ -87,7 +91,7 @@ function startGeo() {
   if (!navigator.geolocation) { $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
   geoWatch = navigator.geolocation.watchPosition(p => {
-    map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
+    map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading, p.timestamp);
     here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
     recorder.fix(p.coords.accuracy, here);
     pos = coarsen(p.coords.latitude, p.coords.longitude);
@@ -95,7 +99,7 @@ function startGeo() {
   }, err => {
     recorder.event(err.code === err.PERMISSION_DENIED ? 'location-denied' : 'location-error', undefined, err.message);
     $('geo').textContent = err.code === err.PERMISSION_DENIED ? 'Location denied: allow it for this site, then tap ◎' : `Location error: ${err.message}`;
-  }, { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 });
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 });
 }
 startGeo();
 $('recenter').onclick = () => { if (!map.recenter()) startGeo(); };
@@ -186,21 +190,6 @@ $('add').onclick = async () => {
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
-let stopRadio: (() => void) | undefined; let fitted = false;
-const radioSrc = $<HTMLSelectElement>('radiosrc');
-function setRadio(kind: string) {
-  stopRadio?.(); stopRadio = undefined; map.renderIncidents([]); fitted = false;
-  if (kind === 'off') { $('radio-status').textContent = 'Off'; return; }
-  stopRadio = startRadio(kind as RadioSourceKind, (incs, pending) => {
-    map.renderIncidents(incs);
-    $('radio-status').textContent = `${incs.length} incident(s) shown · ${pending} held for delay`;
-    if (!fitted && incs.length >= 3) { fitted = true; map.fitIncidents(); }
-  });
-}
-radioSrc.onchange = () => setRadio(radioSrc.value);
-$<HTMLInputElement>('radio').onchange = e => map.showIncidents((e.target as HTMLInputElement).checked);
-const qsRadio = new URLSearchParams(location.search).get('radio');
-if (qsRadio) { radioSrc.value = qsRadio; setRadio(qsRadio); }
 if (new URLSearchParams(location.search).get('autostart') === '1') setTimeout(start, 0);
 
 const recorder = new SessionRecorder();
