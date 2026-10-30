@@ -69,7 +69,9 @@ body.pinging .toast{box-shadow:0 0 0 2px var(--acc),0 0 28px var(--acc-glow)}
 /* Count + dot on the left, category label right-aligned on the same row (was stacked under the count). */
 .stat{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .stat::before{top:50%;transform:translateY(-50%)}
-.stat span{text-align:right;margin-left:auto}
+.stat{padding:8px 7px 7px}
+.stat b{font-size:19px}
+.stat span{text-align:right;margin-left:auto;font-size:10px;letter-spacing:-.1px;white-space:nowrap}
 .legend{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;font-size:11.5px;color:var(--mut);white-space:nowrap}
 .legend::-webkit-scrollbar{display:none}
 .legend span{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
@@ -158,4 +160,6 @@ details.group{margin-top:14px}
 .map-key i.k-hit{background:rgba(238,51,51,.45);border:1.5px solid #e33;box-sizing:border-box}
 .map-key i.k-me{background:#2a7fff;border:1.5px solid #fff;box-sizing:border-box}
 .field[hidden],.map-key[hidden]{display:none!important}
+/* Gear-type color key: right side under the settings button; stays on the map when the sheet is collapsed. */
+.gear-key{left:auto;right:calc(12px + var(--sr));top:calc(60px + var(--st));align-items:flex-start}
 @media (max-width:360px){.map-key{font-size:10px;padding:5px 7px}}
