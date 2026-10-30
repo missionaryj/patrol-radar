@@ -16,6 +16,7 @@ import { ScanFusion, wifiAsMatch, toWifiMatch } from '../session/extras';
 import { NativeScanner as _NS } from '../ble/nativeScanner';
 import { mountSegmented } from './segmented';
 import { nativeAppPresent, applyPlatformSettings } from './platform';
+import { mountUpdates } from './updatesUi';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
@@ -75,7 +76,8 @@ sheet.addEventListener('touchend', e => { if (y0 === undefined) return; const dy
 const setSettings = (open: boolean) => { $('settings').classList.toggle('open', open); $('settings').setAttribute('aria-hidden', String(!open)); $('scrim').hidden = !open; };
 $('open-settings').onclick = () => setSettings(true);
 $('close-settings').onclick = () => setSettings(false);
-$('scrim').onclick = () => setSettings(false);
+$('scrim').onclick = () => { setSettings(false); updatesUi.close(); };
+const updatesUi = mountUpdates({ native: nativeAppPresent(), openSettings: () => setSettings(true) });
 if (location.hash === '#settings') setSettings(true);
 if (location.hash === '#sheet') sheet.classList.remove('collapsed');
 

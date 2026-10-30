@@ -9,7 +9,8 @@
     <span class="dot"><i></i></span><span id="pill-text">Idle</span>
     <span class="sep"></span><span class="count" title="Distinct police-gear devices this session"><b id="pill-count">0</b> gear</span>
   </div>
-  <button id="open-settings" class="icon-btn" aria-label="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  <div class="top-btns"><button id="open-updates" class="icon-btn bell" aria-label="Updates"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><b id="updates-badge" class="badge-dot" hidden>0</b></button>
+  <button id="open-settings" class="icon-btn" aria-label="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button></div>
 </div>
 <div id="toast" class="toast" hidden></div>
 <div id="map-key" class="map-key" aria-label="Map key">
@@ -78,6 +79,23 @@
     <small id="crowd-status">Loading…</small>
   </div>
 
+  <h3 class="group-title">Help</h3>
+  <details id="help" class="group help"><summary>Not seeing police on the map?</summary>
+    <div class="help-body">
+      <p>Sometimes police gear doesn't show up. A short recording helps fix that. Here's how to send one:</p>
+      <ol>
+        <li><b>Scan.</b> Use the Android app if you can, and set <b>Android app scan mode</b> to <b>Fastest</b> (Settings → Scanning). Tap <b>Scan</b>.</li>
+        <li><b>Record.</b> When you're near police, pull up the <b>Live detections</b> panel and tap <b>● Record</b>.</li>
+        <li><b>Keep recording a few minutes</b> while you stay nearby (only when it's safe).</li>
+        <li>Tap <b>■ Stop rec</b>, then tap <b>Export</b>. This saves a <code>patrol-radar-session-….json</code> file.</li>
+        <li>Tap <b>Email the debug file</b> below, <b>attach the exported file</b>, and add a short note: what you saw and roughly when.</li>
+      </ol>
+      <a id="mail-debug" class="mail-btn" href="#">✉️ Email the debug file</a>
+      <small>Sends to <b>percolatorbiz@gmail.com</b> from your own email app. The file can't be attached automatically. Attach it yourself.</small>
+      <small class="help-privacy"><b>What's in the file:</b> only police-gear matches (other devices are dropped), device IDs that are scrambled and change every session, ~150 m map areas (never your exact location), signal strength and times, the matched signal data with serial-like text masked, and scan-health counts. No MAC addresses, device names or Wi-Fi network names.</small>
+    </div>
+  </details>
+
   <h3 class="group-title">Privacy</h3>
   <div class="group privacy">
     <ul>
@@ -98,6 +116,11 @@
     <h3>Event log</h3><ul id="log" class="log"></ul>
   </details>
   <p class="links"><a href="../">← Classic UI</a></p>
+</aside>
+<aside id="updates" class="drawer" aria-label="Updates" aria-hidden="true">
+  <header><h2>Updates</h2><button id="close-updates" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <ul id="updates-list" class="updates-list"><li class="empty">Loading…</li></ul>
+  <button type="button" id="updates-help" class="help-link">Not seeing police on the map? Send debug info →</button>
 </aside>
 <script type="module" src="/src/v2/main.ts"></script>
 </body></html>

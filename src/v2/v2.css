@@ -163,3 +163,23 @@ details.group{margin-top:14px}
 /* Gear-type color key: right side under the settings button; stays on the map when the sheet is collapsed. */
 .gear-key{left:auto;right:calc(12px + var(--sr));top:calc(60px + var(--st));align-items:flex-start}
 @media (max-width:360px){.map-key{font-size:10px;padding:5px 7px}}
+/* Updates bell + drawer, debug help */
+.top-btns{display:flex;gap:8px;pointer-events:auto}
+.bell{position:relative}
+.badge-dot{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ff2d3d;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 2px #07080a}
+.badge-dot[hidden]{display:none}
+.updates-list{list-style:none;margin:10px 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.updates-list .post{background:#141518;border:1px solid var(--line);border-radius:16px;padding:12px 14px;position:relative}
+.updates-list .post.unread{border-color:rgba(255,45,61,.45)}
+.updates-list .post.unread::before{content:"";position:absolute;left:-1px;top:16px;width:4px;height:18px;border-radius:0 3px 3px 0;background:#ff2d3d}
+.post-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.post-head b{font-size:15px}.post-head time{font-size:12px;color:var(--mut);white-space:nowrap}
+.updates-list p{margin:6px 0 0;font-size:13.5px;line-height:1.45;color:#c9ccd3}
+.updates-list .empty{color:var(--mut);padding:12px}
+.help-link{width:100%;margin-top:6px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:#141518;color:#ff6b75;font-weight:600;font-size:14px;text-align:left}
+.help summary{font-weight:600;cursor:pointer}
+.help-body{font-size:13.5px;line-height:1.5;color:#c9ccd3;display:flex;flex-direction:column;gap:10px}
+.help-body p{margin:0}.help-body ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.help-body code{font-size:12px;background:#1d1f24;padding:1px 4px;border-radius:4px}
+.mail-btn{display:block;text-align:center;padding:12px;border-radius:14px;background:#ff2d3d;color:#fff;font-weight:700;text-decoration:none}
+.help-body small{color:var(--mut);font-size:12px;line-height:1.45}

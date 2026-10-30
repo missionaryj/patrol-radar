@@ -1,0 +1,17 @@
+{
+  "_note": "SAMPLE posts for the mockup. Edit this file and redeploy GitHub Pages to publish an update (no app build needed). Newest first is not required; the app sorts by date. Give each post a unique id.",
+  "posts": [
+    {
+      "id": "2026-10-30-release-1.0.15",
+      "date": "2026-10-30",
+      "title": "Version 1.0.15 is out (sample)",
+      "body": "Smoother follow-me map while driving. New map keys for Flock cameras, gear hits and gear colors. The Android app now always uses its built-in scanner. The radio incidents layer was removed."
+    },
+    {
+      "id": "2026-10-29-field-testers",
+      "date": "2026-10-29",
+      "title": "Field testers wanted (sample)",
+      "body": "Near police and nothing shows on the map? Record a few minutes and send the file. See \"Not seeing police on the map?\" for the steps."
+    }
+  ]
+}
