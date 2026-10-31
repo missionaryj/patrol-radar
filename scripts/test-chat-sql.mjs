@@ -1,0 +1,54 @@
+import { PGlite } from '@electric-sql/pglite';
+import fs from 'fs';
+const db = new PGlite();
+const mig = fs.readFileSync('./supabase/migrations/20261030000000_city_chat.sql','utf8')
+  .replace('create extension if not exists pg_cron;','');
+await db.exec(`
+create role anon; create role authenticated;
+create schema auth; create table auth.users(id uuid primary key, created_at timestamptz default now());
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.uid', true),'')::uuid $$;
+create publication supabase_realtime;
+create schema cron; create table cron.job(jobname text);
+create function cron.schedule(a text,b text,c text) returns int language sql as $$ insert into cron.job values(a); select 1 $$;
+create function cron.unschedule(a text) returns bool language sql as $$ select true $$;
+grant usage on schema public to authenticated; grant all on all tables in schema public to authenticated;
+`);
+await db.exec(mig); await db.exec(mig); // idempotent
+await db.exec(`grant all on all tables in schema public to authenticated; grant usage, select on all sequences in schema public to authenticated;`);
+const A='11111111-1111-1111-1111-111111111111', B='22222222-2222-2222-2222-222222222222', C='33333333-3333-3333-3333-333333333333', D='44444444-4444-4444-4444-444444444444';
+await db.exec(`insert into auth.users(id) values ('${A}'),('${B}'),('${C}'),('${D}')`);
+const as = async (uid, sql) => { try { await db.exec(`set role authenticated; set request.uid='${uid}';`); const r = await db.query(sql); return r.rows; } catch(e){ return 'ERR: '+e.message; } finally { await db.exec('reset role'); } };
+const log=(k,v)=>console.log(k.padEnd(28), JSON.stringify(v));
+log('post w/o terms', await as(A,`insert into messages(room,body) values('US-IL-champaign','hi')`));
+for (const u of [A,B,C,D]) await as(u,`insert into terms_acceptances(version) values(1)`);
+log('post ok', await as(A,`insert into messages(room,body,display_name) values('US-IL-champaign','hello all','Admin') returning id,display_name,user_id`));
+log('rate limit', await as(A,`insert into messages(room,body) values('US-IL-champaign','again')`));
+log('spoof user_id', await as(B,`insert into messages(room,body,user_id) values('US-IL-champaign','x','${A}') returning user_id`));
+log('281 chars', await as(C,`insert into messages(room,body) values('US-IL-champaign',repeat('a',281))`));
+log('phone', await as(C,`insert into messages(room,body) values('US-IL-champaign','call 217-555-1234')`));
+log('address', await as(C,`insert into messages(room,body) values('US-IL-champaign','he lives at 123 Main St')`));
+log('threat', await as(C,`insert into messages(room,body) values('US-IL-champaign','gonna shoot the cop')`));
+log('bad room', await as(C,`insert into messages(room,body) values('lat:40.1,-88.2','x')`));
+log('edit blocked', await as(A,`update messages set body='edited'`));
+log('B reads', await as(B,`select id,body from messages`));
+await as(B,`insert into blocks(blocked) values('${A}')`);
+log('B reads after block', await as(B,`select id,body from messages`));
+for (const u of [B,C]) log('report', await as(u,`insert into reports(message_id,kind,reported_user) values(2,'message','${D}')`));
+log('C reads (2 reports)', await as(C,`select id from messages`));
+log('self report', await as(A,`insert into reports(message_id,kind,reported_user) values(2,'message','${A}')`));
+await as(D,`insert into reports(message_id,kind,reported_user) values(2,'message','${A}')`);
+log('C reads (3 reports, hidden)', await as(C,`select id from messages`));
+log('reports unreadable', await as(C,`select * from reports`));
+log('queue', (await db.query(`select message_id,reporters,hidden_now,body from moderation.report_queue`)).rows);
+log('mod schema from client', await as(C,`select * from moderation.report_queue`));
+await db.exec(`select moderation.ban('${A}','test')`);
+log('banned post', await as(A,`insert into messages(room,body) values('US-IL-champaign','back')`));
+// daily cap new account
+await db.exec(`update chat_settings set rate_limit_seconds=0`);
+let last; for (let i=0;i<21;i++) last = await as(C,`insert into messages(room,body) values('US-IL-champaign','m${i}')`);
+log('new acct 21st msg', last);
+await db.exec(`update messages set created_at=now()-interval '25 hours' where body='m0'`);
+await db.exec(`select purge_chat()`);
+log('after purge count C', (await db.query(`select count(*) from messages where user_id='${C}'`)).rows);
+log('cron jobs', (await db.query(`select * from cron.job`)).rows);
+log('handle', (await db.query(`select daily_handle('${B}') h`)).rows);

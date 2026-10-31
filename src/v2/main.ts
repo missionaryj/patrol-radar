@@ -256,4 +256,4 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
       .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
   const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
 import { mountCityChat } from './cityChat';
-mountCityChat();
+mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is just the has-a-fix flag

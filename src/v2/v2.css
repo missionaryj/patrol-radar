@@ -188,3 +188,13 @@ details.group{margin-top:14px}
 .chat .compose input{flex:1;background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--txt);padding:10px 14px;font:inherit}
 .chat .send{background:var(--acc);color:#fff;border:0;border-radius:999px;padding:0 16px;font-weight:600}
 .chat .note{color:var(--dim);font-size:11px;text-align:center;padding:2px 0 10px}
+
+.chat .chat-empty{padding:24px 18px;color:var(--mut);font-size:14px}
+.chat .msgs li.empty{max-width:none;background:none;border:0;color:var(--mut);text-align:center}
+.chat .note.err{color:#ff8a94}
+.chat .terms{flex:1;overflow:auto;padding:0 16px 8px;font-size:13.5px;line-height:1.45}
+.chat .terms h3{font-size:15px;margin:10px 0 4px}.chat .terms h4{font-size:13px;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.chat .terms ul{padding-left:18px;margin:4px 0}.chat .terms p{margin:6px 0}
+.chat .terms-actions{display:flex;gap:10px;padding:10px 14px 14px}
+.chat .terms-actions button{flex:1;padding:12px;border-radius:999px;font:inherit;font-weight:600}
+.chat .terms-actions .ghost{background:rgba(255,255,255,.08);color:var(--txt);border:0}

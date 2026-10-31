@@ -1,37 +1,96 @@
-// UI-only mockup of a per-city chat feed. Mock data, no backend, nothing is sent or stored.
-// Privacy model (planned): room key = city name derived from the coarse grid cell, never precise location;
-// author shown only as a per-room salted handle that rotates; no device IDs, MACs or names attached.
-type Msg = { id: string; who: string; mins: number; text: string; mine?: boolean; flagged?: boolean };
-const MOCK: Msg[] = [
-  { id: '1', who: 'Teal Fox', mins: 42, text: 'Flock camera at Neil & Kirby is back online, saw it light up on the map.' },
-  { id: '2', who: 'Amber Owl', mins: 31, text: 'Anyone else getting Axon hits near campus town tonight?' },
-  { id: '3', who: 'Slate Heron', mins: 27, text: 'Yeah, 2 weak ones on Green St around 7:50.' },
-  { id: '4', who: 'Hidden', mins: 15, text: 'Message hidden: it included an officer\u2019s personal details.', flagged: true },
-  { id: '5', who: 'You', mins: 4, text: 'Thanks, heading the other way.', mine: true },
-];
+// Per-city chat. Room = city computed on device from the coarse grid cell (chat/room.ts). Backend = Supabase
+// (supabase/migrations). Nothing about location, device IDs, MACs or Wi-Fi is sent; only room key + text.
+import termsMd from '../../docs/chat-terms.md?raw';
+import { miniMd } from './chat/md';
+import { checkMessage, reasonText, MAX_LEN } from './chat/filter';
+import { roomFor, loadCities, type Room } from './chat/room';
+import { chatConfig, ChatClient, type ChatMsg } from './chat/client';
+import { DemoChat } from './chat/demo';
+
+type Api = Pick<ChatClient, 'uid' | 'signIn' | 'hasTerms' | 'acceptTerms' | 'recent' | 'subscribe' | 'unsubscribe' | 'post' | 'report' | 'block' | 'blocked'>;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-export function mountCityChat(city = 'Champaign, IL') {
+const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); return m < 1 ? 'now' : m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`; };
+
+export function mountCityChat(getCell: () => { lat: number; lng: number } | undefined) {
   const btn = document.createElement('button');
   btn.id = 'open-chat'; btn.className = 'icon-btn'; btn.setAttribute('aria-label', 'City chat');
   btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>';
-  const top = document.querySelector('.top'); const set = document.getElementById('open-settings');
-  top?.insertBefore(btn, set);
+  document.querySelector('.top')?.insertBefore(btn, document.getElementById('open-settings'));
   const el = document.createElement('section');
   el.id = 'chat'; el.className = 'chat'; el.hidden = true; el.setAttribute('aria-label', 'City chat');
-  const render = () => {
-    el.innerHTML = `<header><div><b>${esc(city)}</b><small>Local chat · city-level only · mockup</small></div>
-      <button class="icon-btn x" aria-label="Close">✕</button></header>
-      <div class="rules">Be civil. No threats, no officer names, addresses, plates or photos. Posts auto-delete after 24 h. <a href="#">Rules</a></div>
-      <ol class="msgs">${MOCK.map(m => `<li class="${m.mine ? 'mine' : ''}${m.flagged ? ' flag' : ''}"><div class="meta"><b>${esc(m.who)}</b> · ${m.mins}m ago${m.mine || m.flagged ? '' : ` <button class="more" data-id="${m.id}" aria-label="Report or block">⋯</button>`}</div><p>${esc(m.text)}</p></li>`).join('')}</ol>
-      <div class="menu" hidden><button>Report message</button><button>Report user</button><button>Block user</button><button class="cancel">Cancel</button></div>
-      <form class="compose"><input placeholder="Message ${esc(city)}…" maxlength="280"/><button class="send" type="submit">Send</button></form>
-      <div class="note">1 message / 30 s · You appear as a random name that changes each day</div>`;
-    el.querySelector('.x')!.addEventListener('click', () => { el.hidden = true; });
-    const menu = el.querySelector<HTMLElement>('.menu')!;
-    el.querySelectorAll('.more').forEach(b => b.addEventListener('click', () => { menu.hidden = false; }));
-    menu.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { menu.hidden = true; }));
-    el.querySelector('form')!.addEventListener('submit', e => e.preventDefault());
+  document.body.appendChild(el);
+
+  let api: Api | undefined, room: Room | null = null, msgs: ChatMsg[] = [], blocked = new Set<string>(), roomTimer: number | undefined;
+  const demo = new URLSearchParams(location.search).has('chatdemo');
+
+  const shell = (title: string, sub: string, body: string) => {
+    el.innerHTML = `<header><div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="icon-btn x" aria-label="Close">✕</button></header>${body}`;
+    el.querySelector('.x')!.addEventListener('click', close);
   };
-  render(); document.body.appendChild(el);
-  btn.onclick = () => { el.hidden = !el.hidden; };
+  const notice = (title: string, text: string) => shell(title, 'City chat', `<div class="chat-empty"><p>${text}</p></div>`);
+
+  const termsScreen = () => new Promise<void>(resolve => {
+    shell('City chat rules', 'Read and agree to join', `<div class="terms">${miniMd(termsMd)}</div>
+      <div class="terms-actions"><button class="ghost" id="terms-no">Not now</button><button class="send" id="terms-yes">I agree</button></div>`);
+    el.querySelector('#terms-no')!.addEventListener('click', close);
+    el.querySelector('#terms-yes')!.addEventListener('click', async () => { await api!.acceptTerms(); resolve(); });
+  });
+
+  const renderFeed = () => {
+    const shown = msgs.filter(m => !blocked.has(m.user_id));
+    const list = el.querySelector('.msgs');
+    const html = shown.length ? shown.map(m => { const mine = m.user_id === api!.uid;
+      return `<li class="${mine ? 'mine' : ''}"><div class="meta"><b>${esc(mine ? `You (${m.display_name})` : m.display_name)}</b> · ${ago(m.created_at)}${mine ? '' : ` <button class="more" data-id="${m.id}" aria-label="Report or block">⋯</button>`}</div><p>${esc(m.body)}</p></li>`; }).join('')
+      : '<li class="empty">No messages in the last 24 hours. Say hi.</li>';
+    if (list) { list.innerHTML = html; list.scrollTop = list.scrollHeight; }
+    el.querySelectorAll<HTMLButtonElement>('.more').forEach(b => b.onclick = () => openMenu(msgs.find(m => m.id === +b.dataset.id!)!));
+  };
+  const toast = (t: string, err = false) => { const n = el.querySelector<HTMLElement>('.note'); if (n) { n.textContent = t; n.classList.toggle('err', err); } };
+  const openMenu = (m: ChatMsg) => {
+    const menu = el.querySelector<HTMLElement>('.menu')!; menu.hidden = false;
+    const act = async (f: () => Promise<unknown>, done: string) => { menu.hidden = true; try { await f(); toast(done); } catch (e: any) { toast(e.message ?? String(e), true); } };
+    menu.querySelector<HTMLButtonElement>('[data-a=rm]')!.onclick = () => act(() => api!.report(m, 'message'), 'Thanks. Message reported to moderators.');
+    menu.querySelector<HTMLButtonElement>('[data-a=ru]')!.onclick = () => act(() => api!.report(m, 'user'), 'Thanks. User reported to moderators.');
+    menu.querySelector<HTMLButtonElement>('[data-a=bl]')!.onclick = () => act(async () => { await api!.block(m.user_id); blocked.add(m.user_id); renderFeed(); }, `Blocked ${m.display_name}. You won't see their posts.`);
+    menu.querySelector<HTMLButtonElement>('.cancel')!.onclick = () => { menu.hidden = true; };
+  };
+
+  const feed = async (r: Room) => {
+    room = r;
+    shell(r.label, 'Local chat · city-level only · anonymous', `<div class="rules">Be civil. No threats, names, addresses, plates or phone numbers. Posts delete after 24 h. <a href="#" id="show-rules">Rules</a></div>
+      <ol class="msgs"><li class="empty">Loading…</li></ol>
+      <div class="menu" hidden><button data-a="rm">Report message</button><button data-a="ru">Report user</button><button data-a="bl">Block user</button><button class="cancel">Cancel</button></div>
+      <form class="compose"><input placeholder="Message ${esc(r.label)}…" maxlength="${MAX_LEN}" enterkeyhint="send"/><button class="send" type="submit">Send</button></form>
+      <div class="note">1 message / 30 s · Your random name changes each day</div>`);
+    el.querySelector('#show-rules')!.addEventListener('click', e => { e.preventDefault(); shell('City chat rules', r.label, `<div class="terms">${miniMd(termsMd)}</div><div class="terms-actions"><button class="send" id="back">Back to chat</button></div>`); el.querySelector('#back')!.addEventListener('click', () => void feed(r)); });
+    const input = el.querySelector<HTMLInputElement>('.compose input')!;
+    el.querySelector('form')!.addEventListener('submit', async e => {
+      e.preventDefault();
+      const why = checkMessage(input.value); if (why) { toast(reasonText[why], true); return; }
+      try { await api!.post(r.key, input.value.trim()); input.value = ''; toast('Sent'); }
+      catch (err: any) { toast(/rate limited/.test(err.message) ? 'Slow down: 1 message every 30 seconds.' : /content policy/.test(err.message) ? 'Blocked by the content policy.' : /banned/.test(err.message) ? 'Your account is banned from chat.' : err.message, true); }
+    });
+    msgs = await api!.recent(r.key); blocked = await api!.blocked(); renderFeed();
+    api!.subscribe(r.key, m => { if (!msgs.some(x => x.id === m.id)) { msgs.push(m); renderFeed(); } }, id => { msgs = msgs.filter(m => m.id !== id); renderFeed(); });
+  };
+
+  const currentRoom = async () => { const cell = getCell(); return cell ? roomFor(cell, await loadCities()) : null; };
+
+  async function open() {
+    el.hidden = false;
+    const cfg = chatConfig();
+    if (!cfg && !demo) return notice('Chat not configured', 'City chat isn\u2019t switched on in this build yet. The rest of the app works as normal.');
+    try {
+      if (!api) { notice('City chat', 'Connecting…'); api = demo ? new DemoChat() : await ChatClient.create(cfg!); await api.signIn(); }
+      const r = await currentRoom();
+      if (!r) return notice('City chat', 'Waiting for your location. Chat opens to the city you\u2019re in (worked out on your phone from a ~150 m area, never your exact spot).');
+      if (!(await api.hasTerms())) await termsScreen();
+      await feed(r);
+      clearInterval(roomTimer);
+      roomTimer = window.setInterval(async () => { const n = await currentRoom(); if (n && room && n.key !== room.key && !el.hidden) void feed(n); }, 60_000);
+    } catch (e: any) { notice('City chat', `Couldn\u2019t connect: ${esc(e?.message ?? String(e))}`); }
+  }
+  function close() { el.hidden = true; api?.unsubscribe(); clearInterval(roomTimer); }
+  btn.onclick = () => (el.hidden ? void open() : close());
+  if (location.hash === '#chat') void open();
 }
