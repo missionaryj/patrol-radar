@@ -140,7 +140,7 @@ function setScanning(on: boolean) {
 async function start() {
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
-  recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
+  if (kind !== 'native') recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
   if (!(await scanner.isSupported())) {
     scanner = undefined;
     status(kind === 'mock' ? 'Mock unavailable?' : 'No Web Bluetooth in this browser. On iPhone use Bluefy; on Android use Chrome. Or pick Mock in Settings.', 'err'); return;
@@ -153,6 +153,8 @@ async function start() {
   if (scanner instanceof NativeScanner) {
     const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
     scanner.filtered = picker.value !== 'all';
+    // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
+    recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
     scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
   }
   if (scanner instanceof _NS) scanner.onWifi = nm => onWifi(nm);
@@ -178,11 +180,19 @@ async function start() {
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
     setScanning(true); $('add').hidden = !(scanner instanceof BluefyScanner);
-    setTimeout(() => { if (scanner && stats.raw === 0 && kind !== 'mock') status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err'); }, 20_000);
+    setTimeout(() => {
+      if (!scanner || stats.raw !== 0 || kind === 'mock') return;
+      if (kind === 'native' && picker.value !== 'all') status('No police gear heard in 20 s. "Police gear only" ignores phones, earbuds and cars, so 0 is normal with no police nearby. To test that scanning works, set Devices to "All devices" in Settings.', '');
+      else status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err');
+    }, 20_000);
   } catch (e) { scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
 }
 function stop() { supervisor.stopped(); fusion.fusion.clear(); $('add').hidden = true; live.clear(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
+// Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
+for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {
+  if (scanner instanceof NativeScanner) { recorder.event('restart', sel.value, `${id} changed to ${(document.getElementById(id) as HTMLSelectElement).value}`); stop(); void start(); }
+});
 $('add').onclick = async () => {
   if (!(scanner instanceof BluefyScanner)) return;
   scanner.pickerMode = picker.value as 'police' | 'all';

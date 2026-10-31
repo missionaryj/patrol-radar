@@ -29,6 +29,8 @@ export interface ScanEvent { t: number; kind: ScanEventKind; backend?: string; d
 export interface Health {
   adverts: number; matched: number; distinctDevices: number; cellsVisited: number;
   firstAdvert?: number; lastAdvert?: number; longestGapMs: number; longestGapStart?: number;
+  /** Current scan window (last start/restart and stop events). Gaps are only measured while a scan is running. */
+  scanStart?: number; scanStop?: number;
   perMinute: Record<string, number>; // minute epoch (ms/60000) -> advert count
   events: ScanEvent[];
   fixes: number; accSum: number; accMin?: number; accMax?: number; accBuckets: { le20: number; le50: number; le100: number; gt100: number };
@@ -91,7 +93,9 @@ export class SessionRecorder {
   private seenDevs = new Set<string>(); private seenCells = new Set<string>();
   get health(): Health { return this.s.health!; }
   private evt(kind: ScanEventKind, backend?: string, detail?: string) {
-    const h = this.health; h.events.push({ t: Date.now(), kind, backend, detail: detailSafe(detail) });
+    const h = this.health; const t = Date.now(); h.events.push({ t, kind, backend, detail: detailSafe(detail) });
+    if (kind === 'start' || kind === 'restart' || kind === 'auto-restart') { h.scanStart = t; h.scanStop = undefined; }
+    else if (kind === 'stop') h.scanStop = t;
     if (h.events.length > MAX_EVENTS) h.events.splice(0, h.events.length - MAX_EVENTS);
   }
   /** Log a scanner lifecycle event (works whether or not recording; kept with the session). */
@@ -111,19 +115,30 @@ export class SessionRecorder {
   private lastSave = 0;
   private tally(adv: Advertisement, matched: boolean) {
     const h = this.health; const t = adv.timestamp || Date.now();
-    if (h.lastAdvert !== undefined && t - h.lastAdvert > h.longestGapMs) { h.longestGapMs = t - h.lastAdvert; h.longestGapStart = h.lastAdvert; }
-    if (h.firstAdvert === undefined && this.s.startedAt && t - this.s.startedAt > h.longestGapMs) { h.longestGapMs = t - this.s.startedAt; h.longestGapStart = this.s.startedAt; }
+    const ref = this.gapRef();
+    if (ref !== undefined && t - ref > h.longestGapMs) { h.longestGapMs = t - ref; h.longestGapStart = ref; }
     h.firstAdvert ??= t; h.lastAdvert = Math.max(h.lastAdvert ?? t, t);
     h.adverts++; if (matched) h.matched++;
     const mk = String(Math.floor(t / 60000)); h.perMinute[mk] = (h.perMinute[mk] ?? 0) + 1;
     if (!this.seenDevs.has(adv.sessionId)) { this.seenDevs.add(adv.sessionId); h.distinctDevices++; }
   }
+  /** Start of the current silent stretch within the active scan window: the last advert, or the scan (re)start if none since. */
+  private gapRef(): number | undefined {
+    const h = this.health; const ws = h.scanStart;
+    if (h.lastAdvert !== undefined && (ws === undefined || h.lastAdvert >= ws)) return h.lastAdvert;
+    return ws ?? this.s.startedAt;
+  }
+  /** Silence at the end of the session, counted only while scanning (a stop ends the window). */
+  private tailGap(end: number): number {
+    const h = this.health; const ref = this.gapRef(); if (ref === undefined) return 0;
+    const stopAt = h.scanStop !== undefined && h.scanStop >= ref ? h.scanStop : end;
+    return Math.max(0, Math.min(end, stopAt) - ref);
+  }
   verdict(now = Date.now()): Verdict {
     const h = this.health; if (!this.s.startedAt) return 'not recorded';
     const end = this.s.recording ? now : (this.s.endedAt ?? now);
     if (h.adverts === 0) return h.events.some(e => e.kind === 'error' || e.kind === 'permission-denied') ? 'scanner errors' : 'no adverts';
-    const tail = end - (h.lastAdvert ?? end);
-    if (Math.max(h.longestGapMs, tail) > IDLE_GAP_MS) return 'scanner idle';
+    if (Math.max(h.longestGapMs, this.tailGap(end)) > IDLE_GAP_MS) return 'scanner idle';
     if (h.fixes === 0) return 'no location';
     return 'healthy';
   }
@@ -136,7 +151,7 @@ export class SessionRecorder {
   healthExport() {
     const h = this.health; const iso = (t?: number) => (t === undefined ? null : new Date(t).toISOString());
     const end = this.s.recording ? Date.now() : (this.s.endedAt ?? Date.now());
-    const tailGap = h.lastAdvert !== undefined ? end - h.lastAdvert : (this.s.startedAt ? end - this.s.startedAt : 0);
+    const tailGap = this.tailGap(end);
     const longest = Math.max(h.longestGapMs, tailGap);
     const mins = Object.keys(h.perMinute).map(Number).sort((a, b) => a - b);
     const lo = this.s.startedAt ? Math.floor(this.s.startedAt / 60000) : mins[0]; const hi = Math.floor(end / 60000);
@@ -144,7 +159,7 @@ export class SessionRecorder {
     return {
       verdict: this.verdict(), advertsSeen: h.adverts, matchedAdverts: h.matched, unmatchedAdverts: h.adverts - h.matched,
       distinctDevicesSeen: h.distinctDevices, firstAdvert: iso(h.firstAdvert), lastAdvert: iso(h.lastAdvert),
-      longestGapSec: Math.round(longest / 1000), longestGapStart: iso(longest === tailGap && longest > h.longestGapMs ? (h.lastAdvert ?? this.s.startedAt) : h.longestGapStart),
+      longestGapSec: Math.round(longest / 1000), longestGapStart: iso(longest === tailGap && longest > h.longestGapMs ? this.gapRef() : h.longestGapStart),
       advertsPerMinute: timeline, gridCellsVisited: h.cellsVisited, gridCellMeters: 150,
       location: { fixes: h.fixes, accuracyMeanM: h.fixes ? Math.round(h.accSum / h.fixes) : null, accuracyMinM: h.accMin ?? null, accuracyMaxM: h.accMax ?? null, accuracyBuckets: h.accBuckets },
       events: h.events.map(e => ({ ...e, t: new Date(e.t).toISOString() })),
