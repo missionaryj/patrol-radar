@@ -24,7 +24,7 @@ City chat is a local feed for people in the same city. By tapping **I agree** yo
 
 - Your chat room is the city you're in. It's worked out on your phone from the same rough ~150 m map area the app already uses. Your exact location is never sent.
 - You're anonymous. You get a random name, like "Teal Fox", that changes every day. We don't ask for your name, email or phone number.
-- You can post 1 message every 30 seconds, and new accounts have a daily limit.
+- You can post 1 message every 10 seconds, and new accounts have a daily limit.
 - Messages are deleted after 24 hours. Reported messages are kept for up to 7 days so a moderator can review them, then deleted.
 - A message is hidden automatically once several people report it.
 - You can report any message or user, and block anyone. You won't see posts from people you block.

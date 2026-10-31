@@ -9,7 +9,7 @@ create table if not exists public.chat_settings (
   id boolean primary key default true check (id),
   terms_version int not null default 1,
   hide_after_reports int not null default 3,      -- auto-hide after N distinct reports
-  rate_limit_seconds int not null default 30,      -- 1 message per 30 s
+  rate_limit_seconds int not null default 10,      -- 1 message per 10 s
   new_account_hours int not null default 24,       -- "new account" window
   new_account_daily_cap int not null default 20,
   daily_cap int not null default 200,

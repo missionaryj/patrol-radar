@@ -43,6 +43,8 @@ log('queue', (await db.query(`select message_id,reporters,hidden_now,body from m
 log('mod schema from client', await as(C,`select * from moderation.report_queue`));
 await db.exec(`select moderation.ban('${A}','test')`);
 log('banned post', await as(A,`insert into messages(room,body) values('US-IL-champaign','back')`));
+log("default rate_limit_seconds", (await db.query(`select rate_limit_seconds from chat_settings`)).rows);
+if ((await db.query(`select rate_limit_seconds from chat_settings`)).rows[0].rate_limit_seconds !== 10) throw new Error("expected rate_limit_seconds=10");
 // daily cap new account
 await db.exec(`update chat_settings set rate_limit_seconds=0`);
 let last; for (let i=0;i<21;i++) last = await as(C,`insert into messages(room,body) values('US-IL-champaign','m${i}')`);

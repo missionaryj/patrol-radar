@@ -61,14 +61,14 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
       <ol class="msgs"><li class="empty">Loading…</li></ol>
       <div class="menu" hidden><button data-a="rm">Report message</button><button data-a="ru">Report user</button><button data-a="bl">Block user</button><button class="cancel">Cancel</button></div>
       <form class="compose"><input placeholder="Message ${esc(r.label)}…" maxlength="${MAX_LEN}" enterkeyhint="send"/><button class="send" type="submit">Send</button></form>
-      <div class="note">1 message / 30 s · Your random name changes each day</div>`);
+      <div class="note">1 message / 10 s · Your random name changes each day</div>`);
     el.querySelector('#show-rules')!.addEventListener('click', e => { e.preventDefault(); shell('City chat rules', r.label, `<div class="terms">${miniMd(termsMd)}</div><div class="terms-actions"><button class="send" id="back">Back to chat</button></div>`); el.querySelector('#back')!.addEventListener('click', () => void feed(r)); });
     const input = el.querySelector<HTMLInputElement>('.compose input')!;
     el.querySelector('form')!.addEventListener('submit', async e => {
       e.preventDefault();
       const why = checkMessage(input.value); if (why) { toast(reasonText[why], true); return; }
       try { await api!.post(r.key, input.value.trim()); input.value = ''; toast('Sent'); }
-      catch (err: any) { toast(/rate limited/.test(err.message) ? 'Slow down: 1 message every 30 seconds.' : /content policy/.test(err.message) ? 'Blocked by the content policy.' : /banned/.test(err.message) ? 'Your account is banned from chat.' : err.message, true); }
+      catch (err: any) { toast(/rate limited/.test(err.message) ? 'Slow down: 1 message every 10 seconds.' : /content policy/.test(err.message) ? 'Blocked by the content policy.' : /banned/.test(err.message) ? 'Your account is banned from chat.' : err.message, true); }
     });
     msgs = await api!.recent(r.key); blocked = await api!.blocked(); renderFeed();
     api!.subscribe(r.key, m => { if (!msgs.some(x => x.id === m.id)) { msgs.push(m); renderFeed(); } }, id => { msgs = msgs.filter(m => m.id !== id); renderFeed(); });

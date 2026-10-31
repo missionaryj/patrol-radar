@@ -31,6 +31,7 @@ select moderation.ban('USER-UUID', 'spam', 7);         -- 7-day ban
 select moderation.unban('USER-UUID');
 select * from moderation.user_reports;                 -- repeat offenders
 update chat_settings set hide_after_reports = 2;       -- tune limits (also rate_limit_seconds, new_account_daily_cap, daily_cap, retention_hours)
+-- default rate limit: 1 message per 10 s (rate_limit_seconds = 10)
 ```
 Google Play requires acting on reports in a timely way: check the queue at least daily once chat is live.
 
