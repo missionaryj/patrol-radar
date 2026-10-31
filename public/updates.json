@@ -1,0 +1,11 @@
+{
+  "_note": "Edit this file and redeploy GitHub Pages to publish an update (no app build needed). The app sorts by date. Give each post a unique id.",
+  "posts": [
+    {
+      "id": "2026-10-30-welcome",
+      "date": "2026-10-30",
+      "title": "Welcome to Patrol Radar updates",
+      "body": "News about patrol-radar will show up here. If you're near police and nothing shows on the map, go to Settings > Help for steps to send us a debug file."
+    }
+  ]
+}
