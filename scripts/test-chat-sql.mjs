@@ -14,6 +14,7 @@ create function cron.unschedule(a text) returns bool language sql as $$ select t
 grant usage on schema public to authenticated; grant all on all tables in schema public to authenticated;
 `);
 await db.exec(mig); await db.exec(mig); // idempotent
+await db.exec(fs.readFileSync('./supabase/migrations/20261031000000_chat_phone_filter.sql','utf8'));
 await db.exec(`grant all on all tables in schema public to authenticated; grant usage, select on all sequences in schema public to authenticated;`);
 const A='11111111-1111-1111-1111-111111111111', B='22222222-2222-2222-2222-222222222222', C='33333333-3333-3333-3333-333333333333', D='44444444-4444-4444-4444-444444444444';
 await db.exec(`insert into auth.users(id) values ('${A}'),('${B}'),('${C}'),('${D}')`);
@@ -26,6 +27,7 @@ log('rate limit', await as(A,`insert into messages(room,body) values('US-IL-cham
 log('spoof user_id', await as(B,`insert into messages(room,body,user_id) values('US-IL-champaign','x','${A}') returning user_id`));
 log('281 chars', await as(C,`insert into messages(room,body) values('US-IL-champaign',repeat('a',281))`));
 log('phone', await as(C,`insert into messages(room,body) values('US-IL-champaign','call 217-555-1234')`));
+log('long digit run ok', await as(D,`insert into messages(room,body) values('US-IL-champaign','order 123456789012345') returning id`));
 log('address', await as(C,`insert into messages(room,body) values('US-IL-champaign','he lives at 123 Main St')`));
 log('threat', await as(C,`insert into messages(room,body) values('US-IL-champaign','gonna shoot the cop')`));
 log('bad room', await as(C,`insert into messages(room,body) values('lat:40.1,-88.2','x')`));

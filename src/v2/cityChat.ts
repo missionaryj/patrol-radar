@@ -45,6 +45,7 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
     if (list) { list.innerHTML = html; list.scrollTop = list.scrollHeight; }
     el.querySelectorAll<HTMLButtonElement>('.more').forEach(b => b.onclick = () => openMenu(msgs.find(m => m.id === +b.dataset.id!)!));
   };
+  let cooldownUntil = 0, cdTimer = 0; const RATE_S = 10;
   const toast = (t: string, err = false) => { const n = el.querySelector<HTMLElement>('.note'); if (n) { n.textContent = t; n.classList.toggle('err', err); } };
   const openMenu = (m: ChatMsg) => {
     const menu = el.querySelector<HTMLElement>('.menu')!; menu.hidden = false;
@@ -61,14 +62,29 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
       <ol class="msgs"><li class="empty">Loading…</li></ol>
       <div class="menu" hidden><button data-a="rm">Report message</button><button data-a="ru">Report user</button><button data-a="bl">Block user</button><button class="cancel">Cancel</button></div>
       <form class="compose"><input placeholder="Message ${esc(r.label)}…" maxlength="${MAX_LEN}" enterkeyhint="send"/><button class="send" type="submit">Send</button></form>
+      <div class="slowdown" role="status" aria-live="polite" hidden></div>
       <div class="note">1 message / 10 s · Your random name changes each day</div>`);
     el.querySelector('#show-rules')!.addEventListener('click', e => { e.preventDefault(); shell('City chat rules', r.label, `<div class="terms">${miniMd(termsMd)}</div><div class="terms-actions"><button class="send" id="back">Back to chat</button></div>`); el.querySelector('#back')!.addEventListener('click', () => void feed(r)); });
     const input = el.querySelector<HTMLInputElement>('.compose input')!;
+    const sendBtn = el.querySelector<HTMLButtonElement>('.compose .send')!;
+    const slow = el.querySelector<HTMLElement>('.slowdown')!;
+    const tick = () => {
+      const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      if (left > 0) { slow.hidden = false; slow.textContent = `Slow down: 1 message per ${RATE_S} seconds. You can send again in ${left}s.`; sendBtn.disabled = true; sendBtn.textContent = `${left}s`; }
+      else { slow.hidden = true; sendBtn.disabled = false; sendBtn.textContent = 'Send'; clearInterval(cdTimer); cdTimer = 0; }
+    };
+    const startCooldown = (until: number) => { cooldownUntil = Math.max(cooldownUntil, until); tick(); if (!cdTimer) cdTimer = window.setInterval(tick, 250); };
+    if (cooldownUntil > Date.now()) startCooldown(cooldownUntil);
     el.querySelector('form')!.addEventListener('submit', async e => {
       e.preventDefault();
+      if (cooldownUntil > Date.now()) { startCooldown(cooldownUntil); slow.classList.remove('shake'); void slow.offsetWidth; slow.classList.add('shake'); return; }
       const why = checkMessage(input.value); if (why) { toast(reasonText[why], true); return; }
-      try { await api!.post(r.key, input.value.trim()); input.value = ''; toast('Sent'); }
-      catch (err: any) { toast(/rate limited/.test(err.message) ? 'Slow down: 1 message every 10 seconds.' : /content policy/.test(err.message) ? 'Blocked by the content policy.' : /banned/.test(err.message) ? 'Your account is banned from chat.' : err.message, true); }
+      try { await api!.post(r.key, input.value.trim()); input.value = ''; toast('Sent'); startCooldown(Date.now() + RATE_S * 1000); }
+      catch (err: any) {
+        const msg = String(err?.message ?? err);
+        if (/rate limited/i.test(msg)) { const m = /(\d+)\s*s/.exec(msg); startCooldown(Date.now() + (m ? +m[1] : RATE_S) * 1000); return; }
+        toast(/content policy/.test(msg) ? 'Blocked by the content policy.' : /banned/.test(msg) ? 'Your account is banned from chat.' : msg, true);
+      }
     });
     msgs = await api!.recent(r.key); blocked = await api!.blocked(); renderFeed();
     api!.subscribe(r.key, m => { if (!msgs.some(x => x.id === m.id)) { msgs.push(m); renderFeed(); } }, id => { msgs = msgs.filter(m => m.id !== id); renderFeed(); });

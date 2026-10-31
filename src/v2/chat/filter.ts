@@ -1,5 +1,6 @@
 // Client-side content filter (the database has a matching backstop). Returns a reason or null.
-const PHONE = /(\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/;
+// Phone-like only: 10 digits, or 11 with a leading 1, optionally separated. Not part of a longer digit run.
+const PHONE = /(?<![\d+])(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/;
 const ADDRESS = /\b\d{1,6}\s+(?:[\w.'-]+\s){0,3}(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|blvd|boulevard|way|pl|place|cir|circle|ter|terrace|pkwy|parkway|hwy|highway)\b\.?/i;
 // Plates: 2-3 letters + 3-4 digits (or reverse), optionally separated, e.g. "ABC 1234", "1234-XYZ", "plate 7KJM392".
 const PLATE = /\b(?:[A-Z]{2,3}[\s-]?\d{3,4}|\d{3,4}[\s-]?[A-Z]{2,3}|\d[A-Z]{3}\d{3})\b|\b(?:plate|tag|license)\s*(?:#|no\.?|number)?\s*[:\-]?\s*[A-Z0-9]{5,8}\b/i;

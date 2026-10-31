@@ -13,6 +13,7 @@ function km(aLat: number, aLng: number, bLat: number, bLng: number) {
   return Math.sqrt(x * x + y * y) * 6371;
 }
 /** cell must be the coarse grid-cell centre (see map/coarsen.ts), never the raw GPS fix. */
+const stCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'XX';
 export function roomFor(cell: { lat: number; lng: number }, rows: CityRow[], country = 'US'): Room | null {
   let best: CityRow | undefined, bestScore = Infinity, bestKm = Infinity;
   for (const c of rows) {
@@ -22,12 +23,12 @@ export function roomFor(cell: { lat: number; lng: number }, rows: CityRow[], cou
     const score = d / (1 + Math.log10(Math.max(1000, c[4])) / 4); // mild preference for bigger places
     if (score < bestScore) { bestScore = score; best = c; bestKm = d; }
   }
-  if (best) return { key: `${country}-${best[1]}-${slug(best[0])}`, label: `${best[0]}, ${best[1]}` };
+  if (best) return { key: `${country.toUpperCase()}-${stCode(best[1])}-${slug(best[0])}`, label: `${best[0]}, ${best[1]}` };
   // Rural fallback: nearest place's state, at any distance up to 150 km.
   let st: CityRow | undefined, sd = Infinity;
   for (const c of rows) { if (Math.abs(c[2] - cell.lat) > 1.5) continue; const d = km(cell.lat, cell.lng, c[2], c[3]); if (d < sd) { sd = d; st = c; } }
   void bestKm;
-  return st && sd < 150 ? { key: `${country}-${st[1]}-rural`, label: `Rural ${st[1]}` } : null;
+  return st && sd < 150 ? { key: `${country.toUpperCase()}-${stCode(st[1])}-rural`, label: `Rural ${st[1]}` } : null;
 }
 
 let cache: Promise<CityRow[]> | undefined;

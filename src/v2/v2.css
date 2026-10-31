@@ -198,3 +198,7 @@ details.group{margin-top:14px}
 .chat .terms-actions{display:flex;gap:10px;padding:10px 14px 14px}
 .chat .terms-actions button{flex:1;padding:12px;border-radius:999px;font:inherit;font-weight:600}
 .chat .terms-actions .ghost{background:rgba(255,255,255,.08);color:var(--txt);border:0}
+.chat .send:disabled{background:var(--card);color:var(--mut,#9aa);font-variant-numeric:tabular-nums}
+.chat .slowdown{margin:6px 12px 0;padding:8px 12px;border-radius:12px;border:1px solid rgba(255,170,40,.5);background:rgba(60,40,0,.6);color:#ffcf70;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.chat .slowdown.shake{animation:shk .3s}
+@keyframes shk{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
