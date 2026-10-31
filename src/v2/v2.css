@@ -163,3 +163,28 @@ details.group{margin-top:14px}
 /* Gear-type color key: right side under the settings button; stays on the map when the sheet is collapsed. */
 .gear-key{left:auto;right:calc(12px + var(--sr));top:calc(60px + var(--st));align-items:flex-start}
 @media (max-width:360px){.map-key{font-size:10px;padding:5px 7px}}
+/* City chat mockup */
+.top #open-chat{pointer-events:auto;margin-left:auto}
+.chat{position:fixed;z-index:1200;inset:calc(60px + var(--st)) 10px calc(10px + var(--sb));background:var(--panel-solid);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;box-shadow:var(--shadow);overflow:hidden}
+.chat[hidden]{display:none}
+.chat header{display:flex;justify-content:space-between;align-items:center;padding:14px 14px 10px}
+.chat header small{display:block;color:var(--mut);font-size:12px}
+.chat header .x{width:34px;height:34px;border-radius:50%;box-shadow:none;background:rgba(255,255,255,.08)}
+.chat .rules{margin:0 14px 8px;padding:8px 10px;border-radius:12px;background:rgba(255,45,61,.1);color:#ffb3b9;font-size:12px}
+.chat .rules a{color:#fff}
+.chat .msgs{list-style:none;margin:0;padding:4px 14px;flex:1;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.chat .msgs li{max-width:82%;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 11px}
+.chat .msgs li.mine{align-self:flex-end;background:rgba(255,45,61,.16)}
+.chat .msgs li.flag{opacity:.6;font-style:italic}
+.chat .meta{font-size:11px;color:var(--mut);display:flex;gap:4px;align-items:center}
+.chat .meta .more{margin-left:auto;background:none;border:0;color:var(--mut);font-size:16px;padding:0 4px}
+.chat .msgs p{margin:3px 0 0;font-size:14px}
+.chat .menu{position:absolute;left:10px;right:10px;bottom:70px;background:#1b1c20;border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;overflow:hidden}
+.chat .menu[hidden]{display:none}
+.chat .menu button{background:none;border:0;border-bottom:1px solid var(--line);color:var(--txt);padding:14px;font:inherit;text-align:left}
+.chat .menu button:nth-child(3){color:var(--acc)}
+.chat .menu .cancel{color:var(--mut);border:0}
+.chat .compose{display:flex;gap:8px;padding:10px 12px 4px}
+.chat .compose input{flex:1;background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--txt);padding:10px 14px;font:inherit}
+.chat .send{background:var(--acc);color:#fff;border:0;border-radius:999px;padding:0 16px;font-weight:600}
+.chat .note{color:var(--dim);font-size:11px;text-align:center;padding:2px 0 10px}
