@@ -14,7 +14,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-        env: { GITHUB_PAGES: 'true' }   # mock backend stays the default in the UI
+        env:
+          GITHUB_PAGES: 'true'   # mock backend stays the default in the UI
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}            # public client values (repo Actions variables)
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }

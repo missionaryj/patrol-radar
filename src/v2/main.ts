@@ -257,3 +257,5 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
     map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
       .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
   const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
+import { mountCityChat } from './cityChat';
+mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is just the has-a-fix flag
