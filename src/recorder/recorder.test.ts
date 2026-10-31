@@ -65,6 +65,21 @@ describe('SessionRecorder', () => {
     const json = JSON.stringify(o);
     expect(json).not.toContain('hash-phone'); expect(json).not.toContain('Jordan'); expect(json).not.toContain('40.116'); expect(json).not.toContain('1005');
   });
+  it('ignores idle time before a scan restart (field file 2026-10-31: 14 min idle, then 921 adverts)', () => {
+    const real = Date.now; let now = 1_800_000_000_000; Date.now = () => now;
+    try {
+      const r = new SessionRecorder(mem()); r.start('native'); r.event('start', 'native');
+      now += 20_000; r.event('stop', 'native');
+      now += 14 * 60_000; r.event('start', 'native');       // idle, not scanning
+      now += 5_000; r.fix(3);
+      for (let i = 0; i < 135; i++) { now += 1_000; r.add({ ...phone(), timestamp: now }, null); }
+      now += 1_500; r.event('stop', 'native'); now += 2_000; r.stop();
+      expect(r.verdict()).toBe('healthy');
+      const h = r.exportObject('t').health!; expect(h.verdict).toBe('healthy'); expect(h.longestGapSec).toBeLessThan(10);
+      // still flags a real silent stretch while scanning
+      r.start('native'); r.event('start', 'native'); now += 3 * 60_000; expect(r.verdict()).toBe('scanner idle');
+    } finally { Date.now = real; }
+  });
   it('verdicts and v1 import', () => {
     const r = new SessionRecorder(mem()); r.start('web');
     expect(r.verdict()).toBe('no adverts');
