@@ -13,7 +13,12 @@
 <div id="status" role="status" aria-live="polite">Idle</div>
 <details id="debug" open><summary>Debug</summary>
 <div>backend <b id="d-backend">-</b> · mode <b id="d-mode">-</b> · adverts seen <b id="d-raw">0</b> · unmatched <b id="d-unmatched">0</b> · matched <b id="d-matched">0</b> · devices <b id="d-devs">0</b> (police-gear <b id="d-pdevs">0</b>) · last advert <b id="d-last">never</b></div>
-<div id="d-env"></div><pre id="d-probe"></pre></details></header>
+<div id="d-env"></div><pre id="d-probe"></pre></details>
+<details id="help"><summary>Not seeing police on the map?</summary><ol>
+<li>Tap <b>Start scan</b> near police (only when it's safe) and tap <b>● Record</b>.</li>
+<li>After a few minutes tap <b>■ Stop rec</b>, then <b>Export</b> to save the session file.</li>
+<li><a id="mail-debug" href="mailto:percolatorbiz@gmail.com">Email the debug file</a> to percolatorbiz@gmail.com, attach the file, and say what you saw and roughly when.</li>
+</ol><small>The file has only police-gear matches, scrambled per-session device IDs and ~150 m areas. No MAC addresses, device names, Wi-Fi network names or exact location.</small></details></header>
 <main><div id="map"></div><ul id="log"></ul></main>
 <footer>Receive-only. Never connects to, pairs with or writes to devices. Not for harassing or targeting anyone. Signatures unverified.</footer>
 <script type="module" src="/src/main.ts"></script></body></html>
