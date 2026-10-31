@@ -15,7 +15,7 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
   const btn = document.createElement('button');
   btn.id = 'open-chat'; btn.className = 'icon-btn'; btn.setAttribute('aria-label', 'City chat');
   btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>';
-  document.querySelector('.top')?.insertBefore(btn, document.getElementById('open-settings'));
+  { const ref = document.getElementById('open-updates') ?? document.getElementById('open-settings'); (ref?.parentElement ?? document.querySelector('.top'))?.insertBefore(btn, ref ?? null); }
   const el = document.createElement('section');
   el.id = 'chat'; el.className = 'chat'; el.hidden = true; el.setAttribute('aria-label', 'City chat');
   document.body.appendChild(el);
