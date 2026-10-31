@@ -12,9 +12,11 @@ export class DemoChat {
   async hasTerms() { return this.terms; }
   async acceptTerms() { this.terms = true; }
   async recent(room: string) { return this.data.map(m => ({ ...m, room })); }
-  subscribe(_r: string, on: (m: ChatMsg) => void) { this.cb = on; }
+  subscribe(_r: string, on: (m: ChatMsg) => void, del?: (id: number) => void) { this.cb = on; this.del = del; }
   unsubscribe() { this.cb = undefined; }
   async post(room: string, body: string) { this.cb?.({ id: ++this.n, room, user_id: 'me', display_name: 'Coral Hawk', body, created_at: new Date().toISOString() }); }
+  private del?: (id: number) => void;
+  async remove(id: number) { this.del?.(id); }
   async report() {}
   async block() {}
   async blocked() { return new Set<string>(); }

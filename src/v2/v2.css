@@ -222,3 +222,4 @@ details.group{margin-top:14px}
 .help-body code{font-size:12px;background:#1d1f24;padding:1px 4px;border-radius:4px}
 .mail-btn{display:block;text-align:center;padding:12px;border-radius:14px;background:#ff2d3d;color:#fff;font-weight:700;text-decoration:none}
 .help-body small{color:var(--mut);font-size:12px;line-height:1.45}
+.chat .meta .del{margin-left:auto;background:none;border:0;color:var(--mut);font-size:11px;text-decoration:underline;padding:0 2px}

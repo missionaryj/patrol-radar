@@ -40,6 +40,7 @@ export class ChatClient {
   }
   unsubscribe() { if (this.ch) { void this.sb.removeChannel(this.ch); this.ch = undefined; } }
   async post(room: string, body: string) { const { error } = await this.sb.from('messages').insert({ room, body }); if (error) throw new Error(error.message); }
+  async remove(id: number) { const { error } = await this.sb.from('messages').delete().eq('id', id).eq('user_id', this.uid); if (error) throw new Error(error.message); }
   async report(m: ChatMsg, kind: 'message' | 'user', reason?: string) {
     // no .select(): reporters can't read reports (RLS), so we use return=minimal
     const { error } = await this.sb.from('reports').insert({ message_id: m.id, reported_user: m.user_id, kind, reason });
