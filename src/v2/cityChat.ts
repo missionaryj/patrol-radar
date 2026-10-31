@@ -7,7 +7,7 @@ import { roomFor, loadCities, type Room } from './chat/room';
 import { chatConfig, ChatClient, type ChatMsg } from './chat/client';
 import { DemoChat } from './chat/demo';
 
-type Api = Pick<ChatClient, 'uid' | 'signIn' | 'hasTerms' | 'acceptTerms' | 'recent' | 'subscribe' | 'unsubscribe' | 'post' | 'report' | 'block' | 'blocked'>;
+type Api = Pick<ChatClient, 'uid' | 'signIn' | 'hasTerms' | 'acceptTerms' | 'recent' | 'subscribe' | 'unsubscribe' | 'post' | 'remove' | 'report' | 'block' | 'blocked'>;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); return m < 1 ? 'now' : m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`; };
 
@@ -40,9 +40,10 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
     const shown = msgs.filter(m => !blocked.has(m.user_id));
     const list = el.querySelector('.msgs');
     const html = shown.length ? shown.map(m => { const mine = m.user_id === api!.uid;
-      return `<li class="${mine ? 'mine' : ''}"><div class="meta"><b>${esc(mine ? `You (${m.display_name})` : m.display_name)}</b> · ${ago(m.created_at)}${mine ? '' : ` <button class="more" data-id="${m.id}" aria-label="Report or block">⋯</button>`}</div><p>${esc(m.body)}</p></li>`; }).join('')
+      return `<li class="${mine ? 'mine' : ''}"><div class="meta"><b>${esc(mine ? `You (${m.display_name})` : m.display_name)}</b> · ${ago(m.created_at)}${mine ? ` <button class="del" data-id="${m.id}" aria-label="Delete my message">Delete</button>` : ` <button class="more" data-id="${m.id}" aria-label="Report or block">⋯</button>`}</div><p>${esc(m.body)}</p></li>`; }).join('')
       : '<li class="empty">No messages in the last 24 hours. Say hi.</li>';
     if (list) { list.innerHTML = html; list.scrollTop = list.scrollHeight; }
+    el.querySelectorAll<HTMLButtonElement>('.del').forEach(b => b.onclick = async () => { const id = +b.dataset.id!; try { await api!.remove(id); msgs = msgs.filter(m => m.id !== id); renderFeed(); toast('Message deleted.'); } catch (e: any) { toast(e.message ?? String(e), true); } });
     el.querySelectorAll<HTMLButtonElement>('.more').forEach(b => b.onclick = () => openMenu(msgs.find(m => m.id === +b.dataset.id!)!));
   };
   let cooldownUntil = 0, cdTimer = 0; const RATE_S = 10;
