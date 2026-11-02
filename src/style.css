@@ -23,6 +23,6 @@ main{display:grid;grid-template-columns:2fr 1fr;height:70vh}#map{height:100%}#lo
 /* Basemap: cool slate tint over CARTO tiles; 3D overlay sits above tiles (z 400 panes) and below controls (800). */
 .tiles-slate{filter:grayscale(.85) sepia(.12) hue-rotate(180deg) saturate(1.3) brightness(1.03) contrast(.95)}
 .tiles-slate-dark{filter:invert(1) grayscale(1) sepia(.4) hue-rotate(180deg) saturate(1.7) brightness(1.05) contrast(.8)}
-.map3d{position:absolute;inset:0;z-index:450}
+.map3d,.map3d.maplibregl-map{position:absolute!important;inset:0;width:100%;height:100%;z-index:450}
 .map3d[hidden]{display:none}
 .acc-table{overflow-x:auto}.acc-table table{border-collapse:collapse;font-size:12px;width:100%}.acc-table th,.acc-table td{border-bottom:1px solid rgba(128,128,128,.3);padding:4px 6px;text-align:left;vertical-align:top}.acc-sub,.acc-footer{opacity:.8}.acc-report h4{margin:12px 0 4px}
