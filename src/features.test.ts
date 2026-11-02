@@ -58,7 +58,7 @@ describe('3. Wi-Fi rules', () => {
     expect(match(adv({ manufacturerData: x, serviceUuids: ['00003100-0000-1000-8000-00805f9b34fb'] }) as any)!.corroborated).toBe(false);
     expect(match(adv({ manufacturerData: x, name: 'FS Ext Battery' }) as any)!.confidence).toBeGreaterThanOrEqual(0.85);
   });
-  it('android rule patterns are shipped to native', () => { expect(WIFI_RULES).toHaveLength(5); });
+  it('android rule patterns are shipped to native', () => { expect(WIFI_RULES).toHaveLength(8); });
 });
 
 describe('4. possible patrol car', () => {

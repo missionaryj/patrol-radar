@@ -1,6 +1,6 @@
 :root{--bg:#07080a;--panel:rgba(16,17,20,.72);--panel-solid:#111215;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.09);--txt:#f3f4f6;--mut:#9a9ca3;--dim:#62646b;
 --acc:#ff2d3d;--acc2:#c3101f;--acc-glow:rgba(255,45,61,.45);--ok:#34d399;
---axon:#e53935;--moto:#fb8c00;--other:#fdd835;--unk:#8a9bb0;
+--wifi:#2979ff;--axon:#e53935;--moto:#fb8c00;--other:#fdd835;--unk:#8a9bb0;
 --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px);--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px);
 --shadow:0 10px 30px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.06) inset;--ease:cubic-bezier(.2,.8,.2,1)}
 *{box-sizing:border-box}
@@ -223,3 +223,15 @@ details.group{margin-top:14px}
 .mail-btn{display:block;text-align:center;padding:12px;border-radius:14px;background:#ff2d3d;color:#fff;font-weight:700;text-decoration:none}
 .help-body small{color:var(--mut);font-size:12px;line-height:1.45}
 .chat .meta .del{margin-left:auto;background:none;border:0;color:var(--mut);font-size:11px;text-decoration:underline;padding:0 2px}
+
+/* Wi-Fi hits (1.0.19): own badge, blue ring and dashed card edge so they stand out from Bluetooth */
+.badge.wifi{background:rgba(41,121,255,.22);color:#8ab4ff;border:1px solid rgba(41,121,255,.6)}
+.card.wifi{border-style:dashed;border-color:var(--wifi);box-shadow:inset 3px 0 0 var(--wifi)}
+.c-wifi{background:var(--wifi)}.lg-wifi{border-color:var(--wifi)!important;color:#8ab4ff}.lg-veh{border-color:#ff1744!important;color:#ff8a9a}
+/* Grouped patrol vehicle card + map pins */
+.badge.veh{background:rgba(255,23,68,.22);color:#ff8a9a;border:1px solid rgba(255,23,68,.6)}
+.card.vehicle{border-color:#ff1744;box-shadow:inset 4px 0 0 #ff1744}
+.vmembers{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}.vm{font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.06)}.vm.wifi{color:#8ab4ff;border:1px dashed var(--wifi)}
+
+.wifi-pin{font-size:13px;line-height:18px;text-align:center;background:#2979ff;border-radius:50%;box-shadow:0 0 0 2px #fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.veh-pin{font-size:13px;font-weight:700;line-height:22px;text-align:center;color:#fff;background:#ff1744;border-radius:11px;box-shadow:0 0 0 2px #fff,0 0 10px rgba(255,23,68,.8);white-space:nowrap}

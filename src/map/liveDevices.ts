@@ -8,7 +8,12 @@ export const FADE_MS = 30_000, REMOVE_MS = 120_000;
 export interface LiveDevice {
   key: string; label: string; color: string; kind: 'match' | 'unmatched';
   confidence?: number; rssi: number; band: Band; lastSeen: number;
+  /** Which radio heard it. Wi-Fi hits get their own badge, ring colour and map marker so they stand out from BLE. */
+  radio: 'ble' | 'wifi';
 }
+/** Wi-Fi accent (ring + badge). Distinct from Flock-mapped cyan (#00e5ff) and every category fill colour. */
+export const WIFI_COLOR = '#2979ff';
+export const isWifi = (m: Match | null | undefined) => m?.radio === 'wifi';
 
 /** RSSI→band (rough; RSSI is a poor distance estimator). */
 export function bandFor(rssi: number): Band { return rssi >= -60 ? 'near' : rssi >= -80 ? 'medium' : 'far'; }
@@ -50,7 +55,7 @@ export class LiveDeviceTracker {
     // once matched, keep match label even if a later advert lacks the signature
     const keep = !match && old?.kind === 'match';
     this.devs.set(key, keep ? { ...old!, rssi: Math.round(r), band: bandFor(r), lastSeen: now } : {
-      key, kind: match ? 'match' : 'unmatched', label: match ? match.signature.label : 'unknown device',
+      key, kind: match ? 'match' : 'unmatched', label: match ? match.signature.label : 'unknown device', radio: isWifi(match) ? 'wifi' : 'ble',
       color: colorFor(match), confidence: match?.confidence, rssi: Math.round(r), band: bandFor(r), lastSeen: now,
     });
   }

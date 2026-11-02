@@ -5,7 +5,9 @@ import { LocalReportStore } from '../reports';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
-import { LiveDeviceTracker, colorFor, type LiveDevice } from '../map/liveDevices';
+import { LiveDeviceTracker, colorFor, WIFI_COLOR, type LiveDevice } from '../map/liveDevices';
+import type { Vehicle } from '../fusion/vehicles';
+import { bandOfMHz } from '../wifi/context';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
 import { CrowdClient } from '../crowd/client';
@@ -18,6 +20,7 @@ import { mountSegmented } from './segmented';
 import { nativeAppPresent, applyPlatformSettings } from './platform';
 import { mountUpdates } from './updatesUi';
 
+const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false });
@@ -86,7 +89,7 @@ let geoWatch: number | undefined;
 let here: { lat: number; lng: number } | undefined;
 const live = new LiveDeviceTracker();
 const visible = () => live.list().filter(d => d.kind === 'match' || (document.getElementById('showother') as HTMLInputElement | null)?.checked || scanner?.name?.toLowerCase().includes('bluefy'));
-const drawLive = () => { liveLast = performance.now(); if (liveTimer !== undefined) { clearTimeout(liveTimer); liveTimer = undefined; } map.renderLive(visible(), here ?? pos); renderCards(); };
+const drawLive = () => { liveLast = performance.now(); if (liveTimer !== undefined) { clearTimeout(liveTimer); liveTimer = undefined; } map.renderLive(visible(), here ?? pos, Date.now(), fusion.vehicles.list()); renderCards(); };
 // Adverts arrive at up to thousands/min; redrawing every dot per advert janked the map. Coalesce to <= ~3 redraws/s.
 let liveLast = 0; let liveTimer: number | undefined;
 const drawLiveSoon = () => { if (liveTimer !== undefined) return; liveTimer = window.setTimeout(drawLive, Math.max(0, 300 - (performance.now() - liveLast))); };
@@ -115,24 +118,47 @@ const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 const ago = (t: number) => { const s = Math.round((Date.now() - t) / 1000); return s < 5 ? 'now' : s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`; };
 function badgeFor(d: LiveDevice, m?: Match) {
   if (d.kind !== 'match' || !m) return { cls: 'unk', text: 'Unknown' };
+  if (m.radio === 'wifi') return { cls: 'wifi', text: '📶 Wi-Fi' };
   const c = colorFor(m);
   return c === '#e53935' ? { cls: 'axon', text: m.signature.vendor === 'Axon' ? 'Axon' : 'Body cam' } : c === '#fb8c00' ? { cls: 'moto', text: 'Motorola' } : { cls: 'other', text: 'Other' };
 }
 function renderCards() {
   const devs = visible().sort((a, b) => (a.kind === b.kind ? b.lastSeen - a.lastSeen : a.kind === 'match' ? -1 : 1));
   const ul = $('cards');
-  const n: Record<string, number> = { axon: 0, moto: 0, other: 0, unk: 0 };
+  const n: Record<string, number> = { axon: 0, moto: 0, other: 0, unk: 0, wifi: 0 };
   devs.forEach(d => { n[badgeFor(d, matches.get(d.key)).cls]++; });
   for (const k in n) { const el = document.getElementById(`n-${k}`); if (el) el.textContent = String(n[k]); }
-  if (!devs.length) { ul.innerHTML = `<li class="empty">${scanner ? 'Listening… nothing nearby yet.' : 'No detections yet. Tap <b>Scan</b> to start listening.'}</li>`; return; }
-  ul.innerHTML = devs.map(d => {
+  // Grouped vehicles show as one card; their member signals are listed inside it instead of as separate cards.
+  const vehicles = fusion.vehicles.list(); const grouped = new Set(vehicles.flatMap(v => v.members.map(m => m.key)));
+  const solo = devs.filter(d => !grouped.has(d.key));
+  if (!devs.length && !vehicles.length) { ul.innerHTML = `<li class="empty">${scanner ? 'Listening… nothing nearby yet.' : 'No detections yet. Tap <b>Scan</b> to start listening.'}</li>`; return; }
+  ul.innerHTML = vehicles.map(vehicleCard).join('') + solo.map(d => {
     const m = matches.get(d.key); const b = badgeFor(d, m); const conf = d.confidence ?? 0; const stale = Date.now() - d.lastSeen > 30_000;
-    return `<li class="card${stale ? ' stale' : ''}" style="--c:${d.color}">
+    const wifi = d.radio === 'wifi';
+    return `<li class="card${stale ? ' stale' : ''}${wifi ? ' wifi' : ''}" style="--c:${wifi ? WIFI_COLOR : d.color}">
       <div class="row"><span class="badge ${b.cls}">${b.text}</span><span class="name">${esc(d.label)}</span><span class="ago">${ago(d.lastSeen)}</span></div>
       ${d.kind === 'match' ? `<div class="conf"><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
       <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">#${esc(d.key.slice(0, 6))}</span></div>
     </li>`;
   }).join('');
+}
+
+function vehicleCard(v: Vehicle) {
+  const stale = Date.now() - v.lastSeen > 30_000; const pct = Math.round(v.confidence * 100);
+  const rows = v.members.map(m => `<span class="vm ${m.radio}">${m.radio === 'wifi' ? '📶 Wi-Fi' : 'ᛒ BLE'} · ${esc(matches.get(m.key)?.signature.label ?? m.ruleId)} · ${Math.round(m.confidence * 100)}%</span>`).join('');
+  return `<li class="card vehicle${stale ? ' stale' : ''}" style="--c:#ff1744">
+    <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
+    <div class="conf"><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
+    <div class="vmembers">${rows}</div>
+    <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">best ${Math.round(v.baseConfidence * 100)}% +${Math.round(v.boost * 100)} corroboration</span></div>
+  </li>`;
+}
+const announced = new Set<string>();
+function onVehicle(v: Vehicle | undefined) {
+  if (!v) return; recorder.vehicle(v);
+  if (announced.has(v.id)) return; announced.add(v.id);
+  logLine(`${new Date().toLocaleTimeString()} · 🚓 Vehicle: ${v.members.length} signals grouped (${v.radios.join(' + ')}) · ${Math.round(v.confidence * 100)}%`, '#ff1744');
+  status(`🚓 Possible patrol vehicle: ${v.members.length} signals grouped (${Math.round(v.confidence * 100)}%)`, 'ok');
 }
 
 // ---- scan ----
@@ -165,7 +191,7 @@ async function start() {
     let advCb: (adv: any) => void;
     await scanner.start(advCb = adv => {
       supervisor.advert();
-      const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, m); }
+      const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, { ...m, radio: 'ble' }); onVehicle(fusion.vehicle({ ...m, radio: 'ble' }, pos)); }
       const isNew = !live.has(adv.sessionId);
       live.update(adv.sessionId, adv.rssi, m); drawLiveSoon();
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
@@ -190,7 +216,7 @@ async function start() {
     }, 20_000);
   } catch (e) { scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
 }
-function stop() { supervisor.stopped(); fusion.fusion.clear(); $('add').hidden = true; live.clear(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
+function stop() { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
 // Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
 for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {
@@ -242,7 +268,7 @@ function firePing(m: Match, loc: { lat: number; lng: number }) {
 
 // ---- scan supervisor (stall watchdog + wake lock), Wi-Fi rules, patrol-car fusion, follow-me, Flock layer ----
 const supervisor = new ScanSupervisor({ recorder, warn: (msg, err) => (err ? status(msg, 'err') : status(msg, 'ok')) });
-const fusion = new ScanFusion();
+// (fusion is declared near the top: the live-map draw reads its vehicle groups)
 const addLog = (text: string, color: string) => logLine(text, color);
 function patrolFlag(f: { possiblePatrolCar: boolean; gearTypes: string[] }, loc: { lat: number; lng: number }) {
   if (!f.possiblePatrolCar) return; const c = coarsen(loc.lat, loc.lng); const key = `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
@@ -254,14 +280,15 @@ function patrolFlag(f: { possiblePatrolCar: boolean; gearTypes: string[] }, loc:
   status(`🚓 Possible patrol car nearby (${f.gearTypes.join(' + ')})`, 'ok');
 }
 function onWifi(nm: import('../ble/nativeScanner').NativeWifiMatch) {
-  const w = toWifiMatch(nm); if (!w) return;
-  recorder.addWifi(w, nm.rssi, pos);
+  const w = fusion.scoreWifi(nm, pos); if (!w) return;
+  recorder.addWifi(w, nm.rssi, pos, Date.now(), bandOfMHz(nm.freq));
   const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
+  matches.set(m.sessionId, m); onVehicle(fusion.vehicle(m, pos));
   live.update(m.sessionId, m.rssi, m); drawLiveSoon();
   if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
-  store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp });
+  store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp, radio: 'wifi' });
   map.render(store.list());
-  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}% · RSSI ${m.rssi ?? '?'} (unverified)`, colorFor(m));
+  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · 📶 Wi-Fi · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.tierRule ? ` (${m.tierRule})` : ''} · RSSI ${m.rssi ?? '?'} (unverified)`, WIFI_COLOR);
 }
 // Follow-me: on by default; a manual pan pauses it and the recenter button resumes it.
 { const rb = document.getElementById('recenter'); map.onFollowChange = on => { rb?.classList.toggle('follow-paused', !on); if (rb) rb.title = on ? 'Following your location' : 'Recenter and follow'; }; }

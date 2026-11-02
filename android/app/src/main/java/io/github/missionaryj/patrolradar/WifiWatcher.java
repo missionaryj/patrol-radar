@@ -22,7 +22,7 @@ import org.json.JSONObject;
 /**
  * PASSIVE Wi-Fi watcher: reads WifiManager scan results only. Never connects, joins, or probes a network.
  * SSIDs/BSSIDs are matched here against rule patterns from the web layer and then discarded: only the
- * matched rule ids, RSSI and a per-session salted hash leave this class. Nothing is written to disk.
+ * matched rule ids, RSSI, the channel frequency and per-session salted hashes (AP, radio) leave this class. Nothing is written to disk.
  *
  * Throttling (Android 9+): foreground apps get 4 startScan() calls per 2 minutes, background apps 1 per
  * 30 minutes. We request at most one scan every SCAN_INTERVAL_MS (30 s = 4 per 2 min), treat a false return
@@ -102,6 +102,10 @@ public class WifiWatcher {
                 if (prev != null && now - prev < 10_000) continue;
                 lastEmit.put(key, now);
                 JSONObject o = new JSONObject(); o.put("id", key); o.put("rssi", r.level); o.put("rules", new JSONArray(ids)); o.put("throttled", throttled);
+                // Pairs the 2.4/5 GHz BSSIDs of one router (they usually differ only in the last octet). Salted hash only.
+                String b = r.BSSID == null ? "" : r.BSSID.toUpperCase().replace('-', ':');
+                if (b.length() >= 14) o.put("radio", hash.apply("radio:" + b.substring(0, 14)));
+                o.put("freq", r.frequency);
                 out.onMatch(o); // ssid/bssid deliberately not included
             } catch (Exception ignored) { }
         }
