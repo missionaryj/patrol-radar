@@ -38,7 +38,7 @@ export interface Health {
 export const newHealth = (): Health => ({ adverts: 0, matched: 0, distinctDevices: 0, cellsVisited: 0, longestGapMs: 0, perMinute: {}, events: [], fixes: 0, accSum: 0, accBuckets: { le20: 0, le50: 0, le100: 0, gt100: 0 } });
 export type Verdict = 'healthy' | 'scanner idle' | 'no adverts' | 'no location' | 'scanner errors' | 'not recorded';
 interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; health?: Health }
-const MAX_EVENTS = 200; const IDLE_GAP_MS = 120_000;
+const MAX_EVENTS = 200; const SAVE_EVERY_MS = 2000; const IDLE_GAP_MS = 120_000;
 const detailSafe = (d?: string) => d?.replace(/([0-9A-F]{2}:){5}[0-9A-F]{2}/gi, '[mac]').slice(0, 120);
 
 /** Hex of payload with serial-like ASCII runs replaced by "**" per byte. */
@@ -166,7 +166,16 @@ export class SessionRecorder {
       note: 'counts only: no unmatched device ids, names, payloads or locations; distinct counts are de-duplicated in memory only (may over-count across an app reload)',
     };
   }
-  private save() { try { this.storage?.setItem(KEY, JSON.stringify(this.s)); } catch { /* quota */ } }
+  /** Persisting re-serialises the whole session (up to ~1.5 MB at the 5000-record cap), so record adds are
+   * coalesced to at most one write per SAVE_EVERY_MS. Lifecycle calls (start/stop/event/clear/flush) still write at once. */
+  private saveTimer?: ReturnType<typeof setTimeout>; private lastRecSave = 0;
+  private saveSoon() {
+    if (Date.now() - this.lastRecSave >= SAVE_EVERY_MS) { this.lastRecSave = Date.now(); this.save(); return; }
+    this.saveTimer ??= setTimeout(() => { this.saveTimer = undefined; this.save(); }, SAVE_EVERY_MS);
+  }
+  /** Write pending changes now (call on page hide / app pause). */
+  flush() { this.save(); }
+  private save() { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = undefined; } this.lastSave = Date.now(); try { this.storage?.setItem(KEY, JSON.stringify(this.s)); } catch { /* quota */ } }
   get recording() { return this.s.recording; }
   get count() { return this.s.records.length; }
   get devices() { return new Set(this.s.records.map(r => r.dev)).size; }
@@ -192,7 +201,7 @@ export class SessionRecorder {
     };
     this.s.records.push(rec);
     if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
-    this.save();
+    this.saveSoon();
     return true;
   }
 
@@ -204,7 +213,7 @@ export class SessionRecorder {
     this.s.records.push({ t, dev: `wifi:${m.best.id}`, rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...m.rules], bestRule: m.best.id,
       confidence: m.confidence, corroborated: m.corroborated, cell: c && { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), meters: 150 } });
     if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
-    this.save(); return true;
+    this.saveSoon(); return true;
   }
 
   summary() {

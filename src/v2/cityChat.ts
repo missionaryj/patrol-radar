@@ -89,7 +89,15 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
     });
     msgs = await api!.recent(r.key); blocked = await api!.blocked(); renderFeed();
     api!.subscribe(r.key, m => { if (!msgs.some(x => x.id === m.id)) { msgs.push(m); renderFeed(); } }, id => { msgs = msgs.filter(m => m.id !== id); renderFeed(); });
+    // Realtime can drop events under burst load (stress test: ~55% lost with 30 subscribers x 30 posts in 1 s on the
+    // free tier), and hidden/deleted posts send no INSERT. Reconcile with a fresh fetch every 20 s while the feed is open.
+    clearInterval(syncTimer);
+    syncTimer = window.setInterval(async () => {
+      if (el.hidden || room?.key !== r.key) return;
+      try { const fresh = await api!.recent(r.key); const same = fresh.length === msgs.length && fresh.every((m, i) => m.id === msgs[i]?.id); if (!same) { msgs = fresh; renderFeed(); } } catch { /* offline: keep current feed */ }
+    }, 20_000);
   };
+  let syncTimer: number | undefined;
 
   const currentRoom = async () => { const cell = getCell(); return cell ? roomFor(cell, await loadCities()) : null; };
 
@@ -107,7 +115,7 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
       roomTimer = window.setInterval(async () => { const n = await currentRoom(); if (n && room && n.key !== room.key && !el.hidden) void feed(n); }, 60_000);
     } catch (e: any) { notice('City chat', `Couldn\u2019t connect: ${esc(e?.message ?? String(e))}`); }
   }
-  function close() { el.hidden = true; api?.unsubscribe(); clearInterval(roomTimer); }
+  function close() { el.hidden = true; api?.unsubscribe(); clearInterval(roomTimer); clearInterval(syncTimer); }
   btn.onclick = () => (el.hidden ? void open() : close());
   if (location.hash === '#chat') void open();
 }

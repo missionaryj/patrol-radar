@@ -8,6 +8,8 @@ import { FollowController } from './follow';
 import { SmoothLocation } from './smoothFollow';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
+/** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
+export const MAX_LIVE_DOTS = 150;
 export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; }
 export class MapView {
   private map: L.Map;
@@ -20,6 +22,8 @@ export class MapView {
   onFollowChange?: (following: boolean) => void;
   private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
   private flockRenderer = L.canvas({ padding: 0.3 });
+  /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
+  private liveRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
     this.map = L.map(el, { zoomControl: opts.zoomControl ?? true }).setView(center, 15);
     // dark: OSM tiles darkened via CSS filter (.tiles-dark), no API key needed
@@ -120,11 +124,13 @@ export class MapView {
   /** Live device dots around the user's current position. Display-only; never persisted. */
   renderLive(devs: LiveDevice[], center: { lat: number; lng: number } | undefined, now = Date.now()) {
     this.liveLayer.clearLayers(); if (!center) return;
+    // Past ~200 dots the follow-me pan redraws janked a 4x-throttled phone profile; police matches always draw first.
+    if (devs.length > MAX_LIVE_DOTS) devs = [...devs].sort((a, b) => (a.kind === 'match' ? 0 : 1) - (b.kind === 'match' ? 0 : 1) || b.rssi - a.rssi).slice(0, MAX_LIVE_DOTS);
     for (const d of devs) {
       const p = applyOffset(center.lat, center.lng, offsetFor(d.key)); const op = opacityFor(d.lastSeen, now);
-      L.circle([center.lat, center.lng], { radius: BAND_RADIUS_M[d.band], color: d.color, weight: 1, opacity: 0.4 * op, fillOpacity: 0.07 * op, interactive: false }).addTo(this.liveLayer);
+      L.circle([center.lat, center.lng], { renderer: this.liveRenderer, radius: BAND_RADIUS_M[d.band], color: d.color, weight: 1, opacity: 0.4 * op, fillOpacity: 0.07 * op, interactive: false }).addTo(this.liveLayer);
       const ago = Math.round((now - d.lastSeen) / 1000);
-      L.circleMarker([p.lat, p.lng], { radius: 6, color: '#111', weight: 1, fillColor: d.color, fillOpacity: op, opacity: op })
+      L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: 6, color: '#111', weight: 1, fillColor: d.color, fillOpacity: op, opacity: op })
         .bindPopup(`${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${BAND_RADIUS_M[d.band]} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago`)
         .addTo(this.liveLayer);
     }
