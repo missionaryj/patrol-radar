@@ -193,6 +193,7 @@ async function start() {
       supervisor.advert();
       const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, { ...m, radio: 'ble' }); onVehicle(fusion.vehicle({ ...m, radio: 'ble' }, pos)); }
       const isNew = !live.has(adv.sessionId);
+      if (m) map.loc.observe(adv.sessionId, adv.timestamp, adv.rssi, 'ble', adv.txPower); // display-only closest-approach pin
       live.update(adv.sessionId, adv.rssi, m); drawLiveSoon();
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
       if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return;
@@ -284,6 +285,7 @@ function onWifi(nm: import('../ble/nativeScanner').NativeWifiMatch) {
   recorder.addWifi(w, nm.rssi, pos, Date.now(), bandOfMHz(nm.freq));
   const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
   matches.set(m.sessionId, m); onVehicle(fusion.vehicle(m, pos));
+  map.loc.observe(m.sessionId, nm.t ?? Date.now(), m.rssi, 'wifi');
   live.update(m.sessionId, m.rssi, m); drawLiveSoon();
   if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
   store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp, radio: 'wifi' });

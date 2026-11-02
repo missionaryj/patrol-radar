@@ -8,8 +8,8 @@ export type NativeScanMode = 'lowPower' | 'balanced' | 'lowLatency';
 /** Shape of one advert as sent by the Android PatrolScan plugin. `id` is already a salted hash (no MAC crosses the bridge). */
 /** Wi-Fi match from the native WifiWatcher: rule ids only; SSID/BSSID never cross the bridge. */
 /** id = salted hash of the AP; radio = salted hash of the BSSID's first 5 octets (pairs 2.4/5 GHz BSSIDs of one box); freq in MHz. */
-export interface NativeWifiMatch { id: string; rssi?: number; rules: string[]; throttled?: number; radio?: string; freq?: number }
-export interface NativeAdvert { id: string; name?: string; rssi?: number; txPower?: number; mfr?: Record<string, string>; uuids?: string[]; svc?: Record<string, string>; oui?: string; }
+export interface NativeWifiMatch { id: string; rssi?: number; rules: string[]; throttled?: number; radio?: string; freq?: number; t?: number }
+export interface NativeAdvert { id: string; name?: string; rssi?: number; txPower?: number; mfr?: Record<string, string>; uuids?: string[]; svc?: Record<string, string>; oui?: string; t?: number }
 
 export function nativePlugin(): any | undefined {
   const cap = (globalThis as any).Capacitor;
@@ -25,7 +25,7 @@ export function nativeFilters() {
 
 /** Converts a native advert into the event shape normalizeEvent already understands. */
 export function toEvent(a: NativeAdvert) {
-  return { device: { id: a.id }, name: a.name, rssi: a.rssi, txPower: a.txPower, manufacturerData: a.mfr ?? {}, uuids: a.uuids ?? [], serviceData: a.svc ?? {}, oui: a.oui };
+  return { device: { id: a.id }, name: a.name, rssi: a.rssi, txPower: a.txPower, manufacturerData: a.mfr ?? {}, uuids: a.uuids ?? [], serviceData: a.svc ?? {}, oui: a.oui, t: a.t };
 }
 
 /**
@@ -55,7 +55,7 @@ export class NativeScanner implements Scanner {
     const perm = await this.plugin.requestScanPermissions();
     if (perm?.ble !== 'granted') throw new ScanError('permission', 'Allow "Nearby devices" for Patrol Radar in Android Settings > Apps > Patrol Radar > Permissions.');
     this.handle = await this.plugin.addListener('advert', (a: NativeAdvert) => { normalizeEvent(toEvent(a)).then(onAdv); });
-    if (this.wifi) this.wifiHandle = await this.plugin.addListener('wifi', (m: NativeWifiMatch) => { if (Array.isArray(m?.rules)) this.onWifi?.({ id: String(m.id), rssi: m.rssi, rules: m.rules.map(String), throttled: m.throttled, radio: m.radio ? String(m.radio) : undefined, freq: typeof m.freq === 'number' ? m.freq : undefined }); });
+    if (this.wifi) this.wifiHandle = await this.plugin.addListener('wifi', (m: NativeWifiMatch) => { if (Array.isArray(m?.rules)) this.onWifi?.({ id: String(m.id), rssi: m.rssi, rules: m.rules.map(String), throttled: m.throttled, radio: m.radio ? String(m.radio) : undefined, freq: typeof m.freq === 'number' ? m.freq : undefined, t: typeof m.t === 'number' ? m.t : undefined }); });
     this.stateHandle = await this.plugin.addListener('state', (s: { state: string; detail?: string }) => {
       if (s?.state === 'error') { const msg = s.detail || 'Native scan failed'; this.cleanup(); this.onError?.(msg); }
     });
