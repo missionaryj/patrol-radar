@@ -54,12 +54,31 @@ public class ScanService extends Service {
     private PowerManager.WakeLock wakeLock;
     private long count;
     private WifiWatcher wifi;
+    /** OUI prefixes ("AA:BB:CC") from the web signature registry. Compared in memory only; the MAC is never stored or sent. */
+    private String[] ouis = new String[0];
+
+    /**
+     * Pure OUI check (unit-testable). Returns the matched OUI prefix or null. Only PUBLIC addresses count: on API 35+
+     * the address type is read; below that, random addresses are rejected when their top two bits mark them static
+     * (11) or resolvable (01). A non-resolvable random address (00) cannot be told apart below API 35; the prefix is
+     * a registered IEEE block, so the chance of a random match is 1 in 2^22, and the signature is low weight anyway.
+     */
+    static String ouiOf(String addr, int addrType, String[] ouis) {
+        if (addr == null || addr.length() < 8 || ouis == null) return null;
+        if (addrType > 0) return null; // 0 = PUBLIC, -1 = unknown (pre-API 35)
+        String p = addr.substring(0, 8).toUpperCase();
+        int top = Integer.parseInt(p.substring(0, 2), 16) >> 6;
+        if (addrType < 0 && (top == 3 || top == 1)) return null;
+        for (String o : ouis) if (p.equals(o)) return o;
+        return null;
+    }
 
     public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16) { start(ctx, mode, filtered, companyIds, uuids16, null); }
-    public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16, String wifiRulesJson) {
+    public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16, String wifiRulesJson) { start(ctx, mode, filtered, companyIds, uuids16, wifiRulesJson, null); }
+    public static void start(Context ctx, String mode, boolean filtered, int[] companyIds, String[] uuids16, String wifiRulesJson, String[] ouis) {
         Intent i = new Intent(ctx, ScanService.class);
         if (wifiRulesJson != null) i.putExtra("wifiRules", wifiRulesJson);
-        i.putExtra("mode", mode); i.putExtra("filtered", filtered); i.putExtra("companyIds", companyIds); i.putExtra("uuids", uuids16);
+        i.putExtra("mode", mode); i.putExtra("filtered", filtered); i.putExtra("companyIds", companyIds); i.putExtra("uuids", uuids16); if (ouis != null) i.putExtra("ouis", ouis);
         ContextCompat.startForegroundService(ctx, i);
     }
     public static void stop(Context ctx) { ctx.stopService(new Intent(ctx, ScanService.class)); }
@@ -77,6 +96,7 @@ public class ScanService extends Service {
         boolean filtered = intent.getBooleanExtra("filtered", true);
         int[] cids = intent.getIntArrayExtra("companyIds");
         String[] uuids = intent.getStringArrayExtra("uuids");
+        String[] o = intent.getStringArrayExtra("ouis"); ouis = o == null ? new String[0] : o;
         try { startScan(mode == null ? "balanced" : mode, filtered, cids, uuids); }
         catch (Exception e) { emitState("error", "Scan could not start: " + e); stopSelf(); }
         String wr = intent.getStringExtra("wifiRules");
@@ -152,7 +172,11 @@ public class ScanService extends Service {
         Sink s = sink; if (s == null) return;
         try {
             JSONObject o = new JSONObject();
-            o.put("id", hash(r.getDevice().getAddress()));
+            String addr = r.getDevice().getAddress();
+            o.put("id", hash(addr));
+            int at = -1; if (Build.VERSION.SDK_INT >= 35) { try { at = r.getDevice().getAddressType(); } catch (Throwable ignored) { } }
+            String oui = ouiOf(addr, at, ouis);
+            if (oui != null) o.put("oui", oui); // only the vendor prefix of a listed OUI, never the address
             o.put("rssi", r.getRssi());
             ScanRecord rec = r.getScanRecord();
             if (rec != null) {

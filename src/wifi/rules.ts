@@ -5,18 +5,24 @@
  * Sources: Axon Fleet 3 network hub docs (Cradlepoint router, "<unit>-5g" SSID), Cradlepoint default SSIDs,
  * RF Sentinel police-detector rule table. All unverified until field-validated.
  */
-export type WifiRole = 'vehicle-camera' | 'vehicle-router' | 'fixed-camera';
+export type WifiRole = 'vehicle-camera' | 'vehicle-router' | 'fixed-camera' | 'body-camera';
 export interface WifiRule {
   id: string; label: string; vendor: string;
-  category: 'vehicle' | 'fixed';
+  category: 'vehicle' | 'fixed' | 'body-camera';
   role: WifiRole;
   ssid?: RegExp;           // matched against the SSID
   ouis?: string[];         // BSSID OUI prefixes (upper-case "AA:BB:CC")
   baseConfidence: number;
   status: 'unverified';
+  addedIn?: string; source?: string;
 }
 export const CRADLEPOINT_OUIS = ['00:30:44']; // IEEE MA-L 00-30-44 CradlePoint, Inc.
+export const AXON_WIFI_OUIS = ['00:25:DF']; // IEEE MA-L 00-25-DF Axon Enterprise, Inc. (verified 2026-10-31)
 export const WIFI_RULES: WifiRule[] = [
+  // BSSID OUI compared in memory inside WifiWatcher.java; BSSID/SSID never stored. Android scan results list access points
+  // (beacons/probe responses), i.e. a body cam or Fleet hub in AP mode. Sources: AXEOFF (colonelpanichacks/axeoff, OUI on
+  // Wi-Fi beacons + probes); all-cameras-are-beacons docs/signatures.md (Wi-Fi path conf 65, 8 field hits, owner-confirmed).
+  { id: 'axon-oui-wifi', label: 'Axon Wi-Fi access point (BSSID OUI 00:25:DF)', vendor: 'Axon', category: 'body-camera', role: 'body-camera', ouis: AXON_WIFI_OUIS, baseConfidence: 0.6, status: 'unverified', addedIn: '1.0.18', source: 'IEEE MA-L 00-25-DF; github.com/colonelpanichacks/axeoff; github.com/soyboi1312/all-cameras-are-beacons' },
   { id: 'axon-fleet-ssid', label: 'Axon Fleet in-car Wi-Fi', vendor: 'Axon', category: 'vehicle', role: 'vehicle-camera', ssid: /^(Axon\d+|\d{3,5})-5g$/i, baseConfidence: 0.6, status: 'unverified' },
   { id: 'cradlepoint-ssid', label: 'Cradlepoint vehicle router', vendor: 'Cradlepoint', category: 'vehicle', role: 'vehicle-router', ssid: /^(IBR\d{3,4}|R1900|R2100|MBR1400)(-[0-9a-f]{3})?/i, baseConfidence: 0.3, status: 'unverified' },
   { id: 'cradlepoint-oui', label: 'Cradlepoint router (BSSID OUI)', vendor: 'Cradlepoint', category: 'vehicle', role: 'vehicle-router', ouis: CRADLEPOINT_OUIS, baseConfidence: 0.3, status: 'unverified' },

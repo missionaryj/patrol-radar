@@ -1,6 +1,8 @@
 import type { Advertisement } from '../ble/types';
 import type { Match } from '../ble/matcher';
-import { SIGNATURES } from '../ble/signatures';
+import { SIGNATURES, tierOf } from '../ble/signatures';
+import { hits as ruleHits } from '../ble/matcher';
+import { WIFI_RULES } from '../wifi/rules';
 import { coarsen } from '../map/coarsen';
 import type { WifiMatch } from '../wifi/rules';
 
@@ -11,7 +13,10 @@ import type { WifiMatch } from '../wifi/rules';
  * (callers may pass precise coords, they are coarsened before storage);
  * printable-ASCII runs that look like serials/unit IDs (>=6 alnum chars incl. a digit) are masked.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3; // v3 (1.0.18): field-test label + per-signature hit summary (id, tier)
+/** Field-test ground truth the user sets during or after a session. */
+export type FieldLabel = 'police-present' | 'not-present' | 'unsure';
+export const FIELD_LABELS: FieldLabel[] = ['police-present', 'not-present', 'unsure'];
 export const MAX_RECORDS = 5000;
 const KEY = 'patrol-radar.recorder.v1';
 
@@ -37,7 +42,7 @@ export interface Health {
 }
 export const newHealth = (): Health => ({ adverts: 0, matched: 0, distinctDevices: 0, cellsVisited: 0, longestGapMs: 0, perMinute: {}, events: [], fixes: 0, accSum: 0, accBuckets: { le20: 0, le50: 0, le100: 0, gt100: 0 } });
 export type Verdict = 'healthy' | 'scanner idle' | 'no adverts' | 'no location' | 'scanner errors' | 'not recorded';
-interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; health?: Health }
+interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; health?: Health; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
 const MAX_EVENTS = 200; const SAVE_EVERY_MS = 2000; const IDLE_GAP_MS = 120_000;
 const detailSafe = (d?: string) => d?.replace(/([0-9A-F]{2}:){5}[0-9A-F]{2}/gi, '[mac]').slice(0, 120);
 
@@ -70,16 +75,8 @@ export function perMinuteTimeline(perMinute: Record<string, number>, lo: number 
   return [...keep].sort((a, b) => a - b).map(m => ({ minute: iso(m), adverts: perMinute[m] ?? 0 }));
 }
 
-const uuid16 = (u: number) => `0000${u.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
-function rulesHit(adv: Advertisement): string[] {
-  return SIGNATURES.filter(s => {
-    const r = s.rule;
-    if (r.kind === 'companyId') return adv.manufacturerData.has(r.id);
-    if (r.kind === 'serviceUuid16') return adv.serviceUuids.includes(uuid16(r.uuid)) || adv.serviceData.has(uuid16(r.uuid));
-    if (r.kind === 'namePattern') return !!adv.name && r.pattern.test(adv.name);
-    return true; // payloadAscii: matcher already decided; include if it was the best hit below
-  }).map(s => s.id);
-}
+/** Rule ids that matched this advert (same predicates as the matcher, including payload-shape gates). */
+function rulesHit(adv: Advertisement, m: Match): string[] { return (m.hits ?? ruleHits(adv)).map(h => h.signature.id); }
 
 export class SessionRecorder {
   s: State;
@@ -181,6 +178,27 @@ export class SessionRecorder {
   get devices() { return new Set(this.s.records.map(r => r.dev)).size; }
   start(backend: string) { this.s.recording = true; this.s.startedAt ??= Date.now(); this.s.endedAt = undefined; this.s.backend = backend; this.save(); }
   stop() { this.s.recording = false; this.s.endedAt = Date.now(); this.save(); }
+  /** Set or change the field-test label (during or after the session). Passing null removes it. */
+  setLabel(v: FieldLabel | null) {
+    if (v === null) { delete this.s.label; this.save(); return; }
+    if (!FIELD_LABELS.includes(v)) throw new Error('bad label');
+    const now = Date.now(); this.s.label = { value: v, setAt: this.s.label?.setAt ?? now, updatedAt: now, duringSession: this.s.label?.duringSession ?? this.s.recording };
+    this.save();
+  }
+  get label(): FieldLabel | undefined { return this.s.label?.value; }
+  /** Per-signature hit summary for field evaluation: ids, tiers and counts only. */
+  signatureHits() {
+    const by = new Map<string, { records: number; devices: Set<string>; maxConfidence: number; best: number }>();
+    for (const r of this.s.records) for (const id of r.rules) {
+      const d = by.get(id) ?? { records: 0, devices: new Set<string>(), maxConfidence: 0, best: 0 };
+      d.records++; d.devices.add(r.dev); d.maxConfidence = Math.max(d.maxConfidence, r.confidence); if (r.bestRule === id) d.best++; by.set(id, d);
+    }
+    return [...by].map(([id, d]) => {
+      const sig = SIGNATURES.find(s => s.id === id); const w = sig ? undefined : WIFI_RULES.find(x => x.id === id);
+      const conf = sig?.baseConfidence ?? w?.baseConfidence ?? 0;
+      return { id, radio: sig ? 'ble' : 'wifi', tier: sig ? tierOf(sig) : conf >= 0.85 ? 'strong' : conf >= 0.5 ? 'likely' : 'hint', status: sig?.status ?? w?.status ?? 'unverified', baseConfidence: conf, records: d.records, devices: d.devices.size, bestRuleRecords: d.best, maxConfidence: d.maxConfidence };
+    }).sort((a, b) => b.records - a.records);
+  }
   clear() { this.s = { recording: this.s.recording, startedAt: this.s.recording ? Date.now() : undefined, backend: this.s.backend, records: [], dropped: 0, health: newHealth() }; this.seenDevs.clear(); this.seenCells.clear(); this.save(); }
 
   /** Returns true if stored. Unmatched adverts are always rejected. */
@@ -188,7 +206,7 @@ export class SessionRecorder {
     if (!this.s.recording) return false;
     this.tally(adv, !!m);
     if (!m) { if (Date.now() - this.lastSave > 5000) { this.lastSave = Date.now(); this.save(); } return false; }
-    const hits = rulesHit(adv).filter(id => SIGNATURES.find(s => s.id === id)!.rule.kind !== 'payloadAscii' || id === m.signature.id);
+    const hits = rulesHit(adv, m);
     if (loc) this.cell(loc);
     const c = loc ? coarsen(loc.lat, loc.lng, 150) : undefined;
     const rec: RecordEntry = {
@@ -234,9 +252,11 @@ export class SessionRecorder {
         sessionStart: this.s.startedAt ? new Date(this.s.startedAt).toISOString() : null,
         sessionEnd: new Date(this.s.endedAt ?? Date.now()).toISOString(),
         backend: this.s.backend ?? null, records: this.count, distinctDevices: this.devices, cap: MAX_RECORDS, truncated: this.s.dropped > 0,
+        fieldLabel: this.s.label ? { value: this.s.label.value, setAt: new Date(this.s.label.setAt).toISOString(), updatedAt: new Date(this.s.label.updatedAt).toISOString(), setDuringSession: this.s.label.duringSession } : null,
         privacy: 'police-gear matches only; device ids are per-session salted hashes; no names/MACs; location = 150 m grid cell; serial-like ASCII runs in payloads masked as **; health = aggregate counts only',
       },
       health: this.healthExport(),
+      signatureHits: this.signatureHits(),
       devices: this.summary(),
       records: this.s.records,
     };

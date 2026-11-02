@@ -67,7 +67,7 @@ public class PatrolScanPlugin extends Plugin {
     @PluginMethod public void start(PluginCall call) {
         String mode = call.getString("mode", "balanced");
         boolean filtered = call.getBoolean("filtered", true);
-        int[] cids = new int[0]; String[] uuids = new String[0];
+        int[] cids = new int[0]; String[] uuids = new String[0]; String[] ouis = new String[0];
         JSArray wr = call.getArray("wifiRules", null);
         String wifiRules = wr == null ? null : wr.toString();
         try {
@@ -75,12 +75,14 @@ public class PatrolScanPlugin extends Plugin {
             cids = new int[c.length()]; for (int i = 0; i < c.length(); i++) cids[i] = c.getInt(i);
             JSArray u = call.getArray("serviceUuids", new JSArray());
             uuids = new String[u.length()]; for (int i = 0; i < u.length(); i++) uuids[i] = u.getString(i);
+            JSArray o = call.getArray("ouis", new JSArray());
+            ouis = new String[o.length()]; for (int i = 0; i < o.length(); i++) ouis[i] = o.getString(i).toUpperCase();
         } catch (Exception e) { call.reject("bad filters"); return; }
         android.bluetooth.BluetoothManager bm = (android.bluetooth.BluetoothManager) getContext().getSystemService(android.content.Context.BLUETOOTH_SERVICE);
         android.bluetooth.BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
         if (ad == null) { call.reject("This phone has no Bluetooth LE adapter."); return; }
         if (!ad.isEnabled()) { call.reject("Bluetooth is off. Turn on Bluetooth, then tap Start again."); return; }
-        try { ScanService.start(getContext(), mode, filtered, cids, uuids, wifiRules); call.resolve(); }
+        try { ScanService.start(getContext(), mode, filtered, cids, uuids, wifiRules, ouis); call.resolve(); }
         catch (Exception e) { call.reject("Could not start background scan: " + e.getMessage()); }
     }
     @PluginMethod public void stop(PluginCall call) { ScanService.stop(getContext()); call.resolve(); }
