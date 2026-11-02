@@ -40,7 +40,9 @@ export async function normalizeEvent(e: any): Promise<Advertisement> {
     name: e.name ?? e.device?.name ?? undefined,
     rssi: typeof e.rssi === 'number' ? e.rssi : undefined,
     txPower: typeof e.txPower === 'number' ? e.txPower : undefined,
-    manufacturerData, serviceUuids: uuids.map(normUuid), serviceData, timestamp: Date.now(),
+    manufacturerData, serviceUuids: uuids.map(normUuid), serviceData,
+    // Radio receive time from the native scanner (epoch ms) if sane, else arrival time.
+    timestamp: typeof e.t === 'number' && Math.abs(Date.now() - e.t) < 300_000 ? e.t : Date.now(),
     ...(typeof e.oui === 'string' && /^[0-9A-F]{2}(:[0-9A-F]{2}){2}$/i.test(e.oui) ? { oui: e.oui.toUpperCase() } : {}),
   };
 }

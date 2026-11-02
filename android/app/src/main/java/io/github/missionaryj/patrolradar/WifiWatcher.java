@@ -106,6 +106,7 @@ public class WifiWatcher {
                 String b = r.BSSID == null ? "" : r.BSSID.toUpperCase().replace('-', ':');
                 if (b.length() >= 14) o.put("radio", hash.apply("radio:" + b.substring(0, 14)));
                 o.put("freq", r.frequency);
+                o.put("t", System.currentTimeMillis() - (SystemClock.elapsedRealtime() * 1000 - r.timestamp) / 1000); // scan time (r.timestamp is us since boot)
                 out.onMatch(o); // ssid/bssid deliberately not included
             } catch (Exception ignored) { }
         }

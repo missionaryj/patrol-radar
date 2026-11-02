@@ -178,6 +178,8 @@ public class ScanService extends Service {
             String oui = ouiOf(addr, at, ouis);
             if (oui != null) o.put("oui", oui); // only the vendor prefix of a listed OUI, never the address
             o.put("rssi", r.getRssi());
+            // When the radio heard it (epoch ms), not when JS got it: batched/late delivery would smear the RSSI-peak time.
+            o.put("t", System.currentTimeMillis() - (android.os.SystemClock.elapsedRealtimeNanos() - r.getTimestampNanos()) / 1_000_000L);
             ScanRecord rec = r.getScanRecord();
             if (rec != null) {
                 if (rec.getDeviceName() != null) o.put("name", rec.getDeviceName());

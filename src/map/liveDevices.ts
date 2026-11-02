@@ -82,6 +82,9 @@ export class LiveAnchors {
     let p = this.a.get(key); if (!p) { p = { lat: here.lat, lng: here.lng, t: now }; this.a.set(key, p); }
     p.t = now; return { lat: p.lat, lng: p.lng };
   }
+  /** Move an anchor to a better estimate (closest approach). */
+  set(key: string, p: { lat: number; lng: number }, now = Date.now()) { this.a.set(key, { lat: p.lat, lng: p.lng, t: now }); }
+  get(key: string) { const p = this.a.get(key); return p && { lat: p.lat, lng: p.lng }; }
   prune(now = Date.now()) { for (const [k, p] of this.a) if (now - p.t > this.ttlMs) this.a.delete(k); }
   has(key: string) { return this.a.has(key); }
   clear() { this.a.clear(); }
