@@ -41,5 +41,6 @@ export async function normalizeEvent(e: any): Promise<Advertisement> {
     rssi: typeof e.rssi === 'number' ? e.rssi : undefined,
     txPower: typeof e.txPower === 'number' ? e.txPower : undefined,
     manufacturerData, serviceUuids: uuids.map(normUuid), serviceData, timestamp: Date.now(),
+    ...(typeof e.oui === 'string' && /^[0-9A-F]{2}(:[0-9A-F]{2}){2}$/i.test(e.oui) ? { oui: e.oui.toUpperCase() } : {}),
   };
 }

@@ -1,5 +1,5 @@
 import type { Scanner, AdvListener } from './types';
-import { SIGNATURES, COMPANY_IDS } from './signatures';
+import { SIGNATURES, COMPANY_IDS, OUIS } from './signatures';
 import { normalizeEvent } from './normalize';
 import { ScanError } from './errors';
 import { nativeWifiRules } from '../wifi/rules';
@@ -8,7 +8,7 @@ export type NativeScanMode = 'lowPower' | 'balanced' | 'lowLatency';
 /** Shape of one advert as sent by the Android PatrolScan plugin. `id` is already a salted hash (no MAC crosses the bridge). */
 /** Wi-Fi match from the native WifiWatcher: rule ids only; SSID/BSSID never cross the bridge. */
 export interface NativeWifiMatch { id: string; rssi?: number; rules: string[]; throttled?: number }
-export interface NativeAdvert { id: string; name?: string; rssi?: number; txPower?: number; mfr?: Record<string, string>; uuids?: string[]; svc?: Record<string, string>; }
+export interface NativeAdvert { id: string; name?: string; rssi?: number; txPower?: number; mfr?: Record<string, string>; uuids?: string[]; svc?: Record<string, string>; oui?: string; }
 
 export function nativePlugin(): any | undefined {
   const cap = (globalThis as any).Capacitor;
@@ -18,13 +18,13 @@ export function nativePlugin(): any | undefined {
 
 /** Hardware scan filters built from the signature table. Needed so Android keeps scanning with the screen off. */
 export function nativeFilters() {
-  const serviceUuids = SIGNATURES.flatMap(s => s.rule.kind === 'serviceUuid16' ? [s.rule.uuid.toString(16).padStart(4, '0')] : []);
-  return { companyIds: COMPANY_IDS, serviceUuids: [...new Set(serviceUuids)] };
+  const serviceUuids = SIGNATURES.flatMap(s => s.rule.kind === 'serviceUuid16' || s.rule.kind === 'serviceData16' ? [s.rule.uuid.toString(16).padStart(4, '0')] : []);
+  return { companyIds: COMPANY_IDS, serviceUuids: [...new Set(serviceUuids)], ouis: OUIS };
 }
 
 /** Converts a native advert into the event shape normalizeEvent already understands. */
 export function toEvent(a: NativeAdvert) {
-  return { device: { id: a.id }, name: a.name, rssi: a.rssi, txPower: a.txPower, manufacturerData: a.mfr ?? {}, uuids: a.uuids ?? [], serviceData: a.svc ?? {} };
+  return { device: { id: a.id }, name: a.name, rssi: a.rssi, txPower: a.txPower, manufacturerData: a.mfr ?? {}, uuids: a.uuids ?? [], serviceData: a.svc ?? {}, oui: a.oui };
 }
 
 /**

@@ -7,7 +7,8 @@ import type { Advertisement } from '../ble/types';
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), m }; };
 const dv = (bytes: number[]) => new DataView(new Uint8Array(bytes).buffer);
 const cid = (SIGNATURES.find(s => s.rule.kind === 'companyId')!.rule as { id: number }).id;
-const police = (sid = 'hash-abc'): Advertisement => ({ sessionId: sid, name: 'X60012345', rssi: -60, txPower: -8, manufacturerData: new Map([[cid, dv([1, 2, 3])]]), serviceUuids: [], serviceData: new Map(), timestamp: 1700000000000 });
+const SERIAL = [0x02, ...'X870054FW'].map(c => typeof c === 'number' ? c : c.charCodeAt(0)); // Axon 0x034D serial shape (fake serial)
+const police = (sid = 'hash-abc'): Advertisement => ({ sessionId: sid, name: 'X60012345', rssi: -60, txPower: -8, manufacturerData: new Map([[cid, dv(SERIAL)]]), serviceUuids: [], serviceData: new Map(), timestamp: 1700000000000 });
 const phone = (): Advertisement => ({ sessionId: 'hash-phone', name: 'Jordan iPhone', rssi: -50, manufacturerData: new Map([[0x004c, dv([0x10, 5])]]), serviceUuids: [], serviceData: new Map(), timestamp: 1 });
 const PRECISE = { lat: 40.116421, lng: -88.243385 };
 
@@ -31,7 +32,7 @@ describe('SessionRecorder', () => {
     const rec = r.s.records[0];
     expect(rec.dev).toBe('hash-1');
     expect(Math.abs(rec.cell!.lat - PRECISE.lat)).toBeLessThan(0.002);
-    expect(rec.manufacturerData[0]).toEqual({ companyId: cid, hex: '010203', masked: false });
+    expect(rec.manufacturerData[0]).toEqual({ companyId: cid, hex: '02******************', masked: true });
     expect(rec.txPower).toBe(-8);
     // persisted & reloaded
     expect(new SessionRecorder(s).count).toBe(1);
@@ -57,7 +58,7 @@ describe('SessionRecorder', () => {
     const now = Date.now();
     for (let i = 0; i < 5; i++) { const p = { ...phone(), sessionId: 'hash-phone' + (i % 3), timestamp: now + i * 1000 }; r.add(p, match(p), PRECISE); }
     const o = r.exportObject('t'); const h = o.health;
-    expect(o.header.schemaVersion).toBe(2); expect(o.records).toHaveLength(0);
+    expect(o.header.schemaVersion).toBe(3); expect(o.records).toHaveLength(0);
     expect(h.advertsSeen).toBe(5); expect(h.unmatchedAdverts).toBe(5); expect(h.distinctDevicesSeen).toBe(3);
     expect(h.gridCellsVisited).toBe(2); expect(h.location.fixes).toBe(2); expect(h.location.accuracyMeanM).toBe(46);
     expect(h.verdict).toBe('healthy'); expect(h.events[0].kind).toBe('start');

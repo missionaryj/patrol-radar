@@ -11,7 +11,7 @@ describe('normalizeEvent', () => {
   it('handles Web Bluetooth Map shape', async () => {
     const a = await normalizeEvent({ device: { id: 'AA:BB', name: 'x' }, rssi: -60, uuids: ['0000fc81-0000-1000-8000-00805f9b34fb'],
       manufacturerData: new Map([[0x034d, new DataView(new Uint8Array([1]).buffer)]]), serviceData: new Map() });
-    expect(match(a)?.signature.vendor).toBe('Axon');
+    expect(match(a)?.signature.vendor).toBe('Axon'); // via FC81 (bare 0x034D no longer counts without the serial shape)
     expect(a.sessionId).not.toContain('AA');
   });
   it('handles plain-object / hex-key / short-uuid shape (Bluefy-style fallback)', async () => {
@@ -91,6 +91,6 @@ describe('BluefyScanner police picker', () => {
 import { match as _m } from './matcher';
 import { test as _t, expect as _e } from 'vitest';
 _t('corroborated company ID + service UUID scores >= 0.85 before RSSI penalty', () => {
-  const r = _m({ sessionId: 's', timestamp: 0, rssi: -60, manufacturerData: new Map([[0x034D, new DataView(new ArrayBuffer(1))]]), serviceUuids: ['0000fc81-0000-1000-8000-00805f9b34fb'], serviceData: new Map() } as any);
+  const r = _m({ sessionId: 's', timestamp: 0, rssi: -60, manufacturerData: new Map([[0x034D, new DataView(new Uint8Array([2, 88, 56, 55, 48, 48, 53, 52, 70, 87]).buffer)]]), serviceUuids: ['0000fc81-0000-1000-8000-00805f9b34fb'], serviceData: new Map() } as any);
   _e(r?.corroborated).toBe(true); _e(r!.confidence).toBeGreaterThanOrEqual(0.85);
 });

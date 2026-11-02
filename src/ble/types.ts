@@ -8,6 +8,8 @@ export interface Advertisement {
   serviceUuids: string[];
   serviceData: Map<string, DataView>;
   timestamp: number;
+  /** Android only: the listed vendor OUI (e.g. "00:25:DF") when the PUBLIC address starts with it. Never the address itself. */
+  oui?: string;
 }
 export type AdvListener = (adv: Advertisement) => void;
 /** Passive scanner contract: implementations MUST NOT connect, pair, write or probe. */
