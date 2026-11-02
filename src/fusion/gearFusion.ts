@@ -1,3 +1,4 @@
+import { travel } from '../settings/travelMode';
 /**
  * Cross-signal fusion on the COARSE grid only (cell keys from coarsen(), never precise coords).
  * - "Possible patrol car": >= 2 distinct gear types in the same cell within WINDOW_MS.
@@ -23,7 +24,8 @@ export function gearTypeFor(category: string, ruleId: string, role?: string): Ge
 export class GearFusion {
   private events: GearEvent[] = [];
   private flagged = new Map<string, number>(); // cell -> last flag time (dedupe alerts)
-  constructor(private windowMs = WINDOW_MS) {}
+  constructor(private fixedWindowMs?: number) {}
+  private get windowMs() { return this.fixedWindowMs ?? travel().fusionWindowMs; }
   private prune(now: number) { this.events = this.events.filter(e => now - e.t <= this.windowMs); for (const [c, t] of this.flagged) if (now - t > this.windowMs) this.flagged.delete(c); }
   add(e: GearEvent): FusionResult {
     this.prune(e.t); this.events.push(e);

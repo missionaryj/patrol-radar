@@ -1,3 +1,4 @@
+import { travel as travelProfile } from '../settings/travelMode';
 /**
  * Closest-approach localisation of a hit along the user's own track. DISPLAY ONLY: the track and RSSI series live in
  * memory for ~3 min, are cleared on Stop, and are never stored, exported or sent. The recorder keeps only coarse cells.
@@ -16,7 +17,6 @@ export interface Estimate {
   samples: number; peakRssi: number; rangeM: number;
 }
 
-const KEEP_MS = 180_000;
 const M_PER_DEG = 111_320;
 
 export class TrackBuffer {
@@ -25,7 +25,7 @@ export class TrackBuffer {
     if (!Number.isFinite(x.lat) || !Number.isFinite(x.lng)) return;
     const L = this.f[this.f.length - 1];
     if (L && x.t <= L.t) return; // out of order / duplicate
-    this.f.push({ ...x, s: L ? L.s + distM(L, x) : 0 }); const cut = x.t - KEEP_MS; while (this.f.length && this.f[0].t < cut) this.f.shift();
+    this.f.push({ ...x, s: L ? L.s + distM(L, x) : 0 }); const cut = x.t - travelProfile().keepMs; while (this.f.length && this.f[0].t < cut) this.f.shift();
   }
   /** Distance travelled (m) along the track at time t; extrapolated with the end speed outside the buffer. */
   along(t: number): number {
@@ -74,7 +74,7 @@ export function distM(a: { lat: number; lng: number }, b: { lat: number; lng: nu
 export function rangeFromRssi(rssi: number, radio: Radio, txPower?: number) {
   const p1 = radio === 'wifi' ? -40 : txPower !== undefined && txPower > -30 && txPower < 20 ? txPower - 41 : -59;
   const n = radio === 'wifi' ? 3 : 2; // outdoors ~2; a low n errs toward a bigger (honest) circle
-  return Math.min(radio === 'wifi' ? 150 : 80, Math.max(5, 10 ** ((p1 - rssi) / (10 * n))));
+  return Math.min(radio === 'wifi' ? travelProfile().maxRangeWifiM : travelProfile().maxRangeBleM, Math.max(5, 10 ** ((p1 - rssi) / (10 * n))));
 }
 
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -90,10 +90,10 @@ export class Localizer {
     let e = this.series.get(key); if (!e) { e = { radio, s: [] }; this.series.set(key, e); }
     if (txPower !== undefined) e.tx = txPower;
     const s = e.s; let i = s.length; while (i > 0 && s[i - 1].t > t) i--; s.splice(i, 0, { t, rssi });
-    const cut = t - KEEP_MS; while (s.length && s[0].t < cut) s.shift(); if (s.length > Localizer.CAP) s.splice(0, s.length - Localizer.CAP);
+    const cut = t - travelProfile().keepMs; while (s.length && s[0].t < cut) s.shift(); if (s.length > Localizer.CAP) s.splice(0, s.length - Localizer.CAP);
   }
   has(key: string) { return this.series.has(key); }
-  prune(now = Date.now()) { for (const [k, e] of this.series) if (!e.s.length || now - e.s[e.s.length - 1].t > KEEP_MS) this.series.delete(k); }
+  prune(now = Date.now()) { for (const [k, e] of this.series) if (!e.s.length || now - e.s[e.s.length - 1].t > travelProfile().keepMs) this.series.delete(k); }
   clear() { this.series.clear(); this.track.clear(); }
   /** Drop per-device series but keep our own recent track (Stop then Start right away). */
   clearSeries() { this.series.clear(); }
@@ -102,7 +102,7 @@ export class Localizer {
     const e = this.series.get(key); if (!e || !e.s.length || !this.track.length) return undefined;
     const s = e.s, radio = e.radio;
     // 1. Smooth: running median over ±0.75 s (BLE fading is ~6 dB per advert).
-    const W = 750; const sm: number[] = [];
+    const W = travelProfile().smoothHalfWindowMs; const sm: number[] = [];
     for (let i = 0, lo = 0, hi = 0; i < s.length; i++) {
       while (s[lo].t < s[i].t - W) lo++; while (hi + 1 < s.length && s[hi + 1].t <= s[i].t + W) hi++;
       sm.push(median(s.slice(lo, hi + 1).map(x => x.rssi)));

@@ -3,11 +3,13 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Report } from '../reports/types';
 import type { CrowdCell } from '../crowd/protocol';
-import { type LiveDevice, BAND_RADIUS_M, WIFI_COLOR, offsetFor, applyOffset, opacityFor, LiveAnchors } from './liveDevices';
+import { type LiveDevice, bandRadius, WIFI_COLOR, offsetFor, applyOffset, opacityFor, LiveAnchors } from './liveDevices';
 import type { Vehicle } from '../fusion/vehicles';
 import { TTL_MS } from '../reports/localStore';
 import { FollowController } from './follow';
 import { SmoothLocation } from './smoothFollow';
+import { RASTER_2D, PITCH_3D } from './palette';
+import { Map3D, type Pin3D } from './map3d';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
@@ -15,6 +17,7 @@ export const MAX_LIVE_DOTS = 150;
 export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; }
 export class MapView {
   private map: L.Map;
+  private m3: Map3D; private lastMirror = 0;
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
   readonly crowdLayer = L.layerGroup();
@@ -28,8 +31,10 @@ export class MapView {
   private liveRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
     this.map = L.map(el, { zoomControl: opts.zoomControl ?? true }).setView(center, 15);
-    // dark: OSM tiles darkened via CSS filter (.tiles-dark), no API key needed
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', className: opts.dark ? 'tiles-dark' : '' }).addTo(this.map);
+    // Cool-slate basemap (OSM tiles + CSS filter, no API key); .tiles-slate adds a slight blue-grey tint.
+    L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' }).addTo(this.map);
+    const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
+    this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned());
     this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
     this.follow = new FollowController(true, f => this.onFollowChange?.(f));
@@ -39,11 +44,11 @@ export class MapView {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.kick(); });
     if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
   }
-  invalidate() { this.map.invalidateSize(); }
+  invalidate() { this.map.invalidateSize(); this.m3.resize(); }
   showCrowd(on: boolean) { if (on) this.crowdLayer.addTo(this.map); else this.crowdLayer.remove(); }
   /** Crowd cells: purple ~200 m squares; solid when confirmed (2+ reporters or high conf), faint dotted when single-reporter. */
   renderCrowd(cells: CrowdCell[], now = Date.now()) {
-    this.crowdLayer.clearLayers();
+    this.crowdLayer.clearLayers(); queueMicrotask(() => { if (this.m3.active) this.mirror3d(); });
     for (const c of cells) {
       const d = 0.0009, f = c.confirmed;
       L.rectangle([[c.lat - d, c.lng - d * 1.3], [c.lat + d, c.lng + d * 1.3]], { color: '#b03cff', weight: f ? 2.5 : 1, dashArray: f ? undefined : '2 4', opacity: f ? 0.95 : 0.45, fillColor: '#b03cff', fillOpacity: f ? 0.32 : 0.08, className: 'crowd-pin' })
@@ -55,7 +60,7 @@ export class MapView {
   setCenter(lat: number, lng: number) { this.map.setView([lat, lng]); }
   /** Coarse cells, opacity decays linearly to 0 at TTL. */
   render(reports: Report[], now = Date.now()) {
-    this.layer.clearLayers();
+    this.layer.clearLayers(); queueMicrotask(() => { if (this.m3.active) this.mirror3d(); });
     for (const r of reports) {
       const fade = Math.max(0, 1 - (now - r.timestamp) / TTL_MS);
       const wifi = r.radio === 'wifi' || r.label.endsWith('(Wi-Fi)');
@@ -90,11 +95,34 @@ export class MapView {
     const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
     this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
     this.moveRel(); // unknown-device dots + rings ride with the user dot (were redrawn only on the ~3/s data tick)
-    if (this.follow.onFix()) this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions);
+    if (this.follow.onFix()) { this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions); this.m3.follow(d.lat, d.lng); }
+    if (this.m3.active && ts - this.lastMirror > 200) this.mirror3d();
     if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
   };
   /** Recenter and resume follow-me. */
-  recenter(): boolean { this.follow.resume(); if (!this.me) return false; this.map.setView(this.smooth.disp ?? this.me.getLatLng(), Math.max(this.map.getZoom(), 15)); this.kick(); return true; }
+  recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng(); this.map.setView(c, Math.max(this.map.getZoom(), 15)); this.m3.follow(c.lat, c.lng); this.kick(); return true; }
+  // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
+  get is3D() { return this.m3.active; }
+  async set3D(on: boolean) {
+    if (!on) { const v = this.m3.view(); this.m3.close(); if (v && !this.follow.following) this.map.setView([v.lat, v.lng], Math.round(v.zoom)); return; }
+    const c = this.smooth.disp ?? this.map.getCenter(); await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom()); this.mirror3d(); this.kick();
+  }
+  /** Tilt between flat and 3D while the 3D view is open. */
+  togglePitch() { if (this.m3.active) this.m3.setPitch(this.m3.pitch > 5 ? 0 : PITCH_3D); }
+  /** Copy what Leaflet is drawing (coarse cells, live pins/rings, crowd cells, own dot) into the 3D view. */
+  private mirror3d() {
+    this.lastMirror = performance.now(); if (!this.m3.active) return;
+    const pins: Pin3D[] = [];
+    const walk = (g: L.LayerGroup, cell = false) => g.eachLayer(l => {
+      const o = (l as any).options ?? {}; const color = o.fillColor ?? o.color ?? '#e33';
+      if (l instanceof L.Rectangle) { const c = l.getBounds().getCenter(); pins.push({ lat: c.lat, lng: c.lng, color, r: 0, ring: 100, kind: 'cell' }); }
+      else if (l instanceof L.Circle) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: o.color ?? color, r: 0, ring: l.getRadius(), kind: cell ? 'cell' : 'ring' }); }
+      else if (l instanceof L.CircleMarker) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color, r: l.getRadius(), kind: 'dot' }); }
+      else if (l instanceof L.Marker && (l.options.icon?.options as any)?.className === 'veh-pin') { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: '#ff1744', r: 10, kind: 'veh' }); }
+    });
+    walk(this.layer, true); walk(this.crowdLayer, true); walk(this.liveLayer);
+    const d = this.smooth.disp; this.m3.update({ pins, me: d ? { lat: d.lat, lng: d.lng, acc: this.smooth.acc } : undefined });
+  }
   // ---- Flock camera (mapped) layer: static OSM export, lazy-loaded, only visible-bounds points drawn ----
   /** baseUrl = folder holding index.json + <lat>_<lng>.geojson tiles. */
   async showFlock(on: boolean, baseUrl: string) {
@@ -144,6 +172,9 @@ export class MapView {
    * Police hits and grouped vehicles are pinned where they were first detected; unknown devices are drawn around the
    * user and follow the user dot frame by frame. Wi-Fi hits get a thick blue ring and a 📶 badge. */
   renderLive(devs: LiveDevice[], center: { lat: number; lng: number } | undefined, now = Date.now(), vehicles: Vehicle[] = []) {
+    this.renderLive2D(devs, center, now, vehicles); if (this.m3.active) this.mirror3d();
+  }
+  private renderLive2D(devs: LiveDevice[], center: { lat: number; lng: number } | undefined, now: number, vehicles: Vehicle[]) {
     this.liveLayer.clearLayers(); this.relItems = []; this.anchors.prune(now); this.loc.prune(now);
     const me = this.userDisp(center); if (!me) return;
     const grouped = new Set(vehicles.flatMap(v => v.members.map(m => m.key)));
@@ -161,9 +192,9 @@ export class MapView {
     const add = <T extends L.CircleMarker | L.Circle | L.Marker>(layer: T, rel: boolean, dx = 0, dy = 0): T => { layer.addTo(this.liveLayer); if (rel) this.relItems.push({ layer, dx, dy }); return layer; };
     for (const d of devs) {
       const o = offsetFor(d.key); const { base, p, rel, est } = place(d.key, d.kind === 'match', o); const op = opacityFor(d.lastSeen, now); const wifi = d.radio === 'wifi';
-      if (est) uncert(est, wifi ? WIFI_COLOR : d.color, op); else add(L.circle([base.lat, base.lng], { renderer: this.liveRenderer, radius: BAND_RADIUS_M[d.band], color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }), rel);
+      if (est) uncert(est, wifi ? WIFI_COLOR : d.color, op); else add(L.circle([base.lat, base.lng], { renderer: this.liveRenderer, radius: bandRadius(d.band), color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }), rel);
       const ago = Math.round((now - d.lastSeen) / 1000);
-      const popup = `${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${BAND_RADIUS_M[d.band]} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago${where(est, rel)}`;
+      const popup = `${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${bandRadius(d.band)} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago${where(est, rel)}`;
       add(L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: wifi ? 8 : 6, color: wifi ? WIFI_COLOR : '#111', weight: wifi ? 3 : 1, fillColor: d.color, fillOpacity: op, opacity: op }).bindPopup(popup), rel, o.dx, o.dy);
       if (wifi) add(L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'wifi-pin', html: '📶', iconSize: [18, 18], iconAnchor: [-4, 22] }), opacity: op, interactive: false, keyboard: false }), rel, o.dx, o.dy);
     }

@@ -1,3 +1,4 @@
+import { mountMapSettings } from './settings/mapSettings';
 import { PingGate, PingPlayer, soundEnabled, setSoundEnabled } from './alert/ping';
 import './style.css';
 // In the Android app, open the v2 UI.
@@ -25,6 +26,7 @@ const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 const map = new MapView($('map'));
+mountMapSettings(map);
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
 const lastSeen = new Map<string, number>();

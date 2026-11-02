@@ -1,3 +1,4 @@
+import { travel } from '../settings/travelMode';
 /**
  * Per-session, in-memory context for tiered Wi-Fi scoring. Keys are the per-session salted hashes from the native
  * service (access point hash, radio hash); nothing is persisted, and clear() drops everything on Stop.
@@ -13,7 +14,7 @@ export class WifiContextTracker {
   private radio = new Map<string, Set<WifiBand>>();
   private ble: { cell: string; t: number; axon: boolean }[] = [];
   /** A police-gear BLE match (caller filters: conf >= 0.5, not fixed infrastructure). */
-  blePolice(cell: string, t: number, axon: boolean) { this.ble.push({ cell, t, axon }); this.ble = this.ble.filter(b => t - b.t <= BLE_WINDOW_MS); }
+  blePolice(cell: string, t: number, axon: boolean) { this.ble.push({ cell, t, axon }); this.ble = this.ble.filter(b => t - b.t <= travel().bleWindowMs); }
   /** Records one native Wi-Fi emit and returns its context. */
   observe(o: { id: string; radio?: string; band?: WifiBand; cell: string; t: number }): WifiContext {
     const a = this.ap.get(o.id) ?? { first: o.t, scans: [] };
@@ -21,8 +22,8 @@ export class WifiContextTracker {
     if (a.scans.length > 20) a.scans.shift(); this.ap.set(o.id, a);
     let dualBand = false;
     if (o.radio && o.band) { const s = this.radio.get(o.radio) ?? new Set<WifiBand>(); s.add(o.band); this.radio.set(o.radio, s); dualBand = s.has('2.4') && (s.has('5') || s.has('6')); }
-    const near = this.ble.filter(b => b.cell === o.cell && Math.abs(o.t - b.t) <= BLE_WINDOW_MS);
-    return { dualBand, persistent: a.scans.length >= PERSIST_SCANS && o.t - a.first >= PERSIST_MIN_MS, blePolice: near.length > 0, bleAxon: near.some(b => b.axon) };
+    const near = this.ble.filter(b => b.cell === o.cell && Math.abs(o.t - b.t) <= travel().bleWindowMs);
+    return { dualBand, persistent: a.scans.length >= travel().persistScans && o.t - a.first >= travel().persistMinMs, blePolice: near.length > 0, bleAxon: near.some(b => b.axon) };
   }
   clear() { this.ap.clear(); this.radio.clear(); this.ble = []; }
 }

@@ -1,3 +1,4 @@
+import { mountMapSettings } from '../settings/mapSettings';
 import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
 import { MapView, coarsen } from '../map';
@@ -24,6 +25,7 @@ const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false });
+mountMapSettings(map);
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
 const lastSeen = new Map<string, number>();
