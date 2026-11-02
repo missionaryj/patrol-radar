@@ -66,3 +66,23 @@ export class LiveDeviceTracker {
   has(key: string) { return this.devs.has(key); }
   clear() { this.devs.clear(); this.ema.clear(); }
 }
+
+/**
+ * Where a live dot is drawn. A police-gear hit is pinned to where it was FIRST detected (the user's display position
+ * at that moment, in memory only, never stored) so it stays put as the user drives on. Before 1.0.19 every redraw
+ * re-projected it around the current position, so the pin "followed" the user. Unmatched devices stay user-relative
+ * (illustrative dots around "me") and are moved with the user dot every frame.
+ */
+export class LiveAnchors {
+  private a = new Map<string, { lat: number; lng: number; t: number }>();
+  constructor(private ttlMs = REMOVE_MS) {}
+  /** Fixed anchor for matches/vehicles (set once, on first call), or null for user-relative items. */
+  anchor(key: string, fixed: boolean, here: { lat: number; lng: number }, now = Date.now()): { lat: number; lng: number } | null {
+    if (!fixed) return null;
+    let p = this.a.get(key); if (!p) { p = { lat: here.lat, lng: here.lng, t: now }; this.a.set(key, p); }
+    p.t = now; return { lat: p.lat, lng: p.lng };
+  }
+  prune(now = Date.now()) { for (const [k, p] of this.a) if (now - p.t > this.ttlMs) this.a.delete(k); }
+  has(key: string) { return this.a.has(key); }
+  clear() { this.a.clear(); }
+}

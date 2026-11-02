@@ -2,7 +2,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Report } from '../reports/types';
 import type { CrowdCell } from '../crowd/protocol';
-import { type LiveDevice, BAND_RADIUS_M, WIFI_COLOR, offsetFor, applyOffset, opacityFor } from './liveDevices';
+import { type LiveDevice, BAND_RADIUS_M, WIFI_COLOR, offsetFor, applyOffset, opacityFor, LiveAnchors } from './liveDevices';
 import type { Vehicle } from '../fusion/vehicles';
 import { TTL_MS } from '../reports/localStore';
 import { FollowController } from './follow';
@@ -85,6 +85,7 @@ export class MapView {
     const dt = Math.min(100, ts - this.lastFrame); this.lastFrame = ts;
     const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
     this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
+    this.moveRel(); // unknown-device dots + rings ride with the user dot (were redrawn only on the ~3/s data tick)
     if (this.follow.onFix()) this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions);
     if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
   };
@@ -123,28 +124,43 @@ export class MapView {
       return d; } });
     new Legend({ position: 'bottomleft' }).addTo(this.map);
   }
-  /** Live device dots around the user's current position. Display-only; never persisted.
-   * Wi-Fi hits get a thick blue ring and a 📶 badge; grouped vehicles draw one 🚓 marker instead of their member dots. */
+  /** Fixed anchors for hits (in memory only). */
+  readonly anchors = new LiveAnchors();
+  /** User-relative live items (unknown devices, their rings): re-positioned with the smoothed user dot every frame. */
+  private relItems: { layer: L.CircleMarker | L.Circle | L.Marker; dx: number; dy: number }[] = [];
+  /** Current display position of "me" (smoothed), falling back to the last fix passed in. */
+  private userDisp(fallback?: { lat: number; lng: number }) { const d = this.smooth.disp; return d ? { lat: d.lat, lng: d.lng } : fallback; }
+  private moveRel() {
+    const c = this.userDisp(); if (!c || !this.relItems.length) return;
+    for (const it of this.relItems) { const p = applyOffset(c.lat, c.lng, { dx: it.dx, dy: it.dy }); it.layer.setLatLng([p.lat, p.lng]); }
+  }
+  /** Drops fixed anchors (call on Stop). */
+  clearLive() { this.anchors.clear(); this.relItems = []; this.liveLayer.clearLayers(); }
+  /** Live device dots. Display-only; never persisted.
+   * Police hits and grouped vehicles are pinned where they were first detected; unknown devices are drawn around the
+   * user and follow the user dot frame by frame. Wi-Fi hits get a thick blue ring and a 📶 badge. */
   renderLive(devs: LiveDevice[], center: { lat: number; lng: number } | undefined, now = Date.now(), vehicles: Vehicle[] = []) {
-    this.liveLayer.clearLayers(); if (!center) return;
+    this.liveLayer.clearLayers(); this.relItems = []; this.anchors.prune(now);
+    const me = this.userDisp(center); if (!me) return;
     const grouped = new Set(vehicles.flatMap(v => v.members.map(m => m.key)));
     devs = devs.filter(d => !grouped.has(d.key));
     // Past ~200 dots the follow-me pan redraws janked a 4x-throttled phone profile; police matches always draw first.
     if (devs.length > MAX_LIVE_DOTS) devs = [...devs].sort((a, b) => (a.kind === 'match' ? 0 : 1) - (b.kind === 'match' ? 0 : 1) || b.rssi - a.rssi).slice(0, MAX_LIVE_DOTS);
+    const place = (key: string, fixed: boolean, o: { dx: number; dy: number }) => { const anc = this.anchors.anchor(key, fixed, me, now); const base = anc ?? me; return { base, p: applyOffset(base.lat, base.lng, o), rel: !anc }; };
+    const add = <T extends L.CircleMarker | L.Circle | L.Marker>(layer: T, rel: boolean, dx = 0, dy = 0): T => { layer.addTo(this.liveLayer); if (rel) this.relItems.push({ layer, dx, dy }); return layer; };
     for (const d of devs) {
-      const p = applyOffset(center.lat, center.lng, offsetFor(d.key)); const op = opacityFor(d.lastSeen, now); const wifi = d.radio === 'wifi';
-      L.circle([center.lat, center.lng], { renderer: this.liveRenderer, radius: BAND_RADIUS_M[d.band], color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }).addTo(this.liveLayer);
+      const o = offsetFor(d.key); const { base, p, rel } = place(d.key, d.kind === 'match', o); const op = opacityFor(d.lastSeen, now); const wifi = d.radio === 'wifi';
+      add(L.circle([base.lat, base.lng], { renderer: this.liveRenderer, radius: BAND_RADIUS_M[d.band], color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }), rel);
       const ago = Math.round((now - d.lastSeen) / 1000);
-      const popup = `${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${BAND_RADIUS_M[d.band]} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago`;
-      L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: wifi ? 8 : 6, color: wifi ? WIFI_COLOR : '#111', weight: wifi ? 3 : 1, fillColor: d.color, fillOpacity: op, opacity: op }).bindPopup(popup).addTo(this.liveLayer);
-      if (wifi) L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'wifi-pin', html: '📶', iconSize: [18, 18], iconAnchor: [-4, 22] }), opacity: op, interactive: false, keyboard: false }).addTo(this.liveLayer);
+      const popup = `${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${BAND_RADIUS_M[d.band]} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago${rel ? '' : '<br><small>pinned where first detected</small>'}`;
+      add(L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: wifi ? 8 : 6, color: wifi ? WIFI_COLOR : '#111', weight: wifi ? 3 : 1, fillColor: d.color, fillOpacity: op, opacity: op }).bindPopup(popup), rel, o.dx, o.dy);
+      if (wifi) add(L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'wifi-pin', html: '📶', iconSize: [18, 18], iconAnchor: [-4, 22] }), opacity: op, interactive: false, keyboard: false }), rel, o.dx, o.dy);
     }
     for (const v of vehicles) {
-      const p = applyOffset(center.lat, center.lng, offsetFor(v.id)); const op = opacityFor(v.lastSeen, now);
+      const { p } = place(v.id, true, offsetFor(v.id)); const op = opacityFor(v.lastSeen, now);
       const list = v.members.map(m => `${m.radio === 'wifi' ? '📶' : 'ᛒ'} ${m.ruleId} (${Math.round(m.confidence * 100)}%)`).join('<br>');
-      L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'veh-pin', html: `🚓 ${v.members.length}`, iconSize: [44, 22], iconAnchor: [22, 11] }), opacity: op, zIndexOffset: 1000 })
-        .bindPopup(`🚓 <b>Possible patrol vehicle</b> · ${Math.round(v.confidence * 100)}%<br>${v.members.length} signals (${v.radios.join(' + ')})${v.rssiCorrelated ? ', signal strength moves together' : ''}<br><small>${list}</small><br><small>best single signal ${Math.round(v.baseConfidence * 100)}%, +${Math.round(v.boost * 100)} for corroboration (capped)</small>`)
-        .addTo(this.liveLayer);
+      add(L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'veh-pin', html: `🚓 ${v.members.length}`, iconSize: [44, 22], iconAnchor: [22, 11] }), opacity: op, zIndexOffset: 1000 })
+        .bindPopup(`🚓 <b>Possible patrol vehicle</b> · ${Math.round(v.confidence * 100)}%<br>${v.members.length} signals (${v.radios.join(' + ')})${v.rssiCorrelated ? ', signal strength moves together' : ''}<br><small>${list}</small><br><small>best single signal ${Math.round(v.baseConfidence * 100)}%, +${Math.round(v.boost * 100)} for corroboration (capped)</small>`), false);
     }
   }
 }
