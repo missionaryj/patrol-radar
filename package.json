@@ -1,6 +1,6 @@
 {
   "name": "patrol-radar",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@capacitor/core": "^7.6.9",
-    "@supabase/supabase-js": "^2.118.0",
     "@capacitor/filesystem": "^7.1.9",
     "@capacitor/share": "^7.0.4",
+    "@supabase/supabase-js": "^2.118.0",
     "leaflet": "^1.9.4"
   },
   "devDependencies": {

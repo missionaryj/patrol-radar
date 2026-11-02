@@ -84,7 +84,7 @@ export function mountCityChat(getCell: () => { lat: number; lng: number } | unde
       catch (err: any) {
         const msg = String(err?.message ?? err);
         if (/rate limited/i.test(msg)) { const m = /(\d+)\s*s/.exec(msg); startCooldown(Date.now() + (m ? +m[1] : RATE_S) * 1000); return; }
-        toast(/content policy/.test(msg) ? 'Blocked by the content policy.' : /banned/.test(msg) ? 'Your account is banned from chat.' : msg, true);
+        toast(/content policy/.test(msg) ? 'Blocked by the content policy.' : /banned/.test(msg) ? 'Your account is banned from chat.' : /daily limit/.test(msg) ? 'Too many posts today. Try again later.' : msg, true);
       }
     });
     msgs = await api!.recent(r.key); blocked = await api!.blocked(); renderFeed();
