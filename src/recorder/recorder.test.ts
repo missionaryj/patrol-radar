@@ -80,6 +80,13 @@ describe('SessionRecorder', () => {
       r.start('native'); r.event('start', 'native'); now += 3 * 60_000; expect(r.verdict()).toBe('scanner idle');
     } finally { Date.now = real; }
   });
+  it('coalesces storage writes for bursts of matches, flushes on stop', () => {
+    const s = mem(); let writes = 0; const set = s.setItem; s.setItem = (k, v) => { writes++; set(k, v); };
+    const r = new SessionRecorder(s); r.start('native'); const w0 = writes;
+    for (let i = 0; i < 500; i++) { const p = { ...police('d' + i), timestamp: Date.now() }; r.add(p, match(p)); }
+    expect(writes - w0).toBeLessThanOrEqual(2);
+    r.stop(); expect(new SessionRecorder(s).count).toBe(500);
+  });
   it('verdicts and v1 import', () => {
     const r = new SessionRecorder(mem()); r.start('web');
     expect(r.verdict()).toBe('no adverts');
