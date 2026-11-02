@@ -216,7 +216,7 @@ async function start() {
     }, 20_000);
   } catch (e) { scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
 }
-function stop() { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
+function stop() { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
 // Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
 for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {

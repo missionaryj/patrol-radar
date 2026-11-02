@@ -118,7 +118,7 @@ $('add').onclick = async () => {
   try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
   catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
 };
-$('stop').onclick = () => { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+$('stop').onclick = () => { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); map.clearLive(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
