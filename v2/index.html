@@ -38,6 +38,7 @@
 
 <div class="fab-col">
   <button id="recenter" class="icon-btn round" aria-label="Recenter on my location" title="Recenter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+  <button id="pitch" class="icon-btn round" hidden aria-label="Tilt map" title="Tilt flat / 3D">3D</button>
   <button id="add" class="icon-btn round" hidden aria-label="Pick another device" title="Pick another device"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 <button id="scan" class="fab" aria-label="Start scan"><span class="fab-ring"></span><span class="fab-ring r2"></span><span class="fab-core"><span class="fab-ico" aria-hidden="true"></span><span id="scan-label">Scan</span></span></button>
@@ -65,6 +66,14 @@
   <div class="group">
     <label class="switch"><input type="checkbox" id="flockmap" checked/><span></span><em>Flock camera (mapped)<small>Known Flock plate-reader cameras from OpenStreetMap. Not scan hits. © OpenStreetMap contributors (ODbL)</small></em></label>
     <small id="flock-status">Loading mapped cameras…</small>
+  </div>
+
+  <h3 class="group-title">Map &amp; travel</h3>
+  <div class="group">
+    <div class="field"><span>Travel mode</span>
+      <select id="travelmode" data-seg data-labels="Car|On foot"><option value="car" selected>Car</option><option value="foot">On foot</option></select>
+      <small>Car: tuned for driving. On foot: shorter expected range, filters faint non-police signals, smooths more and waits longer before grouping.</small></div>
+    <label class="switch"><input type="checkbox" id="map3d"/><span></span><em>3D buildings<small>Tilted map with extruded buildings. Uses more battery; your dot and follow-me still work.</small></em></label>
   </div>
 
   <h3 class="group-title">Sounds</h3>
@@ -95,6 +104,11 @@
       <small>Sends to <b>percolatorbiz@gmail.com</b> from your own email app. On the web the file can't be attached automatically, so attach it yourself.</small>
       <small class="help-privacy"><b>What's in the file:</b> only police-gear matches (other devices are dropped), device IDs that are scrambled and change every session, ~150 m map areas (never your exact location), signal strength and times, the matched signal data with serial-like text masked, and scan-health counts. No MAC addresses, device names or Wi-Fi network names.</small>
     </div>
+  </details>
+
+  <h3 class="group-title">Accuracy reports</h3>
+  <details id="accuracy-reports" class="group help accuracy-reports"><summary>Community Accuracy Update (Nov 2, 2026)</summary>
+    <div class="help-body" id="accuracy-body"></div>
   </details>
 
   <h3 class="group-title">Privacy</h3>

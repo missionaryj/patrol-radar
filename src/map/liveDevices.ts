@@ -1,3 +1,4 @@
+import { travel } from '../settings/travelMode';
 import type { Match } from '../ble/matcher';
 
 /** Display-only live device tracker. Nothing here is persisted. Keyed by session-hashed ID only. */
@@ -16,7 +17,9 @@ export const WIFI_COLOR = '#2979ff';
 export const isWifi = (m: Match | null | undefined) => m?.radio === 'wifi';
 
 /** RSSI→band (rough; RSSI is a poor distance estimator). */
-export function bandFor(rssi: number): Band { return rssi >= -60 ? 'near' : rssi >= -80 ? 'medium' : 'far'; }
+export function bandFor(rssi: number): Band { const p = travel(); return rssi >= p.bandNearDbm ? 'near' : rssi >= p.bandMediumDbm ? 'medium' : 'far'; }
+/** Ring radius for a band under the current travel mode. */
+export const bandRadius = (b: Band) => travel().bandRadiusM[b];
 
 export function colorFor(m: Match | null): string {
   if (!m) return '#8a9bb0';                       // unmatched / picked: blue-gray
@@ -45,10 +48,13 @@ export function opacityFor(lastSeen: number, now: number): number {
 export class LiveDeviceTracker {
   private devs = new Map<string, LiveDevice>();
   private ema = new Map<string, number>();
-  constructor(private alpha = 0.3) {}
+  constructor(private alpha?: number) {}
   update(key: string, rssi: number | undefined, m: Match | null, now = Date.now()) {
-    const prev = this.ema.get(key);
-    const r = rssi === undefined ? prev ?? -90 : prev === undefined ? rssi : prev + this.alpha * (rssi - prev);
+    const old0 = this.devs.get(key);
+    // On foot: ignore faint non-police adverts that never were police (police matches are never dropped).
+    if (!m && old0?.kind !== 'match' && rssi !== undefined && rssi < travel().minRssiUnmatched) return;
+    const prev = this.ema.get(key); const alpha = this.alpha ?? travel().emaAlpha;
+    const r = rssi === undefined ? prev ?? -90 : prev === undefined ? rssi : prev + alpha * (rssi - prev);
     this.ema.set(key, r);
     const old = this.devs.get(key);
     const match = m ?? null;

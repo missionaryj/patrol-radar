@@ -1,3 +1,4 @@
+import { travel } from '../settings/travelMode';
 /**
  * Multi-signal patrol vehicle grouping. Detections from different radios / signatures (BLE + Wi-Fi, or two different
  * BLE gear types) that are seen close in time, in the same coarse grid cell, and whose RSSI moves together are merged
@@ -67,7 +68,7 @@ export class VehicleGrouper {
       return this.refresh(current, d.t);
     }
     // Find partners: same cell, within the window, independent evidence, compatible RSSI.
-    const partners = [...this.members.values()].filter(o => o.key !== d.key && o.cell === d.cell && Math.abs(o.lastSeen - d.t) <= GROUP_WINDOW_MS && independent(o, m) && this.compatible(o, m));
+    const partners = [...this.members.values()].filter(o => o.key !== d.key && o.cell === d.cell && Math.abs(o.lastSeen - d.t) <= travel().groupWindowMs && independent(o, m) && this.compatible(o, m));
     if (!partners.length) return undefined;
     const target = partners.map(p => this.vehicleOf(p.key)).find(v => v && v.cell === d.cell);
     if (target) { target.members.push(m); return this.refresh(target, d.t); }
@@ -96,8 +97,8 @@ export class VehicleGrouper {
   list(now = Date.now()): Vehicle[] { this.prune(now); return [...this.vehicles.values()]; }
   get formed() { return this.everFormed; }
   private prune(now: number) {
-    for (const [k, m] of this.members) if (now - m.lastSeen > VEHICLE_TTL_MS) this.members.delete(k);
-    for (const [id, v] of this.vehicles) { v.members = v.members.filter(m => this.members.has(m.key)); if (v.members.length < 2 || now - v.lastSeen > VEHICLE_TTL_MS) this.vehicles.delete(id); }
+    for (const [k, m] of this.members) if (now - m.lastSeen > travel().vehicleTtlMs) this.members.delete(k);
+    for (const [id, v] of this.vehicles) { v.members = v.members.filter(m => this.members.has(m.key)); if (v.members.length < 2 || now - v.lastSeen > travel().vehicleTtlMs) this.vehicles.delete(id); }
   }
   clear() { this.members.clear(); this.vehicles.clear(); this.history.clear(); this.everFormed = 0; } // seq keeps counting so ids stay unique within a recording
 }

@@ -15,7 +15,8 @@
     "@capacitor/filesystem": "^7.1.9",
     "@capacitor/share": "^7.0.4",
     "@supabase/supabase-js": "^2.118.0",
-    "leaflet": "^1.9.4"
+    "leaflet": "^1.9.4",
+    "maplibre-gl": "^4.7.1"
   },
   "devDependencies": {
     "@capacitor/android": "^7.6.9",
