@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Field evaluation: node scripts/field-eval.mjs <folder-of-debug-json> [--json]
- * Reads Patrol Radar debug exports (schema v3 carries header.fieldLabel + signatureHits; v1/v2 files count as "unlabeled").
+ * Reads Patrol Radar debug exports (schema v3 carries header.fieldLabel + signatureHits; v1/v2 files count as "unlabeled";
+ * v4 adds Wi-Fi tier rule ids to signatureHits and a `vehicles` list, reported as a pseudo-signature "vehicle-group").
  * Per session label (police-present / not-present / unsure / unlabeled) and per signature it reports:
  *   hit rate        = labeled police-present sessions where the signature fired / all police-present sessions
  *   miss rate       = police-present sessions where it did NOT fire
@@ -23,7 +24,10 @@ for (const f of files) {
   const sig = new Map();
   if (Array.isArray(o.signatureHits)) for (const h of o.signatureHits) sig.set(h.id, { tier: h.tier ?? '?', records: h.records ?? 0, devices: h.devices ?? 0 });
   else for (const r of o.records ?? []) for (const id of r.rules ?? []) { const s = sig.get(id) ?? { tier: '?', records: 0, devices: 0 }; s.records++; sig.set(id, s); } // v1/v2
-  sessions.push({ file: f, label, schema: o.header.schemaVersion ?? 1, sig, adverts: o.health?.advertsSeen ?? null });
+  // v4: multi-signal vehicle groups count as one pseudo-signature so hit / false-positive rates cover grouping too.
+  const veh = Array.isArray(o.vehicles) ? o.vehicles : [];
+  if (veh.length) sig.set('vehicle-group', { tier: veh.some(v => v.confidence >= 0.85) ? 'strong' : veh.some(v => v.confidence >= 0.5) ? 'likely' : 'hint', records: veh.length, devices: veh.reduce((a, v) => a + (v.members?.length ?? 0), 0) });
+  sessions.push({ file: f, label, schema: o.header.schemaVersion ?? 1, sig, adverts: o.health?.advertsSeen ?? null, vehicles: veh.length });
 }
 const LABELS = ['police-present', 'not-present', 'unsure', 'unlabeled'];
 const byLabel = Object.fromEntries(LABELS.map(l => [l, sessions.filter(s => s.label === l)]));
@@ -37,10 +41,11 @@ const rows = ids.map(id => {
     sessionsFired: Object.fromEntries(LABELS.map(l => [l, fired(l)])), records: sessions.reduce((a, s) => a + (s.sig.get(id)?.records ?? 0), 0) };
 });
 const anyP = P.filter(s => s.sig.size).length, anyN = N.filter(s => s.sig.size).length;
-const overall = { sessions: sessions.length, perLabel: Object.fromEntries(LABELS.map(l => [l, byLabel[l].length])), detectionRate: pct(anyP, P.length), missRate: pct(P.length - anyP, P.length), falsePosRate: pct(anyN, N.length) };
+const overall = { vehicles: sessions.reduce((a, s) => a + s.vehicles, 0), sessions: sessions.length, perLabel: Object.fromEntries(LABELS.map(l => [l, byLabel[l].length])), detectionRate: pct(anyP, P.length), missRate: pct(P.length - anyP, P.length), falsePosRate: pct(anyN, N.length) };
 if (asJson) { console.log(JSON.stringify({ overall, signatures: rows }, null, 2)); process.exit(0); }
 console.log(`Sessions: ${overall.sessions}  (${LABELS.map(l => `${l} ${overall.perLabel[l]}`).join(', ')})`);
 const f = v => (v === null ? '  n/a' : `${v.toFixed(1).padStart(5)}%`);
+console.log(`Vehicle groups (v4 files): ${overall.vehicles}`);
 console.log(`Any signature: hit ${f(overall.detectionRate)}  miss ${f(overall.missRate)}  false-pos ${f(overall.falsePosRate)}`);
 console.log('\nsignature                     tier    hit     miss    false-pos  fired P/N/U/?  records');
 for (const r of rows) console.log(`${r.id.padEnd(30)}${r.tier.padEnd(7)}${f(r.hitRate)}  ${f(r.missRate)}  ${f(r.falsePosRate)}     ${LABELS.map(l => r.sessionsFired[l]).join('/').padEnd(14)} ${r.records}`);

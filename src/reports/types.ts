@@ -5,6 +5,8 @@ export interface Report {
   confidence: number;
   lat: number; lng: number;   // already coarsened
   timestamp: number;          // ms
+  /** Which radio produced it (Wi-Fi reports draw with a blue dashed ring). Optional for older stored reports. */
+  radio?: 'ble' | 'wifi';
 }
 /** Future crowdsourced backend. NOT implemented. A real one must aggregate, coarsen and delay data and never identify officers. */
 export interface ReportBackend {

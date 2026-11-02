@@ -2,7 +2,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Report } from '../reports/types';
 import type { CrowdCell } from '../crowd/protocol';
-import { type LiveDevice, BAND_RADIUS_M, offsetFor, applyOffset, opacityFor } from './liveDevices';
+import { type LiveDevice, BAND_RADIUS_M, WIFI_COLOR, offsetFor, applyOffset, opacityFor } from './liveDevices';
+import type { Vehicle } from '../fusion/vehicles';
 import { TTL_MS } from '../reports/localStore';
 import { FollowController } from './follow';
 import { SmoothLocation } from './smoothFollow';
@@ -56,8 +57,9 @@ export class MapView {
     this.layer.clearLayers();
     for (const r of reports) {
       const fade = Math.max(0, 1 - (now - r.timestamp) / TTL_MS);
-      L.circle([r.lat, r.lng], { radius: 120, color: '#e33', fillOpacity: 0.35 * fade, opacity: fade })
-        .bindPopup(`${r.label}<br>conf ${(r.confidence * 100).toFixed(0)}%<br>${Math.round((now - r.timestamp) / 60000)} min ago`)
+      const wifi = r.radio === 'wifi' || r.label.endsWith('(Wi-Fi)');
+      L.circle([r.lat, r.lng], { radius: 120, color: wifi ? WIFI_COLOR : '#e33', weight: wifi ? 4 : 3, dashArray: wifi ? '8 6' : undefined, fillOpacity: 0.35 * fade, opacity: fade })
+        .bindPopup(`${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${r.label}<br>conf ${(r.confidence * 100).toFixed(0)}%<br>${Math.round((now - r.timestamp) / 60000)} min ago`)
         .addTo(this.layer);
     }
   }
@@ -117,21 +119,31 @@ export class MapView {
   }
   private addLegend() {
     const Legend = L.Control.extend({ onAdd: () => { const d = L.DomUtil.create('div', 'legend');
-      d.innerHTML = '<b>Live devices</b><br><i style="background:#e53935"></i>Axon / body cam / CEW<br><i style="background:#fb8c00"></i>Radio (Motorola)<br><i style="background:#fdd835"></i>Other match<br><i style="background:#8a9bb0"></i>Unmatched / picked<br><i style="background:#0b3d4a;border:2px solid #00e5ff"></i>Flock camera (mapped, OSM)<br><small>Dot position is illustrative; ring = rough RSSI range estimate</small>';
+      d.innerHTML = '<b>Live devices</b><br><i style="background:#e53935"></i>Axon / body cam / CEW<br><i style="background:#fb8c00"></i>Radio (Motorola)<br><i style="background:#fdd835"></i>Other match<br><span class="wifi-pin" style="position:static;display:inline-block;margin-right:4px">📶</span>Wi-Fi hit (blue ring)<br><span class="veh-pin" style="position:static;display:inline-block;margin-right:4px">🚓</span>Vehicle (several signals grouped)<br><i style="background:#8a9bb0"></i>Unmatched / picked<br><i style="background:#0b3d4a;border:2px solid #00e5ff"></i>Flock camera (mapped, OSM)<br><small>Dot position is illustrative; ring = rough RSSI range estimate</small>';
       return d; } });
     new Legend({ position: 'bottomleft' }).addTo(this.map);
   }
-  /** Live device dots around the user's current position. Display-only; never persisted. */
-  renderLive(devs: LiveDevice[], center: { lat: number; lng: number } | undefined, now = Date.now()) {
+  /** Live device dots around the user's current position. Display-only; never persisted.
+   * Wi-Fi hits get a thick blue ring and a 📶 badge; grouped vehicles draw one 🚓 marker instead of their member dots. */
+  renderLive(devs: LiveDevice[], center: { lat: number; lng: number } | undefined, now = Date.now(), vehicles: Vehicle[] = []) {
     this.liveLayer.clearLayers(); if (!center) return;
+    const grouped = new Set(vehicles.flatMap(v => v.members.map(m => m.key)));
+    devs = devs.filter(d => !grouped.has(d.key));
     // Past ~200 dots the follow-me pan redraws janked a 4x-throttled phone profile; police matches always draw first.
     if (devs.length > MAX_LIVE_DOTS) devs = [...devs].sort((a, b) => (a.kind === 'match' ? 0 : 1) - (b.kind === 'match' ? 0 : 1) || b.rssi - a.rssi).slice(0, MAX_LIVE_DOTS);
     for (const d of devs) {
-      const p = applyOffset(center.lat, center.lng, offsetFor(d.key)); const op = opacityFor(d.lastSeen, now);
-      L.circle([center.lat, center.lng], { renderer: this.liveRenderer, radius: BAND_RADIUS_M[d.band], color: d.color, weight: 1, opacity: 0.4 * op, fillOpacity: 0.07 * op, interactive: false }).addTo(this.liveLayer);
+      const p = applyOffset(center.lat, center.lng, offsetFor(d.key)); const op = opacityFor(d.lastSeen, now); const wifi = d.radio === 'wifi';
+      L.circle([center.lat, center.lng], { renderer: this.liveRenderer, radius: BAND_RADIUS_M[d.band], color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }).addTo(this.liveLayer);
       const ago = Math.round((now - d.lastSeen) / 1000);
-      L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: 6, color: '#111', weight: 1, fillColor: d.color, fillOpacity: op, opacity: op })
-        .bindPopup(`${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${BAND_RADIUS_M[d.band]} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago`)
+      const popup = `${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${BAND_RADIUS_M[d.band]} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago`;
+      L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: wifi ? 8 : 6, color: wifi ? WIFI_COLOR : '#111', weight: wifi ? 3 : 1, fillColor: d.color, fillOpacity: op, opacity: op }).bindPopup(popup).addTo(this.liveLayer);
+      if (wifi) L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'wifi-pin', html: '📶', iconSize: [18, 18], iconAnchor: [-4, 22] }), opacity: op, interactive: false, keyboard: false }).addTo(this.liveLayer);
+    }
+    for (const v of vehicles) {
+      const p = applyOffset(center.lat, center.lng, offsetFor(v.id)); const op = opacityFor(v.lastSeen, now);
+      const list = v.members.map(m => `${m.radio === 'wifi' ? '📶' : 'ᛒ'} ${m.ruleId} (${Math.round(m.confidence * 100)}%)`).join('<br>');
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'veh-pin', html: `🚓 ${v.members.length}`, iconSize: [44, 22], iconAnchor: [22, 11] }), opacity: op, zIndexOffset: 1000 })
+        .bindPopup(`🚓 <b>Possible patrol vehicle</b> · ${Math.round(v.confidence * 100)}%<br>${v.members.length} signals (${v.radios.join(' + ')})${v.rssiCorrelated ? ', signal strength moves together' : ''}<br><small>${list}</small><br><small>best single signal ${Math.round(v.baseConfidence * 100)}%, +${Math.round(v.boost * 100)} for corroboration (capped)</small>`)
         .addTo(this.liveLayer);
     }
   }

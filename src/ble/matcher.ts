@@ -1,7 +1,7 @@
 import type { Advertisement } from './types';
 import { SIGNATURES, matchRule, type Signature, type RuleHit } from '../signatures';
 
-export interface Match { signature: Signature; corroborated?: boolean; confidence: number; rssi?: number; timestamp: number; sessionId: string; hits?: RuleHit[]; }
+export interface Match { signature: Signature; corroborated?: boolean; confidence: number; rssi?: number; timestamp: number; sessionId: string; hits?: RuleHit[]; radio?: 'ble' | 'wifi'; tierRule?: string; }
 
 /** All rule hits for one advert, with reasons (no payload bytes or identifiers in the reasons). */
 export function hits(adv: Advertisement, sigs: Signature[] = SIGNATURES): RuleHit[] {

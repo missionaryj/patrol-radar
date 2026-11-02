@@ -43,6 +43,49 @@
   - With "Police gear only" on, Android hardware filters cannot match a MAC prefix, so a device that shows *only* the OUI is seen only in "All devices" mode.
 - **Wi-Fi OUI:** `WifiWatcher.match()` compares the BSSID prefix in memory. Only the rule id, RSSI and a per-session salted hash cross the bridge. The recorder stores the rule id only, with no SSID, BSSID or hash. Android scan results list access points only, so this catches a camera or Fleet hub in AP mode, not client probes.
 
+## Wi-Fi tiers and vehicle grouping (1.0.19)
+
+Code: base rules in `src/wifi/rules.ts` (mirrored natively by `WifiWatcher.java`), contextual tiers in `src/wifi/tiers.ts`, per-session context in `src/wifi/context.ts`, vehicle grouping in `src/fusion/vehicles.ts`.
+
+**How Wi-Fi scoring works now.** A base rule (BSSID OUI or SSID pattern) only names the vendor. Same-vendor base rules no longer multiply together in the app (an OUI and a default SSID on one router are one piece of evidence about one box), so the score is the strongest applicable rule for the vendor, base or tier. Tiers climb only when *independent* evidence agrees. `fuseWifi()` is kept unchanged as the raw legacy fusion for old callers and tests; the app uses `scoreWifi()`.
+
+Context features, all in memory and per session:
+- `ssid`: a vendor-typical SSID pattern, matched inside `WifiWatcher.java`. The SSID never crosses the bridge.
+- `dualBand`: one radio seen on 2.4 GHz and 5/6 GHz. The native side sends a per-session salted hash of the BSSID's first 5 octets (`radio`) plus the channel frequency. Neither the BSSID nor the prefix is sent.
+- `persistent`: the same access point hash in ≥ 3 separate scans (≥ 20 s apart) spanning ≥ 60 s. It only rules out one-off ghost results.
+- `blePolice` / `bleAxon`: a police-gear BLE match (≥ 0.5, not fixed infrastructure) / an Axon BLE match in the same 150 m cell within 30 s.
+
+| id | Needs | Conf. | Grade | Rationale |
+|---|---|---|---|---|
+| `cradlepoint-oui` | BSSID OUI 00:30:44 **or 00:E0:1C** (2nd CradlePoint block, new) | 0.30 | hint | IEEE MA-L. Fleet router used by buses, ambulances, utilities and retail too. |
+| `cradlepoint-ssid` | default model SSID (IBR/R1900/R2100/MBR1400) | 0.30 | hint | unchanged |
+| `cradlepoint-oui-ssid` | OUI + SSID | 0.40 | hint | Confirms a Cradlepoint, not a police car. |
+| `cradlepoint-dualband` | OUI + dual-band pair | 0.35 | hint | Mobile IBR/R-series broadcast both bands, but so do fixed units. |
+| `cradlepoint-persistent` | OUI or SSID + persistent | 0.40 | hint | Not a one-off. |
+| `cradlepoint-ble-police` | OUI or SSID + police BLE in cell | 0.60 | likely | In-car router next to police BLE gear. |
+| `cradlepoint-ble-police-multi` | OUI + police BLE + persistent + (SSID or dual-band) | 0.75 | likely | Ceiling. Cradlepoint is never strong without field validation. |
+| `axon-oui-wifi` / `axon-fleet-ssid` | OUI 00:25:DF / Fleet `<unit>-5g` SSID | 0.60 | likely | unchanged |
+| `axon-wifi-persistent` | Axon OUI or SSID + persistent | 0.65 | likely | small step |
+| `axon-wifi-oui-ssid` | Axon OUI + Fleet SSID | 0.80 | likely | Two Axon-only identifiers on one AP. |
+| `axon-wifi-ble` | Axon OUI or SSID + Axon BLE in cell | 0.88 | strong | Two radios, same vendor, same cell and window. Same structure as BLE `bwc-tag`. |
+| `sierra-oui` | Sierra Wireless ULC 00:A0:D5, 50:13:9D, 84:DB:2F, 64:CE:6E, CC:93:4A, 28:A3:31; Semtech 00:16:C0 | 0.20 | hint | **new.** AirLink MG90/MP70/XR routers are common in police fleets but also transit, utilities and modems in laptops. ACAB rejected them as police evidence; we agree, so hint only. |
+| `sierra-ble-police` | Sierra OUI + police BLE | 0.50 | likely (floor) | Only with BLE police gear next to it. |
+| `digi-oui` | 00:40:9D (registered as "DigiBoard", Digi International's block) | 0.15 | hint | **new.** Mostly industrial/transit. |
+| `digi-ble-police` | Digi OUI + police BLE | 0.45 | hint | Stays a hint. |
+| `inseego-oui` | Inseego Wireless 00:15:FF, 28:80:A2, 18:EE:86, E0:86:14, 78:0C:71 | 0.15 | hint | **new.** MiFi hotspots are consumer gear too. |
+| `inseego-ble-police` | Inseego OUI + police BLE | 0.40 | hint | Stays a hint. |
+
+All OUIs re-checked against the [IEEE MA-L list](https://standards-oui.ieee.org/oui/oui.txt) on 2026-11-02. Sierra Wireless and Inseego routers ship with newer OUI blocks too; only the blocks above are matched.
+
+**Not added (no evidence):**
+- **Getac** (in-car cameras, rugged laptops): no IEEE MA-L block registered to Getac, and no public Wi-Fi signature.
+- **Panasonic Toughbook** hotspots: Panasonic's 40+ IEEE blocks cover TVs, cameras and car audio. No Toughbook-specific block, so any rule would mostly flag consumer gear.
+- Vendor SSID patterns for Sierra/Digi/Inseego: defaults are user-changed in fleet deployments and no public field captures exist.
+
+**Multi-signal vehicle grouping.** Police-gear detections (BLE and Wi-Fi; Flock and other fixed cameras excluded) that are in the same 150 m cell, within 30 s of each other, and come from *independent* evidence (different radio, gear type or vendor) are merged into one vehicle. RSSI must be compatible: once both members have ≥ 3 shared 5 s buckets, their RSSI series must correlate (Pearson ≥ 0.5) or the newer member leaves the group; before that, last RSSI values must be within 25 dB. Combined confidence is noisy-OR over one piece of evidence per (radio, gear, vendor), capped at best member + 0.25 (correlated) or + 0.15 (not yet correlated), and at 0.95 overall. Vehicles show as a single 🚓 card/marker in the UI and are exported in the debug file's `vehicles` list (schema v4): coarse cell key, member per-session hashes, radios, rule ids, confidences. No MACs, BSSIDs, SSIDs, serials or officer ids.
+
+**Limitations.** All of this is unverified until labeled field drives exist (`scripts/field-eval.mjs` now reports a `vehicle-group` pseudo-signature). RSSI correlation between a BLE tag on an officer and a router in the car can legitimately be weak when the officer walks away. Wi-Fi scans are throttled to 4 per 2 minutes on Android 9+, so `persistent` needs ~1 minute of exposure, and a passing car is often seen in one scan only. The OUI-based rules only see access points, not client devices.
+
 ## Rejected or unconfirmed (1.0.18 research)
 | Candidate | Why not added |
 |---|---|

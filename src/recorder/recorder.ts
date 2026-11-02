@@ -3,6 +3,7 @@ import type { Match } from '../ble/matcher';
 import { SIGNATURES, tierOf } from '../ble/signatures';
 import { hits as ruleHits } from '../ble/matcher';
 import { WIFI_RULES } from '../wifi/rules';
+import { WIFI_TIERS } from '../wifi/tiers';
 import { coarsen } from '../map/coarsen';
 import type { WifiMatch } from '../wifi/rules';
 
@@ -13,7 +14,9 @@ import type { WifiMatch } from '../wifi/rules';
  * (callers may pass precise coords, they are coarsened before storage);
  * printable-ASCII runs that look like serials/unit IDs (>=6 alnum chars incl. a digit) are masked.
  */
-export const SCHEMA_VERSION = 3; // v3 (1.0.18): field-test label + per-signature hit summary (id, tier)
+export const SCHEMA_VERSION = 4; // v3 (1.0.18): field-test label + per-signature hit summary (id, tier)
+// v4 (1.0.19): records carry `radio` ('ble' | 'wifi'); Wi-Fi records may carry `tierRule`, `features` and `band`;
+// top-level `vehicles` lists multi-signal vehicle groups. All additive: v1-v3 readers ignore the new fields.
 /** Field-test ground truth the user sets during or after a session. */
 export type FieldLabel = 'police-present' | 'not-present' | 'unsure';
 export const FIELD_LABELS: FieldLabel[] = ['police-present', 'not-present', 'unsure'];
@@ -27,7 +30,18 @@ export interface RecordEntry {
   serviceData: { uuid: string; hex: string; masked: boolean }[];
   rules: string[]; bestRule: string; confidence: number; corroborated: boolean;
   cell?: { lat: number; lng: number; meters: number };
+  /** v4+. Absent in older files (= 'ble' unless dev starts with "wifi:"). */
+  radio?: 'ble' | 'wifi';
+  /** v4+, Wi-Fi only: contextual tier rule that set the confidence, the features that fired it, and the band (no SSID/BSSID). */
+  tierRule?: string; features?: string[]; band?: string;
 }
+/** v4+: one multi-signal vehicle group. Member ids are the per-session salted hashes already used in records. */
+export interface VehicleRecord {
+  id: string; firstSeen: number; lastSeen: number; cell: string;
+  members: { dev: string; radio: 'ble' | 'wifi'; ruleId: string; gear: string }[];
+  radios: ('ble' | 'wifi')[]; confidence: number; baseConfidence: number; boost: number; rssiCorrelated: boolean;
+}
+export const MAX_VEHICLES = 200;
 export type ScanEventKind = 'start' | 'stop' | 'restart' | 'stall' | 'auto-restart' | 'possible-patrol-car' | 'error' | 'permission-denied' | 'location-denied' | 'location-error';
 export interface ScanEvent { t: number; kind: ScanEventKind; backend?: string; detail?: string }
 /** Counts-only scan health. Never holds unmatched ids, names, payloads or coordinates. */
@@ -42,7 +56,7 @@ export interface Health {
 }
 export const newHealth = (): Health => ({ adverts: 0, matched: 0, distinctDevices: 0, cellsVisited: 0, longestGapMs: 0, perMinute: {}, events: [], fixes: 0, accSum: 0, accBuckets: { le20: 0, le50: 0, le100: 0, gt100: 0 } });
 export type Verdict = 'healthy' | 'scanner idle' | 'no adverts' | 'no location' | 'scanner errors' | 'not recorded';
-interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; health?: Health; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
+interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; vehicles?: VehicleRecord[]; health?: Health; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
 const MAX_EVENTS = 200; const SAVE_EVERY_MS = 2000; const IDLE_GAP_MS = 120_000;
 const detailSafe = (d?: string) => d?.replace(/([0-9A-F]{2}:){5}[0-9A-F]{2}/gi, '[mac]').slice(0, 120);
 
@@ -189,13 +203,13 @@ export class SessionRecorder {
   /** Per-signature hit summary for field evaluation: ids, tiers and counts only. */
   signatureHits() {
     const by = new Map<string, { records: number; devices: Set<string>; maxConfidence: number; best: number }>();
-    for (const r of this.s.records) for (const id of r.rules) {
+    for (const r of this.s.records) for (const id of r.tierRule ? [...r.rules, r.tierRule] : r.rules) {
       const d = by.get(id) ?? { records: 0, devices: new Set<string>(), maxConfidence: 0, best: 0 };
       d.records++; d.devices.add(r.dev); d.maxConfidence = Math.max(d.maxConfidence, r.confidence); if (r.bestRule === id) d.best++; by.set(id, d);
     }
     return [...by].map(([id, d]) => {
-      const sig = SIGNATURES.find(s => s.id === id); const w = sig ? undefined : WIFI_RULES.find(x => x.id === id);
-      const conf = sig?.baseConfidence ?? w?.baseConfidence ?? 0;
+      const sig = SIGNATURES.find(s => s.id === id); const w = sig ? undefined : WIFI_RULES.find(x => x.id === id); const wt = sig || w ? undefined : WIFI_TIERS.find(x => x.id === id);
+      const conf = sig?.baseConfidence ?? w?.baseConfidence ?? wt?.confidence ?? 0;
       return { id, radio: sig ? 'ble' : 'wifi', tier: sig ? tierOf(sig) : conf >= 0.85 ? 'strong' : conf >= 0.5 ? 'likely' : 'hint', status: sig?.status ?? w?.status ?? 'unverified', baseConfidence: conf, records: d.records, devices: d.devices.size, bestRuleRecords: d.best, maxConfidence: d.maxConfidence };
     }).sort((a, b) => b.records - a.records);
   }
@@ -214,7 +228,7 @@ export class SessionRecorder {
       serviceUuids: [...adv.serviceUuids],
       manufacturerData: [...adv.manufacturerData].map(([companyId, dv]) => ({ companyId, ...maskedHex(dv) })),
       serviceData: [...adv.serviceData].map(([uuid, dv]) => ({ uuid, ...maskedHex(dv) })),
-      rules: hits.length ? hits : [m.signature.id], bestRule: m.signature.id, confidence: m.confidence, corroborated: !!m.corroborated,
+      rules: hits.length ? hits : [m.signature.id], bestRule: m.signature.id, confidence: m.confidence, corroborated: !!m.corroborated, radio: 'ble',
       cell: c && { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), meters: 150 },
     };
     this.s.records.push(rec);
@@ -224,15 +238,28 @@ export class SessionRecorder {
   }
 
   /** Wi-Fi rule match (Android). Stores ONLY rule ids, confidence, RSSI and the coarse cell: no SSID, BSSID or hash. */
-  addWifi(m: WifiMatch, rssi: number | undefined, loc?: { lat: number; lng: number }, t = Date.now()): boolean {
+  addWifi(m: WifiMatch & { tierRule?: string; features?: string[] }, rssi: number | undefined, loc?: { lat: number; lng: number }, t = Date.now(), band?: string): boolean {
     if (!this.s.recording) return false;
     if (loc) this.cell(loc);
     const c = loc ? coarsen(loc.lat, loc.lng, 150) : undefined;
     this.s.records.push({ t, dev: `wifi:${m.best.id}`, rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...m.rules], bestRule: m.best.id,
-      confidence: m.confidence, corroborated: m.corroborated, cell: c && { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), meters: 150 } });
+      confidence: m.confidence, corroborated: m.corroborated, cell: c && { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), meters: 150 }, radio: 'wifi',
+      ...(m.tierRule ? { tierRule: m.tierRule, features: [...(m.features ?? [])] } : {}), ...(band ? { band } : {}) });
     if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
     this.saveSoon(); return true;
   }
+
+  /** v4: upserts a vehicle group summary (coarse cell key, rule ids, radios, per-session hashes only). */
+  vehicle(v: { id: string; cell: string; firstSeen: number; lastSeen: number; members: { key: string; radio: 'ble' | 'wifi'; ruleId: string; gear: string }[]; radios: ('ble' | 'wifi')[]; confidence: number; baseConfidence: number; boost: number; rssiCorrelated: boolean }): boolean {
+    if (!this.s.recording) return false;
+    const list = (this.s.vehicles ??= []); const id = `${this.s.startedAt ?? 0}:${v.id}`; const prev = list.find(x => x.id === id);
+    const members = [...new Map([...(prev?.members ?? []), ...v.members.map(m => ({ dev: m.key, radio: m.radio, ruleId: m.ruleId, gear: m.gear }))].map(m => [m.dev, m])).values()];
+    const rec: VehicleRecord = { id, cell: v.cell, firstSeen: Math.min(prev?.firstSeen ?? v.firstSeen, v.firstSeen), lastSeen: v.lastSeen, members, radios: [...new Set(members.map(m => m.radio))],
+      confidence: Math.max(prev?.confidence ?? 0, v.confidence), baseConfidence: v.baseConfidence, boost: v.boost, rssiCorrelated: v.rssiCorrelated || !!prev?.rssiCorrelated };
+    if (prev) Object.assign(prev, rec); else { list.push(rec); if (list.length > MAX_VEHICLES) list.shift(); }
+    this.saveSoon(); return true;
+  }
+  get vehicles(): VehicleRecord[] { return this.s.vehicles ?? []; }
 
   summary() {
     const by = new Map<string, { dev: string; firstSeen: number; lastSeen: number; minRssi?: number; maxRssi?: number; adverts: number; rules: Set<string>; maxConfidence: number }>();
@@ -257,6 +284,7 @@ export class SessionRecorder {
       },
       health: this.healthExport(),
       signatureHits: this.signatureHits(),
+      vehicles: this.vehicles.map(v => ({ ...v, firstSeen: new Date(v.firstSeen).toISOString(), lastSeen: new Date(v.lastSeen).toISOString() })),
       devices: this.summary(),
       records: this.s.records,
     };
@@ -269,5 +297,5 @@ export function parseExport(json: string) {
   if (o?.header?.app !== 'patrol-radar') throw new Error('not a patrol-radar session file');
   const v = Number(o.header.schemaVersion ?? 1);
   if (v > SCHEMA_VERSION) throw new Error(`schema v${v} is newer than this app (v${SCHEMA_VERSION})`);
-  return { schemaVersion: v, header: o.header, health: (o.health ?? null) as ReturnType<SessionRecorder['healthExport']> | null, devices: o.devices ?? [], records: (o.records ?? []) as RecordEntry[] };
+  return { schemaVersion: v, header: o.header, health: (o.health ?? null) as ReturnType<SessionRecorder['healthExport']> | null, devices: o.devices ?? [], records: (o.records ?? []) as RecordEntry[], vehicles: (o.vehicles ?? []) as unknown[] };
 }
