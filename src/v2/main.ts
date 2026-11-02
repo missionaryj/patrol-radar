@@ -86,7 +86,10 @@ let geoWatch: number | undefined;
 let here: { lat: number; lng: number } | undefined;
 const live = new LiveDeviceTracker();
 const visible = () => live.list().filter(d => d.kind === 'match' || (document.getElementById('showother') as HTMLInputElement | null)?.checked || scanner?.name?.toLowerCase().includes('bluefy'));
-const drawLive = () => { map.renderLive(visible(), here ?? pos); renderCards(); };
+const drawLive = () => { liveLast = performance.now(); if (liveTimer !== undefined) { clearTimeout(liveTimer); liveTimer = undefined; } map.renderLive(visible(), here ?? pos); renderCards(); };
+// Adverts arrive at up to thousands/min; redrawing every dot per advert janked the map. Coalesce to <= ~3 redraws/s.
+let liveLast = 0; let liveTimer: number | undefined;
+const drawLiveSoon = () => { if (liveTimer !== undefined) return; liveTimer = window.setTimeout(drawLive, Math.max(0, 300 - (performance.now() - liveLast))); };
 setInterval(drawLive, 2000);
 document.getElementById('showother')?.addEventListener('change', () => drawLive());
 function startGeo() {
@@ -164,7 +167,7 @@ async function start() {
       supervisor.advert();
       const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, m); }
       const isNew = !live.has(adv.sessionId);
-      live.update(adv.sessionId, adv.rssi, m); drawLive();
+      live.update(adv.sessionId, adv.rssi, m); drawLiveSoon();
       if (!m) { if (isNew && kind === 'bluefy') logLine(`${new Date().toLocaleTimeString()} · picked: ${picker.value === 'police' ? 'matched a police-gear filter; waiting for first advert to identify type' : 'unknown device (no police signature yet)'} · session ${adv.sessionId}`, '#8a9bb0'); return; }
       if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return;
       lastSeen.set(m.sessionId, Date.now());
@@ -207,6 +210,8 @@ if (new URLSearchParams(location.search).get('autostart') === '1') setTimeout(st
 const recorder = new SessionRecorder();
 const recHost = document.createElement('div'); document.querySelector('.sheet-head')!.after(recHost);
 mountRecorder(recHost, recorder, () => sel.value);
+document.addEventListener('visibilitychange', () => { if (document.hidden) recorder.flush(); });
+addEventListener('pagehide', () => recorder.flush());
 
 // ---- crowd map (opt-in sharing; public layer is aggregated + delayed server-side) ----
 const crowd = new CrowdClient();
@@ -252,7 +257,7 @@ function onWifi(nm: import('../ble/nativeScanner').NativeWifiMatch) {
   const w = toWifiMatch(nm); if (!w) return;
   recorder.addWifi(w, nm.rssi, pos);
   const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
-  live.update(m.sessionId, m.rssi, m); drawLive();
+  live.update(m.sessionId, m.rssi, m); drawLiveSoon();
   if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
   store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp });
   map.render(store.list());

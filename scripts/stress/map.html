@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>html,body,#m{margin:0;height:100%}</style></head><body><div id="m"></div>
+<script type="module">
+import { MapView } from '/src/map/mapView.ts';
+const q = new URLSearchParams(location.search); const N = +q.get('n'), RATE = +q.get('rate'), FLOCK = q.get('flock') === '1', SECS = +q.get('secs') || 20, BATCH = q.get('batch') === '1';
+let lat = 41.88, lng = -87.63; const map = new MapView(document.getElementById('m'), [lat, lng], { dark: true });
+if (FLOCK) await map.showFlock(true, '/data/flock/').catch(e => console.log('flock err', e.message));
+const devs = Array.from({ length: N }, (_, i) => ({ key: 'k' + i, label: 'unknown device', color: i % 10 ? '#8a9bb0' : '#e53935', kind: i % 10 ? 'unmatched' : 'match', rssi: -50 - (i % 45), band: ['near','medium','far'][i % 3], lastSeen: Date.now() }));
+const frames = []; let last = performance.now(); const longT = [];
+new PerformanceObserver(l => l.getEntries().forEach(e => longT.push(e.duration))).observe({ type: 'longtask', buffered: true });
+const raf = t => { frames.push(t - last); last = t; requestAnimationFrame(raf); }; requestAnimationFrame(raf);
+const t0 = performance.now(); let renders = 0, renderMs = 0, pending = false;
+const draw = () => { const a = performance.now(); for (const d of devs) d.lastSeen = Date.now(); map.renderLive(devs, { lat, lng }); renderMs += performance.now() - a; renders++; };
+const iv = setInterval(() => { if (BATCH) { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } } else draw(); }, 1000 / RATE);
+const gps = setInterval(() => { lat += 0.00027; lng += 0.0001; map.setUserLocation(lat, lng, 3, 30, 15, Date.now()); }, 1000); // ~30 m/s highway, follow-mode
+setTimeout(() => { clearInterval(iv); clearInterval(gps); frames.sort((a, b) => a - b); const p = x => +frames[Math.floor(frames.length * x)]?.toFixed(1);
+  window.RESULT = { N, RATE, FLOCK, BATCH, renders, avgRenderMs: +(renderMs / renders).toFixed(2), frames: frames.length, fps: +(frames.length / SECS).toFixed(0), p50: p(.5), p95: p(.95), p99: p(.99), jank50: frames.filter(f => f > 50).length, longTasks: longT.length, longTaskMaxMs: Math.round(Math.max(0, ...longT)), svgNodes: document.querySelectorAll('path').length, canvas: document.querySelectorAll('canvas').length, heapMB: Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1e6) }; }, SECS * 1000);
+</script></body></html>
