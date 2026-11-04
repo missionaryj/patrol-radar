@@ -41,8 +41,14 @@ export function combine(members: VehicleMember[], correlated: boolean): { confid
   const per = new Map<string, number>(); for (const m of members) { const k = `${m.radio}|${m.gear}|${m.vendor}`; per.set(k, Math.max(per.get(k) ?? 0, m.confidence)); }
   const or = 1 - [...per.values()].reduce((p, c) => p * (1 - c), 1);
   const cap = Math.min(MAX_VEHICLE_CONF, base + (correlated ? MAX_BOOST : MAX_BOOST_UNCORRELATED));
-  const confidence = +Math.min(cap, Math.max(base, or)).toFixed(2);
-  return { confidence, base, boost: +(confidence - base).toFixed(2) };
+  // Never report a group as weaker than its best member (a member can already exceed the 0.95 group cap).
+  const confidence = +Math.max(base, Math.min(cap, or)).toFixed(2);
+  return { confidence, base, boost: Math.max(0, +(confidence - base).toFixed(2)) };
+}
+/** Card footer text: 'best 85% · +5 from 2 signals', or just 'best 96%' when grouping added nothing. */
+export function corroborationText(v: { baseConfidence: number; boost: number; members: unknown[] }): string {
+  const best = `best ${Math.round(v.baseConfidence * 100)}%`; const pts = Math.round(v.boost * 100);
+  return pts > 0 ? `${best} · +${pts} from ${v.members.length} signals` : best;
 }
 
 export class VehicleGrouper {

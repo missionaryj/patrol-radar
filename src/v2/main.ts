@@ -6,8 +6,8 @@ import { LocalReportStore } from '../reports';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
-import { LiveDeviceTracker, colorFor, WIFI_COLOR, type LiveDevice } from '../map/liveDevices';
-import type { Vehicle } from '../fusion/vehicles';
+import { LiveDeviceTracker, colorFor, WIFI_COLOR, bandRadius, type LiveDevice } from '../map/liveDevices';
+import { corroborationText, type Vehicle } from '../fusion/vehicles';
 import { bandOfMHz } from '../wifi/context';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
@@ -20,10 +20,12 @@ import { NativeScanner as _NS } from '../ble/nativeScanner';
 import { mountSegmented } from './segmented';
 import { nativeAppPresent, applyPlatformSettings } from './platform';
 import { mountUpdates } from './updatesUi';
+import { mountLegend } from '../map/legend';
 
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
+mountLegend($('map-legend'));
 const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false });
 mountMapSettings(map);
 let pos = { lat: 41.88, lng: -87.63 };
@@ -124,6 +126,7 @@ function badgeFor(d: LiveDevice, m?: Match) {
   const c = colorFor(m);
   return c === '#e53935' ? { cls: 'axon', text: m.signature.vendor === 'Axon' ? 'Axon' : 'Body cam' } : c === '#fb8c00' ? { cls: 'moto', text: 'Motorola' } : { cls: 'other', text: 'Other' };
 }
+const gradeOf = (c: number) => (c >= 0.85 ? 'strong' : c >= 0.5 ? 'likely' : 'hint');
 function renderCards() {
   const devs = visible().sort((a, b) => (a.kind === b.kind ? b.lastSeen - a.lastSeen : a.kind === 'match' ? -1 : 1));
   const ul = $('cards');
@@ -139,8 +142,8 @@ function renderCards() {
     const wifi = d.radio === 'wifi';
     return `<li class="card${stale ? ' stale' : ''}${wifi ? ' wifi' : ''}" style="--c:${wifi ? WIFI_COLOR : d.color}">
       <div class="row"><span class="badge ${b.cls}">${b.text}</span><span class="name">${esc(d.label)}</span><span class="ago">${ago(d.lastSeen)}</span></div>
-      ${d.kind === 'match' ? `<div class="conf"><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
-      <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">#${esc(d.key.slice(0, 6))}</span></div>
+      ${d.kind === 'match' ? `<div class="conf"><span class="grade">${gradeOf(conf)}</span><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
+      <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span><span class="loc">📍 ~${bandRadius(d.band)} m${map.anchors.get(d.key) ? ' · pinned' : ''}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">#${esc(d.key.slice(0, 6))}</span></div>
     </li>`;
   }).join('');
 }
@@ -150,9 +153,9 @@ function vehicleCard(v: Vehicle) {
   const rows = v.members.map(m => `<span class="vm ${m.radio}">${m.radio === 'wifi' ? '📶 Wi-Fi' : 'ᛒ BLE'} · ${esc(matches.get(m.key)?.signature.label ?? m.ruleId)} · ${Math.round(m.confidence * 100)}%</span>`).join('');
   return `<li class="card vehicle${stale ? ' stale' : ''}" style="--c:#ff1744">
     <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
-    <div class="conf"><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
+    <div class="conf"><span class="grade">${gradeOf(v.confidence)}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     <div class="vmembers">${rows}</div>
-    <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">best ${Math.round(v.baseConfidence * 100)}% +${Math.round(v.boost * 100)} corroboration</span></div>
+    <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">${corroborationText(v)}</span></div>
   </li>`;
 }
 const announced = new Set<string>();
