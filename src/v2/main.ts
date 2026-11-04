@@ -20,10 +20,12 @@ import { NativeScanner as _NS } from '../ble/nativeScanner';
 import { mountSegmented } from './segmented';
 import { nativeAppPresent, applyPlatformSettings } from './platform';
 import { mountUpdates } from './updatesUi';
+import { mountLegend } from '../map/legend';
 
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
+mountLegend($('map-legend'));
 const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false });
 mountMapSettings(map);
 let pos = { lat: 41.88, lng: -87.63 };

@@ -8,6 +8,7 @@ import type { Vehicle } from '../fusion/vehicles';
 import { TTL_MS } from '../reports/localStore';
 import { FollowController } from './follow';
 import { SmoothLocation } from './smoothFollow';
+import { mountLegend } from './legend';
 import { RASTER_2D, PITCH_3D } from './palette';
 import { Map3D, type Pin3D } from './map3d';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
@@ -151,9 +152,7 @@ export class MapView {
         .addTo(this.flockLayer);
   }
   private addLegend() {
-    const Legend = L.Control.extend({ onAdd: () => { const d = L.DomUtil.create('div', 'legend');
-      d.innerHTML = '<b>Live devices</b><br><i style="background:#e53935"></i>Axon / body cam / CEW<br><i style="background:#fb8c00"></i>Radio (Motorola)<br><i style="background:#fdd835"></i>Other match<br><span class="wifi-pin" style="position:static;display:inline-block;margin-right:4px">📶</span>Wi-Fi hit (blue ring)<br><span class="veh-pin" style="position:static;display:inline-block;margin-right:4px">🚓</span>Vehicle (several signals grouped)<br><i style="background:#8a9bb0"></i>Unmatched / picked<br><i style="background:#0b3d4a;border:2px solid #00e5ff"></i>Flock camera (mapped, OSM)<br><small>Dot position is illustrative; ring = rough RSSI range estimate</small>';
-      return d; } });
+    const Legend = L.Control.extend({ onAdd: () => { const d = L.DomUtil.create('div', 'map-legend'); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); mountLegend(d); return d; } });
     new Legend({ position: 'bottomleft' }).addTo(this.map);
   }
   /** Fixed anchors for hits (in memory only). */
