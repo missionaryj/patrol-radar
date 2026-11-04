@@ -58,7 +58,7 @@ describe('SessionRecorder', () => {
     const now = Date.now();
     for (let i = 0; i < 5; i++) { const p = { ...phone(), sessionId: 'hash-phone' + (i % 3), timestamp: now + i * 1000 }; r.add(p, match(p), PRECISE); }
     const o = r.exportObject('t'); const h = o.health;
-    expect(o.header.schemaVersion).toBe(4); expect(o.records).toHaveLength(0);
+    expect(o.header.schemaVersion).toBe(5); expect(o.records).toHaveLength(0);
     expect(h.advertsSeen).toBe(5); expect(h.unmatchedAdverts).toBe(5); expect(h.distinctDevicesSeen).toBe(3);
     expect(h.gridCellsVisited).toBe(2); expect(h.location.fixes).toBe(2); expect(h.location.accuracyMeanM).toBe(46);
     expect(h.verdict).toBe('healthy'); expect(h.events[0].kind).toBe('start');

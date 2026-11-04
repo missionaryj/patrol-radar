@@ -19,7 +19,12 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.os.ParcelUuid;
 import android.os.PowerManager;
 import android.util.SparseArray;
@@ -56,6 +61,33 @@ public class ScanService extends Service {
     private WifiWatcher wifi;
     /** OUI prefixes ("AA:BB:CC") from the web signature registry. Compared in memory only; the MAC is never stored or sent. */
     private String[] ouis = new String[0];
+
+    // ---- scan supervisor (1.0.23): stall detection, periodic restart, screen-off filtered fallback ----
+    /** Proactive restart period: some Android 7-11 stacks silently stop delivering after a few minutes. */
+    static final long PERIODIC_RESTART_MS = 4 * 60_000L;
+    /** Unfiltered scan with the screen on: no callback for this long counts as a stall. */
+    static final long NO_CALLBACK_STALL_MS = 45_000L;
+    static final long WATCHDOG_TICK_MS = 15_000L;
+    /** Android blocks the 6th startScan within 30 s (SCAN_FAILED_SCANNING_TOO_FREQUENTLY). We allow at most 3. */
+    static final int MAX_STARTS_PER_30S = 3;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final java.util.ArrayDeque<Long> starts = new java.util.ArrayDeque<>();
+    private String reqMode = "balanced"; private boolean reqFiltered = true; private int[] reqCids; private String[] reqUuids;
+    private boolean screenOn = true, activeFiltered = true;
+    private long lastAdvertAt, lastStartAt, screenOffSince, screenOffTotalMs, windowStart; private int windowCount; private double baselinePerMin;
+    private int restartsStall, restartsPeriodic, restartsScreen, failedRestarts, consecutiveStalls; private boolean quiet;
+    private BroadcastReceiver screenRx;
+
+    /** Pure stall rule (unit-testable mirror in src/ble/nativeHealth.ts). Only meaningful for an unfiltered scan with the screen on. */
+    static boolean isStalled(long sinceLastAdvertMs, double lastMinRate, double baselinePerMin) {
+        if (sinceLastAdvertMs >= NO_CALLBACK_STALL_MS) return true;
+        return baselinePerMin >= 60 && lastMinRate < baselinePerMin * 0.1;
+    }
+    /** Pure start-rate guard: true when another startScan would stay within MAX_STARTS_PER_30S. */
+    static boolean canStart(java.util.Deque<Long> starts, long now) {
+        while (!starts.isEmpty() && now - starts.peekFirst() > 30_000L) starts.pollFirst();
+        return starts.size() < MAX_STARTS_PER_30S;
+    }
 
     /**
      * Pure OUI check (unit-testable). Returns the matched OUI prefix or null. Only PUBLIC addresses count: on API 35+
@@ -97,8 +129,15 @@ public class ScanService extends Service {
         int[] cids = intent.getIntArrayExtra("companyIds");
         String[] uuids = intent.getStringArrayExtra("uuids");
         String[] o = intent.getStringArrayExtra("ouis"); ouis = o == null ? new String[0] : o;
-        try { startScan(mode == null ? "balanced" : mode, filtered, cids, uuids); }
+        reqMode = mode == null ? "balanced" : mode; reqFiltered = filtered; reqCids = cids; reqUuids = uuids;
+        restartsStall = restartsPeriodic = restartsScreen = failedRestarts = consecutiveStalls = 0; quiet = false; screenOffTotalMs = 0; baselinePerMin = 0;
+        PowerManager pmx = (PowerManager) getSystemService(POWER_SERVICE);
+        screenOn = pmx == null || pmx.isInteractive(); screenOffSince = screenOn ? 0 : SystemClock.elapsedRealtime();
+        try { startScan(reqMode, effectiveFiltered(), cids, uuids); }
         catch (Exception e) { emitState("error", "Scan could not start: " + e); stopSelf(); }
+        registerScreen();
+        handler.removeCallbacks(tick); handler.postDelayed(tick, WATCHDOG_TICK_MS);
+        emitHealth();
         String wr = intent.getStringExtra("wifiRules");
         if (wr != null && running) {
             try {
@@ -162,9 +201,12 @@ public class ScanService extends Service {
         try { scanner.startScan(filters, sb.build(), callback); }
         catch (SecurityException e) { emitState("error", "Nearby devices permission missing"); stopSelf(); return; }
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "patrolradar:scan");
-        wakeLock.acquire(6 * 60 * 60 * 1000L); // hard cap 6 h
-        running = true; count = 0;
+        if (wakeLock == null || !wakeLock.isHeld()) {
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "patrolradar:scan");
+            wakeLock.acquire(6 * 60 * 60 * 1000L); // hard cap 6 h
+        }
+        long now = SystemClock.elapsedRealtime(); starts.addLast(now); lastStartAt = now; lastAdvertAt = now; windowStart = now; windowCount = 0; activeFiltered = filtered;
+        running = true;
         emitState("scanning", mode + (filtered ? " · police filters" : " · all devices"));
     }
 
@@ -196,7 +238,8 @@ public class ScanService extends Service {
                 if (sd != null) for (Map.Entry<ParcelUuid, byte[]> e : sd.entrySet()) svc.put(e.getKey().toString(), hex(e.getValue()));
                 o.put("svc", svc);
             }
-            count++;
+            count++; lastAdvertAt = SystemClock.elapsedRealtime(); windowCount++;
+            if (quiet) { quiet = false; consecutiveStalls = 0; emitState("recovered", ""); }
             s.onAdvert(o);
         } catch (Exception ignored) { }
     }
@@ -209,8 +252,81 @@ public class ScanService extends Service {
     private static String hex(byte[] b) { if (b == null) return ""; StringBuilder sb = new StringBuilder(); for (byte x : b) sb.append(String.format("%02x", x)); return sb.toString(); }
     private void emitState(String st, String d) { Sink s = sink; if (s != null) s.onState(st, d); }
 
+    /** Screen off on Android 8.1+ blocks unfiltered scans, so fall back to the police hardware filters until it is back on. */
+    private boolean effectiveFiltered() { return reqFiltered || (!screenOn && Build.VERSION.SDK_INT >= 27); }
+
+    @SuppressLint("MissingPermission")
+    private void stopBleOnly() {
+        try { if (scanner != null && callback != null) scanner.stopScan(callback); } catch (Exception ignored) { }
+        scanner = null; callback = null;
+    }
+    /** Stop + start the BLE scan only (Wi-Fi watcher, wake lock and salt are kept, so device hashes stay stable). */
+    private boolean restartBle(String why) {
+        long now = SystemClock.elapsedRealtime();
+        if (!canStart(starts, now)) return false;
+        stopBleOnly();
+        try { startScan(reqMode, effectiveFiltered(), reqCids, reqUuids); }
+        catch (Exception e) { failedRestarts++; emitState("restart-failed", why + ": " + e.getClass().getSimpleName()); return false; }
+        emitState("restart", why + (activeFiltered && !reqFiltered ? " · screen-off police filters" : ""));
+        emitHealth();
+        return true;
+    }
+    private final Runnable tick = new Runnable() { @Override public void run() {
+        if (!running) return;
+        long now = SystemClock.elapsedRealtime();
+        if (now - windowStart >= 60_000L) {
+            double rate = windowCount * 60_000.0 / (now - windowStart);
+            if (!activeFiltered && screenOn && rate > 0) baselinePerMin = baselinePerMin == 0 ? rate : Math.max(rate, baselinePerMin * 0.8 + rate * 0.2);
+            boolean stalled = !activeFiltered && screenOn && isStalled(now - lastAdvertAt, rate, baselinePerMin);
+            windowStart = now; windowCount = 0;
+            if (stalled) {
+                consecutiveStalls++;
+                if (restartBle("stall")) restartsStall++;
+                if (consecutiveStalls >= 3 && !quiet) { quiet = true; emitState("quiet", "Bluetooth has gone quiet and restarting the scan did not help"); }
+                emitHealth();
+            } else if (!activeFiltered && rate > 0) consecutiveStalls = 0;
+        } else if (!activeFiltered && screenOn && now - lastAdvertAt >= NO_CALLBACK_STALL_MS && now - lastStartAt >= NO_CALLBACK_STALL_MS) {
+            consecutiveStalls++;
+            if (restartBle("stall")) restartsStall++;
+            if (consecutiveStalls >= 3 && !quiet) { quiet = true; emitState("quiet", "Bluetooth has gone quiet and restarting the scan did not help"); }
+            emitHealth();
+        }
+        if (now - lastStartAt >= PERIODIC_RESTART_MS && restartBle("periodic")) restartsPeriodic++;
+        handler.postDelayed(this, WATCHDOG_TICK_MS);
+    } };
+    private void registerScreen() {
+        if (screenRx != null) return;
+        screenRx = new BroadcastReceiver() { @Override public void onReceive(Context c, Intent i) {
+            boolean on = Intent.ACTION_SCREEN_ON.equals(i.getAction()); if (on == screenOn) return;
+            long now = SystemClock.elapsedRealtime();
+            if (on && screenOffSince > 0) { screenOffTotalMs += now - screenOffSince; screenOffSince = 0; } else if (!on) screenOffSince = now;
+            screenOn = on; emitState(on ? "screen-on" : "screen-off", "");
+            if (effectiveFiltered() != activeFiltered) { if (restartBle(on ? "screen-on" : "screen-off")) restartsScreen++; else handler.postDelayed(() -> { if (running && effectiveFiltered() != activeFiltered && restartBle("screen")) restartsScreen++; }, 31_000L); }
+            emitHealth();
+        } };
+        IntentFilter f = new IntentFilter(); f.addAction(Intent.ACTION_SCREEN_ON); f.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(screenRx, f);
+    }
+    /** Counts and coarse device class only: no model name, serial, address or other identifier. */
+    private void emitHealth() {
+        try {
+            JSONObject h = new JSONObject();
+            JSONObject r = new JSONObject(); r.put("stall", restartsStall); r.put("periodic", restartsPeriodic); r.put("screen", restartsScreen); r.put("failed", failedRestarts);
+            h.put("scanRestarts", r);
+            long off = screenOffTotalMs + (screenOffSince > 0 ? SystemClock.elapsedRealtime() - screenOffSince : 0);
+            h.put("screenOffSec", off / 1000); h.put("screenOn", screenOn); h.put("filteredNow", activeFiltered); h.put("quiet", quiet);
+            h.put("baselinePerMin", Math.round(baselinePerMin));
+            JSONObject a = new JSONObject(); a.put("sdk", Build.VERSION.SDK_INT); a.put("release", Build.VERSION.RELEASE);
+            a.put("deviceClass", Build.VERSION.SDK_INT < 27 ? "android-8.0-or-older" : Build.VERSION.SDK_INT < 31 ? "android-8.1-11" : "android-12-plus");
+            h.put("android", a);
+            emitState("health", h.toString());
+        } catch (Exception ignored) { }
+    }
+
     @SuppressLint("MissingPermission")
     private void stopScan() {
+        handler.removeCallbacksAndMessages(null);
+        if (screenRx != null) { try { unregisterReceiver(screenRx); } catch (Exception ignored) { } screenRx = null; }
         if (wifi != null) { wifi.stop(); wifi = null; }
         try { if (scanner != null && callback != null) scanner.stopScan(callback); } catch (Exception ignored) { }
         scanner = null; callback = null;

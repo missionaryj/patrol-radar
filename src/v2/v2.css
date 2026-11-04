@@ -342,3 +342,16 @@ details.group{margin-top:14px}
 .tcam-speed{background:#f59e0b}.tcam-red_light{background:#ef4444}.tcam-school_zone{background:#eab308}.tcam-work_zone{background:#f97316}.tcam-monitor{background:#64748b}
 .tcam:empty.tcam-speed::after{content:'S'}.tcam:empty.tcam-red_light::after{content:'R'}.tcam:empty.tcam-school_zone::after{content:'Z'}.tcam:empty.tcam-work_zone::after{content:'W'}.tcam:empty.tcam-monitor::after{content:'M'}
 .tc-lbl{display:flex;align-items:center;gap:8px;font-weight:400}
+
+/* 1.0.23: confirm feedback on detection cards + scanner-quiet warning */
+.card .confirm{display:flex;gap:6px;align-items:center}
+.card .confirm button{flex:none;font:600 12px/1 system-ui,sans-serif;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--txt)}
+.card .confirm button.yes.on{background:rgba(46,204,113,.18);border-color:#2ecc71;color:#7dffb0}
+.card .confirm button.no.on{background:rgba(255,255,255,.12);border-color:var(--mut)}
+.card .confirm small{color:var(--mut);font-size:11px;margin-left:auto}
+.scan-quiet{position:fixed;z-index:1350;top:calc(62px + var(--st));left:calc(12px + var(--sl));right:calc(12px + var(--sr));padding:12px 14px;border-radius:14px;border:1px solid rgba(255,179,0,.55);background:rgba(44,32,6,.94);color:var(--txt);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px;font-size:13px}
+.scan-quiet[hidden]{display:none}
+.scan-quiet b{color:#ffcc4d;font-size:14px}
+.scan-quiet .sq-btns{display:flex;gap:8px;margin-top:2px}
+.scan-quiet button{font:600 13px/1 system-ui,sans-serif;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,179,0,.55);background:rgba(255,179,0,.18);color:#ffe199}
+.scan-quiet button.ghost{background:none;border-color:var(--line);color:var(--mut)}

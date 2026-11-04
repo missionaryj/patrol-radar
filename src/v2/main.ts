@@ -147,10 +147,31 @@ function renderCards() {
     return `<li class="card${stale ? ' stale' : ''}${wifi ? ' wifi' : ''}" style="--c:${wifi ? WIFI_COLOR : d.color}">
       <div class="row"><span class="badge ${b.cls}">${b.text}</span><span class="name">${esc(d.label)}</span><span class="ago">${ago(d.lastSeen)}</span></div>
       ${d.kind === 'match' ? `<div class="conf"><span class="grade">${gradeOf(conf)}</span><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
+      ${d.kind === 'match' && m ? confirmRow(d.key) : ''}
       <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span><span class="loc">📍 ~${bandRadius(d.band)} m${map.anchors.get(d.key) ? ' · pinned' : ''}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">#${esc(d.key.slice(0, 6))}</span></div>
     </li>`;
   }).join('');
 }
+
+/** Compact field-feedback row: stored locally (coarse cell, session hash), exported in the debug file, never uploaded. */
+function confirmRow(key: string) {
+  const v = recorder.confirmedAs(key);
+  return `<div class="row confirm" data-key="${esc(key)}"><button type="button" class="yes${v === 'police' ? ' on' : ''}" data-v="police" aria-pressed="${v === 'police'}">✓ Saw police</button><button type="button" class="no${v === 'not-police' ? ' on' : ''}" data-v="not-police" aria-pressed="${v === 'not-police'}">✗ Not police</button>${v ? '<small>saved</small>' : ''}</div>`;
+}
+const maxRssi = (xs: (number | undefined)[]) => { const v = xs.filter((x): x is number => typeof x === 'number'); return v.length ? Math.max(...v) : undefined; };
+$('cards').addEventListener('click', e => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.confirm button'); if (!b) return;
+  const key = b.parentElement!.dataset.key!; const verdict = b.dataset.v as 'police' | 'not-police';
+  const veh = fusion.vehicles.list().find(x => x.id === key);
+  if (veh) {
+    recorder.confirm({ verdict, kind: 'vehicle', dev: veh.id, radio: veh.radios.length > 1 ? 'mixed' : veh.radios[0], rules: veh.members.map(x => x.ruleId), tier: gradeOf(veh.confidence) as 'hint', confidence: veh.confidence, rssi: maxRssi(veh.members.map(x => x.samples[x.samples.length - 1]?.rssi)) }, pos);
+  } else {
+    const m = matches.get(key); if (!m) return; const d = live.list().find(x => x.key === key);
+    recorder.confirm({ verdict, kind: 'device', dev: key, radio: m.radio ?? 'ble', rules: m.tierRule ? [m.signature.id, m.tierRule] : [m.signature.id], tier: gradeOf(m.confidence) as 'hint', confidence: m.confidence, rssi: d?.rssi ?? m.rssi }, pos);
+  }
+  toast(verdict === 'police' ? 'Noted: police confirmed. Saved to this session\'s debug file only.' : 'Noted: not police. Saved to this session\'s debug file only.');
+  renderCards();
+});
 
 function vehicleCard(v: Vehicle) {
   const stale = Date.now() - v.lastSeen > 30_000; const pct = Math.round(v.confidence * 100);
@@ -159,6 +180,7 @@ function vehicleCard(v: Vehicle) {
     <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
     <div class="conf"><span class="grade">${gradeOf(v.confidence)}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     <div class="vmembers">${rows}</div>
+    ${confirmRow(v.id)}
     <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">${corroborationText(v)}</span></div>
   </li>`;
 }
@@ -194,6 +216,14 @@ async function start() {
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
     scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
+    scanner.onHealth = h => { recorder.setNativeHealth(h); setScanQuiet(h.quiet); };
+    scanner.onSupervisor = (k, detail) => {
+      if (k === 'quiet') { recorder.event('scanner-quiet', kind, detail); setScanQuiet(true); }
+      else if (k === 'recovered') { recorder.event('scanner-recovered', kind); setScanQuiet(false); }
+      else if (k === 'screen-on' || k === 'screen-off') recorder.event(k, kind);
+      else if (k === 'restart' && !detail.startsWith('periodic')) recorder.event('auto-restart', kind, `native ${detail}`);
+      else if (k === 'restart-failed') recorder.event('error', kind, `native restart failed: ${detail}`);
+    };
   }
   if (scanner instanceof _NS) scanner.onWifi = nm => onWifi(nm);
   try {
@@ -226,7 +256,12 @@ async function start() {
     }, 20_000);
   } catch (e) { scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
 }
-function stop() { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
+let quietDismissed = false;
+function setScanQuiet(on: boolean) { $('scan-quiet').hidden = !on || quietDismissed; if (!on) quietDismissed = false; }
+$('sq-dismiss').onclick = () => { quietDismissed = true; $('scan-quiet').hidden = true; };
+$('sq-restart').onclick = () => { $('scan-quiet').hidden = true; quietDismissed = false; if (scanner) { recorder.event('restart', sel.value, 'user restart from scanner-quiet warning'); stop(); } void start(); };
+(globalThis as any).__prQuiet = setScanQuiet; // preview/debug hook
+function stop() { setScanQuiet(false); supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
 // Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
 for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {
