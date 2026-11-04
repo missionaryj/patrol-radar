@@ -1,4 +1,4 @@
-/** Settings > Accuracy reports. Text supplied by the project owner (Community Accuracy Update, Nov 2, 2026); wording kept intact. */
+/** Updates (bell) > Accuracy reports tab. Text supplied by the project owner (Community Accuracy Update, Nov 2, 2026); wording kept intact. */
 export type Block = { p: string } | { ul: string[] } | { table: { head: string[]; rows: string[][][] } };
 export interface AccuracySection { title: string; blocks: Block[] }
 export interface AccuracyReport { title: string; subtitle: string; date: string; sections: AccuracySection[]; footer: string }

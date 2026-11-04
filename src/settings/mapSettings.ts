@@ -1,6 +1,5 @@
-/** Shared wiring for travel mode, 3D view and accuracy reports (v1 + v2). Only the choices are stored locally. */
+/** Shared wiring for travel mode, 3D view (v1 + v2). Only the choices are stored locally. */
 import { loadTravelMode, setTravelMode, type TravelMode } from './travelMode';
-import { accuracyHtml } from './accuracyReports';
 import type { MapView } from '../map/mapView';
 export const MAP3D_KEY = 'pr.map3d';
 /** 3D buildings are on by default; only an explicit saved '0' turns them off. */
@@ -8,7 +7,6 @@ export const map3dDefault = (saved: string | null) => saved !== '0';
 export function mountMapSettings(map: MapView, onTravel?: (m: TravelMode) => void) {
   const tm = document.getElementById('travelmode') as HTMLSelectElement | null;
   const mode = loadTravelMode(); if (tm) { tm.value = mode; tm.onchange = () => { setTravelMode(tm.value as TravelMode); onTravel?.(tm.value as TravelMode); }; }
-  const acc = document.getElementById('accuracy-body'); if (acc) acc.innerHTML = accuracyHtml();
   const cb = document.getElementById('map3d') as HTMLInputElement | null, pitch = document.getElementById('pitch') as HTMLButtonElement | null;
   const set3d = async (on: boolean) => {
     try { localStorage.setItem(MAP3D_KEY, on ? '1' : '0'); } catch { /* ignore */ }
