@@ -291,3 +291,54 @@ details.group{margin-top:14px}
 .sheet .rec-label select{width:auto;padding:5px 28px 5px 10px;font-size:13px;border-radius:999px}
 .sheet .stat{flex-direction:column;align-items:flex-start;gap:1px}.sheet .stat span{margin-left:0;text-align:left}
 .sheet .stat{padding-left:16px}.sheet .stat::before{left:7px;top:14px;transform:none}
+
+/* first-run tutorial: no full-screen blocker, so the map, your dot and sheet scroll stay usable */
+.tour{position:fixed;inset:0;z-index:1700;pointer-events:none}
+.tour-ring{position:fixed;border-radius:16px;border:2px solid var(--acc);box-shadow:0 0 0 4px var(--acc-glow),0 0 24px var(--acc-glow);transition:all .25s var(--ease)}
+.tour-ring[hidden]{display:none}
+.tour-card{position:fixed;left:calc(12px + var(--sl));right:calc(12px + var(--sr));max-width:420px;margin:0 auto;pointer-events:auto;background:rgba(14,15,18,.96);border:1px solid var(--line);border-radius:18px;padding:12px 14px;box-shadow:var(--shadow);animation:drop .2s var(--ease)}
+.tour-card.above{top:calc(62px + var(--st))}
+.tour-card.below{bottom:calc(214px + var(--sb))}
+.tour-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--mut)}
+.tour-skip{background:none;border:1px solid var(--line);border-radius:999px;padding:3px 12px;color:var(--mut);font-size:12px}
+.tour-title{margin:6px 0 4px;font-size:16px}
+.tour-body{margin:0 0 10px;font-size:13.5px;color:#d6d7db}
+.tour-foot{display:flex;justify-content:space-between;align-items:center}
+.tour-dots{display:flex;gap:5px}
+.tour-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.22)}
+.tour-dots i.on{background:var(--acc);width:16px;border-radius:3px}
+.tour-nav{display:flex;gap:8px}
+.tour-nav button{border-radius:12px;padding:7px 16px;font-weight:600;font-size:13px;border:1px solid var(--line)}
+.tour-nav .ghost{background:transparent;color:var(--txt)}
+.tour-nav .send{background:var(--acc);border-color:var(--acc);color:#fff}
+.tour-nav [hidden]{display:none}
+
+/* Traffic enforcement cameras: small rounded squares with a one-letter glyph (map + legend) */
+.tcam{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:3px;border:1.5px solid #fff;box-sizing:border-box;color:#111;font:800 8.5px/1 system-ui,sans-serif;font-style:normal;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:none}
+.tcam-red_light,.tcam-monitor{color:#fff}
+.leaflet-tcPane-pane .tcam-pin,.tcam-pin{background:none;border:none}
+.tcam-pin .tcam{width:16px;height:16px;font-size:9.5px}
+.map-legend .lg-row .tcam{width:12px;height:12px;font-size:7.5px}
+/* Traffic cameras sub-page + alert banner */
+.drawer.sub{z-index:1650}
+.drawer.sub header{justify-content:flex-start;gap:10px}
+.drawer.sub h2{font-size:22px;flex:1}
+.hdr-spacer{width:36px}
+.nav-row{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;color:var(--txt);text-align:left;font-size:15px;padding:12px 0}
+.nav-row small{display:block;color:var(--dim);font-size:12px;margin-top:1px}
+.nav-row i{font-style:normal;color:var(--mut);font-size:20px}
+.switch em .tcam{vertical-align:-2px;margin-right:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0}
+.chip span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#1c1d21;color:var(--mut);font-size:13px;font-weight:600}
+.chip input:checked+span{background:rgba(255,255,255,.1);color:var(--txt);border-color:rgba(255,255,255,.3)}
+.chip input:disabled+span{opacity:.35;text-decoration:line-through}
+#tc-alerts.off .tc-dep{opacity:.4;pointer-events:none}
+.tc-priv{color:var(--dim)}
+.tc-banner{position:fixed;z-index:1400;left:50%;top:calc(110px + var(--st));transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:16px;background:rgba(20,21,24,.95);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--txt);font:600 15px/1.2 system-ui,sans-serif;white-space:nowrap;backdrop-filter:blur(10px)}
+.tc-banner .tcam{width:22px;height:22px;font-size:12px;border-radius:5px}
+.tc-banner small{color:var(--mut);font-weight:500}
+.tcam-speed{background:#f59e0b}.tcam-red_light{background:#ef4444}.tcam-school_zone{background:#eab308}.tcam-work_zone{background:#f97316}.tcam-monitor{background:#64748b}
+.tcam:empty.tcam-speed::after{content:'S'}.tcam:empty.tcam-red_light::after{content:'R'}.tcam:empty.tcam-school_zone::after{content:'Z'}.tcam:empty.tcam-work_zone::after{content:'W'}.tcam:empty.tcam-monitor::after{content:'M'}
+.tc-lbl{display:flex;align-items:center;gap:8px;font-weight:400}
