@@ -291,3 +291,24 @@ details.group{margin-top:14px}
 .sheet .rec-label select{width:auto;padding:5px 28px 5px 10px;font-size:13px;border-radius:999px}
 .sheet .stat{flex-direction:column;align-items:flex-start;gap:1px}.sheet .stat span{margin-left:0;text-align:left}
 .sheet .stat{padding-left:16px}.sheet .stat::before{left:7px;top:14px;transform:none}
+
+/* first-run tutorial: no full-screen blocker, so the map, your dot and sheet scroll stay usable */
+.tour{position:fixed;inset:0;z-index:1700;pointer-events:none}
+.tour-ring{position:fixed;border-radius:16px;border:2px solid var(--acc);box-shadow:0 0 0 4px var(--acc-glow),0 0 24px var(--acc-glow);transition:all .25s var(--ease)}
+.tour-ring[hidden]{display:none}
+.tour-card{position:fixed;left:calc(12px + var(--sl));right:calc(12px + var(--sr));max-width:420px;margin:0 auto;pointer-events:auto;background:rgba(14,15,18,.96);border:1px solid var(--line);border-radius:18px;padding:12px 14px;box-shadow:var(--shadow);animation:drop .2s var(--ease)}
+.tour-card.above{top:calc(62px + var(--st))}
+.tour-card.below{bottom:calc(214px + var(--sb))}
+.tour-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--mut)}
+.tour-skip{background:none;border:1px solid var(--line);border-radius:999px;padding:3px 12px;color:var(--mut);font-size:12px}
+.tour-title{margin:6px 0 4px;font-size:16px}
+.tour-body{margin:0 0 10px;font-size:13.5px;color:#d6d7db}
+.tour-foot{display:flex;justify-content:space-between;align-items:center}
+.tour-dots{display:flex;gap:5px}
+.tour-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.22)}
+.tour-dots i.on{background:var(--acc);width:16px;border-radius:3px}
+.tour-nav{display:flex;gap:8px}
+.tour-nav button{border-radius:12px;padding:7px 16px;font-weight:600;font-size:13px;border:1px solid var(--line)}
+.tour-nav .ghost{background:transparent;color:var(--txt)}
+.tour-nav .send{background:var(--acc);border-color:var(--acc);color:#fff}
+.tour-nav [hidden]{display:none}

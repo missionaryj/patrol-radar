@@ -308,3 +308,7 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
   const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
 import { mountCityChat } from './cityChat';
 mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is just the has-a-fix flag
+import { mountTutorial, shouldAutoShow } from './tutorial';
+{ const tour = mountTutorial({ onStep: s => { if (s.id !== 'sheet') sheet.classList.add('collapsed'); } });
+  $('replay-tour').onclick = () => { setSettings(false); tour.open(); };
+  if (shouldAutoShow(localStorage, location.search) && !location.hash) setTimeout(tour.open, 600); }
