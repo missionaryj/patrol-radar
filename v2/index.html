@@ -37,8 +37,10 @@
 </section>
 
 <div class="fab-col">
-  <button id="recenter" class="icon-btn round" aria-label="Recenter on my location" title="Recenter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
-  <button id="pitch" class="icon-btn round" hidden aria-label="Tilt map" title="Tilt flat / 3D">3D</button>
+  <div class="map-ctrls" role="group" aria-label="Map controls">
+    <button id="recenter" class="map-ctrl" aria-label="Recenter on my location" title="Recenter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+    <button id="pitch" class="map-ctrl" hidden aria-label="Tilt map" title="Tilt flat / 3D">3D</button>
+  </div>
   <button id="add" class="icon-btn round" hidden aria-label="Pick another device" title="Pick another device"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 <button id="scan" class="fab" aria-label="Start scan"><span class="fab-ring"></span><span class="fab-ring r2"></span><span class="fab-core"><span class="fab-ico" aria-hidden="true"></span><span id="scan-label">Scan</span></span></button>
