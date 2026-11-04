@@ -7,7 +7,7 @@ import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
 import { LiveDeviceTracker, colorFor, WIFI_COLOR, bandRadius, type LiveDevice } from '../map/liveDevices';
-import type { Vehicle } from '../fusion/vehicles';
+import { corroborationText, type Vehicle } from '../fusion/vehicles';
 import { bandOfMHz } from '../wifi/context';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
@@ -155,7 +155,7 @@ function vehicleCard(v: Vehicle) {
     <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
     <div class="conf"><span class="grade">${gradeOf(v.confidence)}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     <div class="vmembers">${rows}</div>
-    <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">best ${Math.round(v.baseConfidence * 100)}% +${Math.round(v.boost * 100)} corroboration</span></div>
+    <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">${corroborationText(v)}</span></div>
   </li>`;
 }
 const announced = new Set<string>();
