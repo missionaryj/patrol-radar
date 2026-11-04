@@ -54,3 +54,8 @@ main{display:grid;grid-template-columns:2fr 1fr;height:70vh}#map,.map-wrap{heigh
 .map-legend .lg-peek{display:flex;flex-wrap:wrap;gap:4px 10px;font-weight:500;font-size:11px;opacity:.9}
 .map-legend .lg-peek>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .map-legend details[open]>summary .lg-top>.lg-chev{transform:rotate(-135deg) translateY(-2px)}
+.map-legend{max-width:min(240px,64vw)}
+.map-legend .lg-body{max-height:min(36vh,330px);padding:2px 0}
+.map-legend .lg-cat>summary{padding:6px 10px;font-size:10.5px}
+.map-legend .lg-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;padding:0 10px 7px}
+.map-legend .lg-row,.map-legend .lg-row:last-child{padding:2px 0;font-size:11.5px;white-space:nowrap}
