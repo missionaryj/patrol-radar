@@ -11,6 +11,7 @@ import { SmoothLocation } from './smoothFollow';
 import { mountLegend } from './legend';
 import { RASTER_2D, PITCH_3D } from './palette';
 import { Map3D, type Pin3D } from './map3d';
+import { type TcIndex, type TcRow, type TcType, TC_ATTRIBUTION, TC_MIN_ZOOM, TC_META, tcInBounds, tcIcon, tcPopup } from './trafficCamLayer';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
@@ -23,11 +24,13 @@ export class MapView {
   readonly liveLayer = L.layerGroup();
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
+  readonly tcLayer = L.layerGroup();
   readonly follow: FollowController;
   /** Called when follow-me pauses (manual pan) or resumes. */
   onFollowChange?: (following: boolean) => void;
   private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
   private flockRenderer = L.canvas({ padding: 0.3 });
+  private tcIdx?: TcIndex; private tcBase = ''; private tcTiles = new Map<string, Promise<TcRow[]>>(); private tcOn = false; private tcLoading?: Promise<void>; private tcDraw = 0; private tcTimer?: number;
   /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
   private liveRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
@@ -36,14 +39,19 @@ export class MapView {
     L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' }).addTo(this.map);
     const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
     this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned());
+    // Traffic cameras get their own pane above the overlay canvas (so they stay tappable); the own-location dot and its
+    // accuracy circle sit in a still higher, click-through pane so nothing can ever cover them.
+    this.map.createPane('tcPane').style.zIndex = '420';
+    const mp = this.map.createPane('mePane'); mp.style.zIndex = '640'; mp.style.pointerEvents = 'none';
     this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
     this.follow = new FollowController(true, f => this.onFollowChange?.(f));
     this.map.on('dragstart', () => this.follow.userPanned());
     // Follow-me moves the map every frame, so redraw Flock dots at most every ~400 ms instead of on every moveend.
-    this.map.on('moveend', () => { if (this.flockOn && this.flockTimer === undefined) this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400); });
+    this.map.on('moveend', () => { if (this.flockOn && this.flockTimer === undefined) this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400);
+      if (this.tcOn && this.tcTimer === undefined) this.tcTimer = window.setTimeout(() => { this.tcTimer = undefined; void this.drawTc(); }, 400); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.kick(); });
-    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
+    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'Traffic cameras': this.tcLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
   }
   invalidate() { this.map.invalidateSize(); this.m3.resize(); }
   showCrowd(on: boolean) { if (on) this.crowdLayer.addTo(this.map); else this.crowdLayer.remove(); }
@@ -72,6 +80,7 @@ export class MapView {
   }
   /** Closest-approach localisation (in memory only). Feed matched hits with observe(). */
   readonly loc = new Localizer();
+  private meRenderer = L.svg({ pane: 'mePane' });
   private me?: L.CircleMarker; private meAcc?: L.Circle; private centered = false;
   private smooth = new SmoothLocation(); private raf?: number; private lastFrame = 0; private flockTimer?: number;
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
@@ -79,8 +88,8 @@ export class MapView {
     const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
     this.loc.fix({ t, lat, lng, acc: accuracy, speed }); // in-memory track for closest-approach pins (never stored)
     if (!this.me) {
-      this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false }).addTo(this.map);
-      this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false }).addTo(this.map);
+      this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
+      this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
     }
     if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16), { animate: false }); }
     this.kick();
@@ -122,6 +131,7 @@ export class MapView {
       else if (l instanceof L.Marker && (l.options.icon?.options as any)?.className === 'veh-pin') { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: '#ff1744', r: 10, kind: 'veh' }); }
     });
     walk(this.layer, true); walk(this.crowdLayer, true); walk(this.liveLayer);
+    if (this.tcOn) this.tcLayer.eachLayer(l => { const t = (l as any).tcType as TcType | undefined; if (t && l instanceof L.Marker) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: TC_META[t].color, r: 6, kind: 'dot', html: (l as any).tcHtml }); } });
     const d = this.smooth.disp; this.m3.update({ pins, me: d ? { lat: d.lat, lng: d.lng, acc: this.smooth.acc } : undefined });
   }
   // ---- Flock camera (mapped) layer: static OSM export, lazy-loaded, only visible-bounds points drawn ----
@@ -133,6 +143,29 @@ export class MapView {
     this.flockBase = baseUrl;
     this.flockLoading ??= fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(i => { this.flockIdx = i; });
     await this.flockLoading; await this.drawFlock();
+  }
+  // ---- Traffic enforcement cameras: static export, 5° tiles lazy-loaded, drawn only at zoom >= TC_MIN_ZOOM, capped per view ----
+  async showTrafficCams(on: boolean, baseUrl: string) {
+    this.tcOn = on;
+    if (!on) { this.tcLayer.remove(); this.map.attributionControl.removeAttribution(TC_ATTRIBUTION); if (this.m3.active) this.mirror3d(); return; }
+    this.tcLayer.addTo(this.map); this.map.attributionControl.addAttribution(TC_ATTRIBUTION); this.tcBase = baseUrl;
+    this.tcLoading ??= fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(i => { this.tcIdx = i; });
+    try { await this.tcLoading; } catch (e) { this.tcLoading = undefined; throw e; }
+    await this.drawTc();
+  }
+  get trafficCamInfo() { return this.tcIdx; }
+  private async drawTc() {
+    const gen = ++this.tcDraw;
+    if (!this.tcIdx || !this.tcOn || this.map.getZoom() < TC_MIN_ZOOM) { this.tcLayer.clearLayers(); if (this.m3.active) this.mirror3d(); return; }
+    const b = this.map.getBounds().pad(0.2), bb = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
+    const keys = tilesFor(this.tcIdx as any, bb);
+    const tiles = await Promise.all(keys.map(k => { let p = this.tcTiles.get(k); if (!p) { p = fetch(`${this.tcBase}${k}.json`).then(r => r.json()); p.catch(() => this.tcTiles.delete(k)); this.tcTiles.set(k, p); } return p.catch(() => undefined); }));
+    if (gen !== this.tcDraw) return; this.tcLayer.clearLayers();
+    for (const t of tiles) if (t) for (const p of tcInBounds(t, this.tcIdx, bb)) {
+      const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'tcam-pin', html: tcIcon(p.type), iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, pane: 'tcPane', title: TC_META[p.type].label })
+        ; const html = tcPopup(p); m.bindPopup(html); (m as any).tcType = p.type; (m as any).tcHtml = html; m.addTo(this.tcLayer);
+    }
+    if (this.m3.active) this.mirror3d();
   }
   get flockInfo() { return this.flockIdx ? { count: this.flockIdx.count, osmBase: this.flockIdx.osm_base } : undefined; }
   private tile(k: string) {

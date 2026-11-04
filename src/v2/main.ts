@@ -306,6 +306,13 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
     map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
       .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
   const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
+// Traffic enforcement cameras (OSM + city open data), lazy 5° tiles.
+const TC_URL = `${import.meta.env.BASE_URL}data/traffic-cams/`;
+{ const cb = document.getElementById('trafficcams') as HTMLInputElement | null; const st = document.getElementById('tc-status');
+  const setTc = (on: boolean) => { localStorage.setItem('pr.trafficcams', on ? '1' : '0');
+    map.showTrafficCams(on, TC_URL).then(() => { const i = map.trafficCamInfo; if (st && i) st.textContent = `${i.count.toLocaleString()} US traffic cameras · built ${i.generated.slice(0, 10)} · OSM as of ${i.sources.find(s => s.id === 'osm')?.last_updated ?? '?'} · zoom in to see them`; })
+      .catch(e => { if (st) st.textContent = `Traffic camera layer unavailable (${(e as Error).message})`; }); };
+  const on = localStorage.getItem('pr.trafficcams') !== '0'; if (cb) { cb.checked = on; cb.onchange = () => setTc(cb.checked); } setTc(on); }
 import { mountCityChat } from './cityChat';
 mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is just the has-a-fix flag
 import { mountTutorial, shouldAutoShow } from './tutorial';

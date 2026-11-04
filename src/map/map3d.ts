@@ -4,7 +4,7 @@
  */
 import { style3d, MAX_PITCH, PITCH_3D } from './palette';
 type ML = typeof import('maplibre-gl');
-export interface Pin3D { lat: number; lng: number; color: string; r: number; ring?: number; kind: 'dot' | 'ring' | 'cell' | 'veh' }
+export interface Pin3D { lat: number; lng: number; color: string; r: number; ring?: number; kind: 'dot' | 'ring' | 'cell' | 'veh'; html?: string }
 export interface Mirror { pins: Pin3D[]; me?: { lat: number; lng: number; acc: number } }
 
 /** Circle polygon in metres (rings and the accuracy circle), 24 segments is plenty at street zoom. */
@@ -17,7 +17,7 @@ export function toGeoJSON(m: Mirror) {
   const pts: any[] = [], polys: any[] = [];
   for (const p of m.pins) {
     if (p.kind === 'ring' || p.kind === 'cell') polys.push({ type: 'Feature', properties: { color: p.color, cell: p.kind === 'cell' }, geometry: { type: 'Polygon', coordinates: [circlePoly(p.lat, p.lng, p.ring ?? 30)] } });
-    else pts.push({ type: 'Feature', properties: { color: p.color, r: p.r, veh: p.kind === 'veh' }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } });
+    else pts.push({ type: 'Feature', properties: { color: p.color, r: p.r, veh: p.kind === 'veh', ...(p.html ? { html: p.html } : {}) }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } });
   }
   const me = m.me ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [m.me.lng, m.me.lat] } }] : [];
   const acc = m.me ? [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [circlePoly(m.me.lat, m.me.lng, Math.max(3, m.me.acc))] } }] : [];
@@ -43,6 +43,8 @@ export class Map3D {
       map.addLayer({ id: 'polys-fill', type: 'fill', source: 'polys', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'cell'], 0.25, 0.1] } });
       map.addLayer({ id: 'polys-line', type: 'line', source: 'polys', paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.8 } });
       map.addLayer({ id: 'pts', type: 'circle', source: 'pts', paint: { 'circle-color': ['get', 'color'], 'circle-radius': ['get', 'r'], 'circle-stroke-color': '#111', 'circle-stroke-width': ['case', ['get', 'veh'], 3, 1], 'circle-pitch-alignment': 'viewport' } });
+      // Tap a mapped traffic camera in 3D: same popup as 2D.
+      map.on('click', 'pts', e => { const f = e.features?.[0]; const h = f?.properties?.html; if (h && this.ml) new this.ml.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat((f!.geometry as any).coordinates).setHTML(h).addTo(map); });
       // Own location: drawn last so it stays on top of buildings and pins.
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });

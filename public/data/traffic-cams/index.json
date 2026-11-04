@@ -1,0 +1,127 @@
+{
+ "generated": "2026-11-04T18:39:39.424Z",
+ "count": 4860,
+ "rawCount": 6101,
+ "dedupeM": 30,
+ "tileDeg": 5,
+ "types": [
+  "speed",
+  "red_light",
+  "school_zone",
+  "work_zone",
+  "monitor"
+ ],
+ "sources": [
+  {
+   "id": "chicago_rlc",
+   "name": "City of Chicago: Red Light Camera Locations",
+   "url": "https://data.cityofchicago.org/d/thvf-6diy",
+   "license": "City of Chicago Data Portal Terms of Use (public, free reuse)",
+   "last_updated": "2026-09-15",
+   "fetched": "2026-11-04"
+  },
+  {
+   "id": "chicago_speed",
+   "name": "City of Chicago: Speed Camera Locations (Children's Safety Zones)",
+   "url": "https://data.cityofchicago.org/d/4i42-qv3h",
+   "license": "City of Chicago Data Portal Terms of Use (public, free reuse)",
+   "last_updated": "2026-10-09",
+   "fetched": "2026-11-04"
+  },
+  {
+   "id": "dc_asc",
+   "name": "DC DDOT: Automated Safety Cameras",
+   "url": "https://opendata.dc.gov/datasets/DCGIS::automated-safety-cameras",
+   "license": "CC BY 4.0",
+   "last_updated": "2026-11-04",
+   "fetched": "2026-11-04"
+  },
+  {
+   "id": "seattle_atsc",
+   "name": "Seattle SDOT: Automatic Traffic Safety Cameras (Active)",
+   "url": "https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::automatic-traffic-safety-cameras-atsc-active",
+   "license": "City of Seattle open data (public; terms of use apply)",
+   "last_updated": "2025-11-10",
+   "fetched": "2026-11-04"
+  },
+  {
+   "id": "arlington_rlc",
+   "name": "Arlington County VA: DES Photo Red Cameras",
+   "url": "https://data.virginia.gov/dataset/des-photo-red-cameras",
+   "license": "Arlington County open data (publicly available)",
+   "last_updated": "2026-11-04",
+   "fetched": "2026-11-04"
+  },
+  {
+   "id": "osm",
+   "name": "OpenStreetMap (Overpass API)",
+   "url": "https://www.openstreetmap.org/copyright",
+   "license": "ODbL 1.0, © OpenStreetMap contributors",
+   "last_updated": "2026-11-04",
+   "fetched": "2026-11-04"
+  }
+ ],
+ "counts": {
+  "byType": {
+   "red_light": 845,
+   "speed": 1528,
+   "school_zone": 88,
+   "monitor": 2399
+  },
+  "bySource": {
+   "chicago_rlc": 299,
+   "chicago_speed": 196,
+   "dc_asc": 257,
+   "seattle_atsc": 93,
+   "arlington_rlc": 19,
+   "osm": 3996
+  }
+ },
+ "tiles": {
+  "40_-90": 635,
+  "35_-80": 902,
+  "45_-125": 388,
+  "40_-125": 57,
+  "30_-120": 162,
+  "40_-75": 570,
+  "35_-125": 155,
+  "35_-110": 124,
+  "25_-85": 136,
+  "40_-110": 41,
+  "40_-100": 16,
+  "35_-90": 84,
+  "35_-105": 78,
+  "30_-85": 92,
+  "45_-120": 13,
+  "30_-90": 46,
+  "35_-85": 64,
+  "40_-95": 184,
+  "45_-95": 7,
+  "30_-95": 37,
+  "40_-80": 64,
+  "40_-85": 222,
+  "20_-160": 1,
+  "40_-115": 27,
+  "30_-110": 10,
+  "35_-95": 129,
+  "25_-95": 4,
+  "30_-115": 47,
+  "35_-120": 7,
+  "35_-100": 287,
+  "45_-100": 3,
+  "60_-150": 3,
+  "30_-100": 188,
+  "45_-90": 3,
+  "40_-105": 2,
+  "35_-115": 3,
+  "25_-100": 21,
+  "35_-75": 1,
+  "30_-80": 6,
+  "40_-120": 2,
+  "30_-125": 2,
+  "30_-105": 28,
+  "45_-110": 1,
+  "15_-70": 4,
+  "40_-70": 4
+ }
+}

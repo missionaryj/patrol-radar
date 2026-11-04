@@ -1,0 +1,23 @@
+# NOT ENABLED. To turn on, copy to .github/workflows/traffic-cams.yml.
+# Weekly rebuild of public/data/traffic-cams from OSM (Overpass) + city open data, opened as a PR for review (never auto-deploys).
+name: Refresh traffic cameras
+on:
+  schedule: [{ cron: '17 9 * * 1' }]   # Mondays 09:17 UTC
+  workflow_dispatch: {}
+permissions: { contents: write, pull-requests: write }
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node scripts/fetch-traffic-cameras.mjs
+      - name: Sanity check (refuse a >25% drop, e.g. an Overpass outage)
+        run: node -e "const n=require('./public/data/traffic-cams/index.json').count; if(n<3500){console.error('only',n);process.exit(1)}"
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          branch: data/traffic-cams-refresh
+          title: 'data: refresh traffic enforcement cameras'
+          commit-message: 'data: refresh traffic enforcement cameras'
+          add-paths: public/data/traffic-cams
