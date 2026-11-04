@@ -12,6 +12,9 @@ import { bandOfMHz } from '../wifi/context';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
 import { CrowdClient } from '../crowd/client';
+import { TrafficAlerter, loadTcSettings, saveTcSettings, alertsFor, roundDist, type AlertDistance, type AlertStyle, type Fix, type TcAlert } from '../alert/trafficAlerts';
+import { TC_META, TC_TYPES, tcIcon } from '../map/trafficCamLayer';
+import { travel } from '../settings/travelMode';
 import { PingGate, PingPlayer, soundEnabled, setSoundEnabled } from '../alert/ping';
 import { probeReport, findScanApis } from '../ble/probe';
 import { ScanSupervisor } from '../session/supervisor';
@@ -105,6 +108,7 @@ function startGeo() {
   geoWatch = navigator.geolocation.watchPosition(p => {
     map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading, p.timestamp);
     here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
+    void checkTrafficCams({ lat: p.coords.latitude, lng: p.coords.longitude, speed: p.coords.speed, heading: p.coords.heading, t: p.timestamp });
     recorder.fix(p.coords.accuracy, here);
     pos = coarsen(p.coords.latitude, p.coords.longitude);
     $('geo').textContent = `Location ±${Math.round(p.coords.accuracy)} m`;
@@ -306,13 +310,52 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
     map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
       .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
   const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
-// Traffic enforcement cameras (OSM + city open data), lazy 5° tiles.
+// Traffic enforcement cameras (OSM + city open data), lazy 5° tiles, with their own Settings page and on-device alerts.
 const TC_URL = `${import.meta.env.BASE_URL}data/traffic-cams/`;
-{ const cb = document.getElementById('trafficcams') as HTMLInputElement | null; const st = document.getElementById('tc-status');
-  const setTc = (on: boolean) => { localStorage.setItem('pr.trafficcams', on ? '1' : '0');
-    map.showTrafficCams(on, TC_URL).then(() => { const i = map.trafficCamInfo; if (st && i) st.textContent = `${i.count.toLocaleString()} US traffic cameras · built ${i.generated.slice(0, 10)} · OSM as of ${i.sources.find(s => s.id === 'osm')?.last_updated ?? '?'} · zoom in to see them`; })
-      .catch(e => { if (st) st.textContent = `Traffic camera layer unavailable (${(e as Error).message})`; }); };
-  const on = localStorage.getItem('pr.trafficcams') !== '0'; if (cb) { cb.checked = on; cb.onchange = () => setTc(cb.checked); } setTc(on); }
+const tcSet = loadTcSettings(), tcAlerter = new TrafficAlerter();
+{ const ck = (id: string) => document.getElementById(id) as HTMLInputElement;
+  const sel = (id: string) => document.getElementById(id) as HTMLSelectElement;
+  const st = document.getElementById('tc-status'), sum = document.getElementById('tc-summary');
+  const page = $('tc-settings');
+  const openTc = (o: boolean) => { page.classList.toggle('open', o); page.setAttribute('aria-hidden', String(!o)); };
+  $('open-tc').onclick = () => openTc(true); $('back-tc').onclick = () => openTc(false);
+  $('close-settings').addEventListener('click', () => openTc(false)); $('scrim').addEventListener('click', () => openTc(false));
+  const apply = () => {
+    saveTcSettings(tcSet);
+    map.setTrafficCamTypes(new Set(TC_TYPES.filter(t => tcSet.types[t])));
+    for (const t of TC_TYPES) { const a = ck(`tc-alert-${t}`); a.disabled = !tcSet.types[t] || !tcSet.show; }
+    $('tc-alerts').classList.toggle('off', !tcSet.alerts); $('tc-types').classList.toggle('off', !tcSet.show);
+    const n = TC_TYPES.filter(t => alertsFor(tcSet, t)).length;
+    if (sum) sum.textContent = !tcSet.show ? 'Hidden · no alerts' : `Shown · ${tcSet.alerts ? `alerts on (${n} type${n === 1 ? '' : 's'})` : 'alerts off'}`;
+  };
+  const show = (on: boolean) => map.showTrafficCams(on, TC_URL).then(() => { const i = map.trafficCamInfo; if (st && i) st.textContent = `${i.count.toLocaleString()} US traffic cameras · built ${i.generated.slice(0, 10)} · OSM as of ${i.sources.find(s => s.id === 'osm')?.last_updated ?? '?'} · zoom in to see them`; })
+    .catch(e => { if (st) st.textContent = `Traffic camera layer unavailable (${(e as Error).message})`; });
+  const m = ck('trafficcams'); m.checked = tcSet.show; m.onchange = () => { tcSet.show = m.checked; apply(); void show(m.checked); };
+  for (const t of TC_TYPES) {
+    const v = ck(`tc-show-${t}`); v.checked = tcSet.types[t]; v.onchange = () => { tcSet.types[t] = v.checked; apply(); };
+    const a = ck(`tc-alert-${t}`); a.checked = tcSet.alertTypes[t]; a.onchange = () => { tcSet.alertTypes[t] = a.checked; apply(); };
+  }
+  const on = sel('tc-alerts-on'); on.value = tcSet.alerts ? 'on' : 'off'; on.onchange = () => { tcSet.alerts = on.value === 'on'; apply(); if (tcSet.alerts && tcSet.style === 'sound') void ping.unlock(); };
+  const dist = sel('tc-distance'); dist.value = String(tcSet.distance); dist.onchange = () => { tcSet.distance = dist.value === 'auto' ? 'auto' : (+dist.value as AlertDistance); apply(); };
+  const ah = ck('tc-ahead'); ah.checked = tcSet.aheadOnly; ah.onchange = () => { tcSet.aheadOnly = ah.checked; apply(); };
+  const sty = sel('tc-style'); sty.value = tcSet.style; sty.onchange = () => { tcSet.style = sty.value as AlertStyle; apply(); if (tcSet.style === 'sound') void ping.unlock().then(() => ping.play('soft')); else if (tcSet.style === 'vibrate') navigator.vibrate?.(120); };
+  apply(); if (tcSet.show) void show(true);
+}
+let tcBannerT: number | undefined, tcBusy = false;
+function showTcBanner(a: TcAlert) {
+  const b = $('tc-banner'), meta = TC_META[a.cam.type];
+  b.innerHTML = `${tcIcon(a.cam.type)}<span>${meta.label.replace(/^Automated speed camera$/, 'Speed camera')} ahead <small>· ${roundDist(a.distM)}</small></span>`;
+  b.hidden = false; clearTimeout(tcBannerT); tcBannerT = window.setTimeout(() => { b.hidden = true; }, 8000);
+  if (tcSet.style === 'sound') { ping.play('normal'); navigator.vibrate?.([200, 100, 200]); } else if (tcSet.style === 'vibrate') navigator.vibrate?.([200, 100, 200]);
+}
+/** Called for every GPS fix. Position/heading stay in memory for this check only; nothing is stored or sent. */
+async function checkTrafficCams(f: Fix) {
+  if (tcBusy || !tcSet.alerts || !tcSet.show) { tcAlerter.heading(f); return; }
+  tcBusy = true;
+  try { const cams = await map.trafficCamsNear(TC_URL, f.lat, f.lng, 700); const a = tcAlerter.check(f, cams, tcSet, travel().mode); if (a) showTcBanner(a); }
+  catch { /* data unavailable: no alert */ } finally { tcBusy = false; }
+}
+(window as any).__tcTest = (f: Fix) => checkTrafficCams(f); // for screenshots / field tests
 import { mountCityChat } from './cityChat';
 mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is just the has-a-fix flag
 import { mountTutorial, shouldAutoShow } from './tutorial';

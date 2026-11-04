@@ -63,9 +63,7 @@
   <div class="group">
     <label class="switch"><input type="checkbox" id="flockmap" checked/><span></span><em>Flock camera (mapped)<small>Known Flock plate-reader cameras from OpenStreetMap. Not scan hits. © OpenStreetMap contributors (ODbL)</small></em></label>
     <small id="flock-status">Loading mapped cameras…</small>
-    <label class="switch"><input type="checkbox" id="trafficcams" checked/><span></span><em>Traffic enforcement cameras<small>Speed, red-light, school-zone, work-zone and fixed traffic-monitoring cameras across the US. Mapped locations, not scan hits; may be out of date.</small></em></label>
-    <small id="tc-status">Loading traffic cameras…</small>
-    <small class="tc-credits">Sources: © OpenStreetMap contributors (ODbL 1.0); City of Chicago Data Portal; DC DDOT Automated Safety Cameras (CC BY 4.0); Seattle SDOT ATSC; Arlington County VA. Rebuilt by scripts/fetch-traffic-cameras.mjs.</small>
+    <button type="button" id="open-tc" class="nav-row"><span><b>Traffic cameras</b><small id="tc-summary">Shown · alerts on</small></span><i aria-hidden="true">›</i></button>
   </div>
 
   <h3 class="group-title">Map &amp; travel</h3>
@@ -129,6 +127,41 @@
   </details>
   <p class="links"><a href="../">← Classic UI</a></p>
 </aside>
+<aside id="tc-settings" class="drawer sub" aria-label="Traffic cameras" aria-hidden="true">
+  <header><button id="back-tc" class="icon-btn" aria-label="Back to Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>Traffic cameras</h2><span class="hdr-spacer"></span></header>
+  <h3 class="group-title">On the map</h3>
+  <div class="group">
+    <label class="switch"><input type="checkbox" id="trafficcams" checked/><span></span><em>Show traffic cameras<small>Speed, red-light, school-zone, work-zone and traffic-monitoring cameras across the US. Mapped locations, not scan hits.</small></em></label>
+    <small id="tc-status">Loading traffic cameras…</small>
+  </div>
+  <h3 class="group-title">Camera types</h3>
+  <div class="group" id="tc-types">
+    <label class="switch"><input type="checkbox" id="tc-show-speed" checked/><span></span><em><b class="tc-lbl"><i class="tcam tcam-speed"></i>Speed cameras</b></em></label>
+    <label class="switch"><input type="checkbox" id="tc-show-red_light" checked/><span></span><em><b class="tc-lbl"><i class="tcam tcam-red_light"></i>Red-light cameras</b></em></label>
+    <label class="switch"><input type="checkbox" id="tc-show-school_zone" checked/><span></span><em><b class="tc-lbl"><i class="tcam tcam-school_zone"></i>School-zone cameras</b></em></label>
+    <label class="switch"><input type="checkbox" id="tc-show-work_zone" checked/><span></span><em><b class="tc-lbl"><i class="tcam tcam-work_zone"></i>Work-zone enforcement</b></em></label>
+    <label class="switch"><input type="checkbox" id="tc-show-monitor" checked/><span></span><em><b class="tc-lbl"><i class="tcam tcam-monitor"></i>Traffic monitoring cameras</b></em></label>
+    <small>A hidden type is also never alerted.</small>
+  </div>
+  <h3 class="group-title">Alerts</h3>
+  <div class="group" id="tc-alerts">
+    <div class="field"><span>Upcoming-camera alerts</span>
+      <select id="tc-alerts-on" data-seg data-labels="Off|On"><option value="off">Off</option><option value="on" selected>On</option></select>
+      <small>Off means no camera alerts at all.</small></div>
+    <div class="field tc-dep"><span>Alert me for</span><div class="chips"><label class="chip"><input type="checkbox" id="tc-alert-speed"/><span><i class="tcam tcam-speed"></i>Speed</span></label><label class="chip"><input type="checkbox" id="tc-alert-red_light"/><span><i class="tcam tcam-red_light"></i>Red-light</span></label><label class="chip"><input type="checkbox" id="tc-alert-school_zone"/><span><i class="tcam tcam-school_zone"></i>School-zone</span></label><label class="chip"><input type="checkbox" id="tc-alert-work_zone"/><span><i class="tcam tcam-work_zone"></i>Work-zone</span></label><label class="chip"><input type="checkbox" id="tc-alert-monitor"/><span><i class="tcam tcam-monitor"></i>Traffic monitoring</span></label></div></div>
+    <div class="field tc-dep"><span>Alert distance</span>
+      <select id="tc-distance" data-seg data-labels="Auto|150 m|300 m|500 m"><option value="auto" selected>Auto</option><option value="150">150 m</option><option value="300">300 m</option><option value="500">500 m</option></select>
+      <small id="tc-distance-note">Auto: car 250–600 m by speed (400 m when unknown); on foot 100 m. Uses Travel mode.</small></div>
+    <label class="switch tc-dep"><input type="checkbox" id="tc-ahead" checked/><span></span><em>Only cameras ahead of me<small>Uses your direction of travel and the camera direction when known (within ~45°).</small></em></label>
+    <div class="field tc-dep"><span>Alert style</span>
+      <select id="tc-style" data-seg data-labels="Sound + vibrate|Vibrate|Silent"><option value="sound" selected>Sound + vibration</option><option value="vibrate">Vibration only</option><option value="silent">Silent banner</option></select>
+      <small>Every style shows a banner. The same camera won't alert again for 10 min.</small></div>
+    <small class="tc-priv">Alerts are worked out on this phone from your live location, which is never saved or sent.</small>
+  </div>
+  <h3 class="group-title">Sources</h3>
+  <div class="group"><small class="tc-credits">© OpenStreetMap contributors (ODbL 1.0); City of Chicago Data Portal; DC DDOT Automated Safety Cameras (CC BY 4.0); Seattle SDOT ATSC; Arlington County VA. Locations can be out of date.</small></div>
+</aside>
+<div id="tc-banner" class="tc-banner" role="status" aria-live="assertive" hidden></div>
 <aside id="updates" class="drawer" aria-label="Updates" aria-hidden="true">
   <header><h2>Updates</h2><button id="close-updates" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="seg updates-tabs" role="tablist"><button type="button" role="tab" id="tab-updates" class="on" aria-selected="true" aria-controls="pane-updates">Updates</button><button type="button" role="tab" id="tab-accuracy" aria-selected="false" aria-controls="pane-accuracy">Accuracy reports</button></div>

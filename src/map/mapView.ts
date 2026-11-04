@@ -30,7 +30,7 @@ export class MapView {
   onFollowChange?: (following: boolean) => void;
   private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
   private flockRenderer = L.canvas({ padding: 0.3 });
-  private tcIdx?: TcIndex; private tcBase = ''; private tcTiles = new Map<string, Promise<TcRow[]>>(); private tcOn = false; private tcLoading?: Promise<void>; private tcDraw = 0; private tcTimer?: number;
+  private tcIdx?: TcIndex; private tcBase = ''; private tcTiles = new Map<string, Promise<TcRow[]>>(); private tcOn = false; private tcLoading?: Promise<void>; private tcDraw = 0; private tcTimer?: number; private tcTypes?: Set<TcType>;
   /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
   private liveRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
@@ -148,10 +148,23 @@ export class MapView {
   async showTrafficCams(on: boolean, baseUrl: string) {
     this.tcOn = on;
     if (!on) { this.tcLayer.remove(); this.map.attributionControl.removeAttribution(TC_ATTRIBUTION); if (this.m3.active) this.mirror3d(); return; }
-    this.tcLayer.addTo(this.map); this.map.attributionControl.addAttribution(TC_ATTRIBUTION); this.tcBase = baseUrl;
+    this.tcLayer.addTo(this.map); this.map.attributionControl.addAttribution(TC_ATTRIBUTION);
+    await this.loadTcIndex(baseUrl); await this.drawTc();
+  }
+  private async loadTcIndex(baseUrl: string) {
+    this.tcBase = baseUrl;
     this.tcLoading ??= fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(i => { this.tcIdx = i; });
     try { await this.tcLoading; } catch (e) { this.tcLoading = undefined; throw e; }
-    await this.drawTc();
+  }
+  private tcTile(k: string) { let p = this.tcTiles.get(k); if (!p) { p = fetch(`${this.tcBase}${k}.json`).then(r => r.json()); p.catch(() => this.tcTiles.delete(k)); this.tcTiles.set(k, p); } return p.catch(() => undefined); }
+  /** Which subtypes are drawn (undefined = all). */
+  setTrafficCamTypes(types: Set<TcType>) { this.tcTypes = types; void this.drawTc(); }
+  /** Cameras within rM of a point, for on-device alerts (independent of zoom). The position is used in memory only. */
+  async trafficCamsNear(baseUrl: string, lat: number, lng: number, rM: number) {
+    await this.loadTcIndex(baseUrl); if (!this.tcIdx) return [];
+    const dLat = rM / 111_320, dLng = rM / (111_320 * Math.cos(lat * Math.PI / 180)), bb = { south: lat - dLat, north: lat + dLat, west: lng - dLng, east: lng + dLng };
+    const tiles = await Promise.all(tilesFor(this.tcIdx as any, bb).map(k => this.tcTile(k)));
+    return tiles.flatMap(t => t ? tcInBounds(t, this.tcIdx!, bb, 500) : []);
   }
   get trafficCamInfo() { return this.tcIdx; }
   private async drawTc() {
@@ -159,9 +172,9 @@ export class MapView {
     if (!this.tcIdx || !this.tcOn || this.map.getZoom() < TC_MIN_ZOOM) { this.tcLayer.clearLayers(); if (this.m3.active) this.mirror3d(); return; }
     const b = this.map.getBounds().pad(0.2), bb = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
     const keys = tilesFor(this.tcIdx as any, bb);
-    const tiles = await Promise.all(keys.map(k => { let p = this.tcTiles.get(k); if (!p) { p = fetch(`${this.tcBase}${k}.json`).then(r => r.json()); p.catch(() => this.tcTiles.delete(k)); this.tcTiles.set(k, p); } return p.catch(() => undefined); }));
+    const tiles = await Promise.all(keys.map(k => this.tcTile(k)));
     if (gen !== this.tcDraw) return; this.tcLayer.clearLayers();
-    for (const t of tiles) if (t) for (const p of tcInBounds(t, this.tcIdx, bb)) {
+    for (const t of tiles) if (t) for (const p of tcInBounds(t, this.tcIdx, bb, undefined, this.tcTypes)) {
       const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'tcam-pin', html: tcIcon(p.type), iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, pane: 'tcPane', title: TC_META[p.type].label })
         ; const html = tcPopup(p); m.bindPopup(html); (m as any).tcType = p.type; (m as any).tcHtml = html; m.addTo(this.tcLayer);
     }
