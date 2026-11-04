@@ -63,7 +63,7 @@ describe('ScanFusion end to end (BLE then Wi-Fi in one cell)', () => {
     expect(rec.vehicle(v)).toBe(true);
     const o = rec.exportObject('t'); expect(o.vehicles).toHaveLength(1); expect(o.vehicles[0].members.map(m => m.radio).sort()).toEqual(['ble', 'wifi']);
     expect(JSON.stringify(o.vehicles)).not.toContain('40.1101');
-    const back = parseExport(JSON.stringify(o)); expect(back.schemaVersion).toBe(4); expect(back.vehicles).toHaveLength(1);
+    const back = parseExport(JSON.stringify(o)); expect(back.schemaVersion).toBe(5); expect(back.vehicles).toHaveLength(1);
     f.clear(); expect(f.vehicles.list(3000)).toHaveLength(0);
   });
   it('fixed cameras (Flock) never join a vehicle', () => {

@@ -26,7 +26,7 @@ export class ScanFusion {
   readonly vehicles = new VehicleGrouper();
   /** Tiered Wi-Fi score for one native emit (context: dual-band pair, persistence, police BLE in the same cell). */
   scoreWifi(nm: NativeWifiMatch, loc: { lat: number; lng: number }, t = Date.now()): TieredWifiMatch | null {
-    const ctx = this.wifiCtx.observe({ id: nm.id, radio: nm.radio, band: bandOfMHz(nm.freq), cell: cellKey(loc), t });
+    const ctx = this.wifiCtx.observe({ id: nm.id, radio: nm.radio, band: bandOfMHz(nm.freq), cell: cellKey(loc), t, rssi: nm.rssi });
     return scoreWifi(nm.rules, ctx);
   }
   /** Feeds a police-gear match (BLE or Wi-Fi) into vehicle grouping; BLE matches also feed Wi-Fi context. */

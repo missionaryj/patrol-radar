@@ -58,3 +58,20 @@ softer ping. Phones/consumer devices never ping. Toggle: Settings → "Police pi
 With the app in the background the web layer asks the plugin to post a "Police ping" notification that uses
 `res/raw/police_ping.ogg` on its own channel (users can change/mute it in Android notification settings). This depends on the
 WebView still receiving adverts while backgrounded; if Android suspends the WebView, no ping fires until the app is reopened.
+
+## Scan supervisor (1.0.23)
+
+Field test 2026-11-04 (older Android phone, lowLatency, all devices): BLE adverts ran ~400/min for ~6 min after each start,
+then fell to 0-16/min while the scan was still on. `ScanService` now supervises the scan:
+
+- **Stall restart**: with an unfiltered scan and the screen on, no callback for 45 s, or the last minute's rate below 10% of the
+  baseline (baseline >= 60/min), stops and restarts the BLE scan (same salt, so hashes stay stable).
+- **Periodic restart** every 4 min, as some Android 7-11 stacks quietly stop delivering.
+- **Start-rate guard**: at most 3 `startScan` calls per 30 s (Android refuses the 6th).
+- **Screen off** (Android 8.1+ blocks unfiltered scans): switches to the police hardware filters (company IDs incl. Axon,
+  service UUIDs incl. 0xFC81) until the screen is back on, then returns to all devices.
+- **Quiet warning**: after 3 stall restarts in a row with no recovery, the app shows "Bluetooth has gone quiet".
+- Foreground service + partial wake lock (6 h cap) as before.
+
+Debug file `health`: `scanRestarts {stall, periodic, screen, failed}`, `screenOffSec`, `android {sdk, release, deviceClass}`
+(version class only, no model or identifiers), events `screen-off` / `screen-on` / `auto-restart` / `scanner-quiet`.

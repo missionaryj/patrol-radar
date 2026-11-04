@@ -17,9 +17,9 @@ describe('tiered Wi-Fi confidence', () => {
     expect(nativeWifiRules().find(r => r.id === 'sierra-oui')!.ouis).toContain('00:A0:D5');
   });
   it('Cradlepoint climbs only with corroboration, and same-vendor rules do not multiply', () => {
-    expect(scoreWifi(['cradlepoint-oui', 'cradlepoint-ssid'])!).toMatchObject({ confidence: 0.4, tierRule: 'cradlepoint-oui-ssid' });
+    expect(scoreWifi(['cradlepoint-oui', 'cradlepoint-ssid'])!).toMatchObject({ confidence: 0.45, tierRule: 'cradlepoint-oui-ssid' });
     expect(scoreWifi(['cradlepoint-oui'], { dualBand: true })!.tierRule).toBe('cradlepoint-dualband');
-    expect(scoreWifi(['cradlepoint-ssid'], { persistent: true })!.confidence).toBe(0.4);
+    expect(scoreWifi(['cradlepoint-ssid'], { persistent: true })!.confidence).toBe(0.45);
     const ble = scoreWifi(['cradlepoint-oui'], { blePolice: true })!; expect(ble.tierRule).toBe('cradlepoint-ble-police'); expect(gradeOf(ble.confidence)).toBe('likely');
     const top = scoreWifi(['cradlepoint-oui', 'cradlepoint-ssid'], { blePolice: true, persistent: true })!; expect(top).toMatchObject({ confidence: 0.75, tierRule: 'cradlepoint-ble-police-multi' });
     expect(top.features).toEqual(expect.arrayContaining(['oui', 'blePolice', 'persistent', 'ssid']));

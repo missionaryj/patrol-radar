@@ -45,6 +45,11 @@
 
 ## Wi-Fi tiers and vehicle grouping (1.0.19)
 
+> **1.0.23 Cradlepoint update.** One field-confirmed sighting (2026-11-04, Champaign IL, 3 patrol cars seen by eye) moved the
+> Cradlepoint base tiers up 0.05 and added a traveling-with-you pattern (table below). All Cradlepoint rules stay **unverified**:
+> promote further only after roughly 5 more "Saw police" confirmations (exported as `confirmations[]` in the debug file) with
+> few "Not police" taps on the same rule. A single weak sighting (e.g. -97 dBm, OUI + SSID) remains a 0.45 hint.
+
 Code: base rules in `src/wifi/rules.ts` (mirrored natively by `WifiWatcher.java`), contextual tiers in `src/wifi/tiers.ts`, per-session context in `src/wifi/context.ts`, vehicle grouping in `src/fusion/vehicles.ts`.
 
 **How Wi-Fi scoring works now.** A base rule (BSSID OUI or SSID pattern) only names the vendor. Same-vendor base rules no longer multiply together in the app (an OUI and a default SSID on one router are one piece of evidence about one box), so the score is the strongest applicable rule for the vendor, base or tier. Tiers climb only when *independent* evidence agrees. `fuseWifi()` is kept unchanged as the raw legacy fusion for old callers and tests; the app uses `scoreWifi()`.
@@ -59,9 +64,12 @@ Context features, all in memory and per session:
 |---|---|---|---|---|
 | `cradlepoint-oui` | BSSID OUI 00:30:44 **or 00:E0:1C** (2nd CradlePoint block, new) | 0.30 | hint | IEEE MA-L. Fleet router used by buses, ambulances, utilities and retail too. |
 | `cradlepoint-ssid` | default model SSID (IBR/R1900/R2100/MBR1400) | 0.30 | hint | unchanged |
-| `cradlepoint-oui-ssid` | OUI + SSID | 0.40 | hint | Confirms a Cradlepoint, not a police car. |
-| `cradlepoint-dualband` | OUI + dual-band pair | 0.35 | hint | Mobile IBR/R-series broadcast both bands, but so do fixed units. |
-| `cradlepoint-persistent` | OUI or SSID + persistent | 0.40 | hint | Not a one-off. |
+| `cradlepoint-oui-ssid` | OUI + SSID | 0.45 (was 0.40, 1.0.23) | hint | Confirms a Cradlepoint, not a police car. |
+| `cradlepoint-dualband` | OUI + dual-band pair | 0.40 (was 0.35, 1.0.23) | hint | Mobile IBR/R-series broadcast both bands, but so do fixed units. |
+| `cradlepoint-persistent` | OUI or SSID + persistent | 0.45 (was 0.40, 1.0.23) | hint | Not a one-off. |
+| `cradlepoint-approach` (1.0.23) | OUI or SSID + approach (<= -90 then >= -70 dBm within 2 min, >= 5 s apart) | 0.55 | likely | Router closing on you: a vehicle, not a fixed AP. |
+| `cradlepoint-traveling` (1.0.23) | approach + (persistent or seen in >= 2 grid cells) | 0.60 | likely | Traveling with you. 2026-11-04 field test: -95 -> -89 -> -62 -> -83 dBm over ~90 s with patrol cars in view. |
+| `cradlepoint-traveling-ssid` (1.0.23) | OUI + SSID + approach + (persistent or multi-cell) | 0.65 | likely | Ceiling without police BLE. |
 | `cradlepoint-ble-police` | OUI or SSID + police BLE in cell | 0.60 | likely | In-car router next to police BLE gear. |
 | `cradlepoint-ble-police-multi` | OUI + police BLE + persistent + (SSID or dual-band) | 0.75 | likely | Ceiling. Cradlepoint is never strong without field validation. |
 | `axon-oui-wifi` / `axon-fleet-ssid` | OUI 00:25:DF / Fleet `<unit>-5g` SSID | 0.60 | likely | unchanged |

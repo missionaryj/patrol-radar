@@ -11,6 +11,23 @@ export type NativeScanMode = 'lowPower' | 'balanced' | 'lowLatency';
 export interface NativeWifiMatch { id: string; rssi?: number; rules: string[]; throttled?: number; radio?: string; freq?: number; t?: number }
 export interface NativeAdvert { id: string; name?: string; rssi?: number; txPower?: number; mfr?: Record<string, string>; uuids?: string[]; svc?: Record<string, string>; oui?: string; t?: number }
 
+export interface NativeScanHealth {
+  scanRestarts: { stall: number; periodic: number; screen: number; failed: number };
+  screenOffSec: number; screenOn: boolean; filteredNow: boolean; quiet: boolean; baselinePerMin: number;
+  android: { sdk: number; release: string; deviceClass: string };
+}
+/** Parses the native 'health' state detail; drops anything outside the known count fields. */
+export function parseNativeHealth(detail?: string): NativeScanHealth | null {
+  try {
+    const o = JSON.parse(detail ?? ''); const n = (x: unknown) => (typeof x === 'number' && isFinite(x) ? x : 0); const r = o.scanRestarts ?? {};
+    return {
+      scanRestarts: { stall: n(r.stall), periodic: n(r.periodic), screen: n(r.screen), failed: n(r.failed) },
+      screenOffSec: n(o.screenOffSec), screenOn: !!o.screenOn, filteredNow: !!o.filteredNow, quiet: !!o.quiet, baselinePerMin: n(o.baselinePerMin),
+      android: { sdk: n(o.android?.sdk), release: String(o.android?.release ?? '').slice(0, 8), deviceClass: String(o.android?.deviceClass ?? '').slice(0, 24) },
+    };
+  } catch { return null; }
+}
+
 export function nativePlugin(): any | undefined {
   const cap = (globalThis as any).Capacitor;
   if (!cap?.isNativePlatform?.() || cap.getPlatform?.() !== 'android') return undefined;
@@ -47,6 +64,10 @@ export class NativeScanner implements Scanner {
   onWifi?: (m: NativeWifiMatch) => void;
   /** Enable passive Wi-Fi rule matching alongside BLE. */
   wifi = true;
+  /** Native scan supervisor reports (1.0.23): counts + Android version class only. */
+  onHealth?: (h: NativeScanHealth) => void;
+  /** kind: 'restart' (detail = reason), 'quiet' (scanner silent and restarts did not help), 'recovered', 'screen-on' / 'screen-off'. */
+  onSupervisor?: (kind: string, detail: string) => void;
   private wifiHandle?: { remove(): Promise<void> | void };
 
   async isSupported() { return !!this.plugin; }
@@ -57,6 +78,8 @@ export class NativeScanner implements Scanner {
     this.handle = await this.plugin.addListener('advert', (a: NativeAdvert) => { normalizeEvent(toEvent(a)).then(onAdv); });
     if (this.wifi) this.wifiHandle = await this.plugin.addListener('wifi', (m: NativeWifiMatch) => { if (Array.isArray(m?.rules)) this.onWifi?.({ id: String(m.id), rssi: m.rssi, rules: m.rules.map(String), throttled: m.throttled, radio: m.radio ? String(m.radio) : undefined, freq: typeof m.freq === 'number' ? m.freq : undefined, t: typeof m.t === 'number' ? m.t : undefined }); });
     this.stateHandle = await this.plugin.addListener('state', (s: { state: string; detail?: string }) => {
+      if (s?.state === 'health') { const h = parseNativeHealth(s.detail); if (h) this.onHealth?.(h); return; }
+      if (s && ['restart', 'restart-failed', 'quiet', 'recovered', 'screen-on', 'screen-off'].includes(s.state)) { this.onSupervisor?.(s.state, s.detail ?? ''); return; }
       if (s?.state === 'error') { const msg = s.detail || 'Native scan failed'; this.cleanup(); this.onError?.(msg); }
     });
     try { await this.plugin.start({ mode: this.mode, filtered: this.filtered, ...nativeFilters(), ...(this.wifi ? { wifiRules: nativeWifiRules() } : {}) }); }

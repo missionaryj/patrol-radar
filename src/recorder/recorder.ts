@@ -14,7 +14,8 @@ import type { WifiMatch } from '../wifi/rules';
  * (callers may pass precise coords, they are coarsened before storage);
  * printable-ASCII runs that look like serials/unit IDs (>=6 alnum chars incl. a digit) are masked.
  */
-export const SCHEMA_VERSION = 4; // v3 (1.0.18): field-test label + per-signature hit summary (id, tier)
+export const SCHEMA_VERSION = 5; // v5 (1.0.23): confirmations[] (user 'saw police' / 'not police' taps) + health.native (scan supervisor counts)
+export const SCHEMA_V4 = 4; // v3 (1.0.18): field-test label + per-signature hit summary (id, tier)
 // v4 (1.0.19): records carry `radio` ('ble' | 'wifi'); Wi-Fi records may carry `tierRule`, `features` and `band`;
 // top-level `vehicles` lists multi-signal vehicle groups. All additive: v1-v3 readers ignore the new fields.
 /** Field-test ground truth the user sets during or after a session. */
@@ -42,7 +43,17 @@ export interface VehicleRecord {
   radios: ('ble' | 'wifi')[]; confidence: number; baseConfidence: number; boost: number; rssiCorrelated: boolean;
 }
 export const MAX_VEHICLES = 200;
-export type ScanEventKind = 'start' | 'stop' | 'restart' | 'stall' | 'auto-restart' | 'possible-patrol-car' | 'error' | 'permission-denied' | 'location-denied' | 'location-error';
+/** v5+: one user confirmation tap on a detection card. Coarse cell only, per-session salted hash only, no precise location. */
+export type ConfirmVerdict = 'police' | 'not-police';
+export interface ConfirmationRecord {
+  t: number; verdict: ConfirmVerdict; kind: 'device' | 'vehicle'; dev: string; radio?: 'ble' | 'wifi' | 'mixed';
+  rules: string[]; tier: 'strong' | 'likely' | 'hint'; confidence: number; rssi?: number;
+  cell?: { lat: number; lng: number; meters: number };
+}
+export const MAX_CONFIRMATIONS = 500;
+/** v5+: latest native scan-supervisor report (counts + Android version class only). */
+export interface NativeHealthRecord { scanRestarts: { stall: number; periodic: number; screen: number; failed: number }; screenOffSec: number; quiet: boolean; baselinePerMin: number; android: { sdk: number; release: string; deviceClass: string } }
+export type ScanEventKind = 'start' | 'stop' | 'restart' | 'stall' | 'auto-restart' | 'possible-patrol-car' | 'error' | 'permission-denied' | 'location-denied' | 'location-error' | 'screen-off' | 'screen-on' | 'scanner-quiet' | 'scanner-recovered';
 export interface ScanEvent { t: number; kind: ScanEventKind; backend?: string; detail?: string }
 /** Counts-only scan health. Never holds unmatched ids, names, payloads or coordinates. */
 export interface Health {
@@ -56,7 +67,7 @@ export interface Health {
 }
 export const newHealth = (): Health => ({ adverts: 0, matched: 0, distinctDevices: 0, cellsVisited: 0, longestGapMs: 0, perMinute: {}, events: [], fixes: 0, accSum: 0, accBuckets: { le20: 0, le50: 0, le100: 0, gt100: 0 } });
 export type Verdict = 'healthy' | 'scanner idle' | 'no adverts' | 'no location' | 'scanner errors' | 'not recorded';
-interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; vehicles?: VehicleRecord[]; health?: Health; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
+interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; vehicles?: VehicleRecord[]; health?: Health; confirmations?: ConfirmationRecord[]; native?: NativeHealthRecord; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
 const MAX_EVENTS = 200; const SAVE_EVERY_MS = 2000; const IDLE_GAP_MS = 120_000;
 const detailSafe = (d?: string) => d?.replace(/([0-9A-F]{2}:){5}[0-9A-F]{2}/gi, '[mac]').slice(0, 120);
 
@@ -174,6 +185,8 @@ export class SessionRecorder {
       advertsPerMinute: timeline, gridCellsVisited: h.cellsVisited, gridCellMeters: 150,
       location: { fixes: h.fixes, accuracyMeanM: h.fixes ? Math.round(h.accSum / h.fixes) : null, accuracyMinM: h.accMin ?? null, accuracyMaxM: h.accMax ?? null, accuracyBuckets: h.accBuckets },
       events: h.events.map(e => ({ ...e, t: new Date(e.t).toISOString() })),
+      scanRestarts: this.s.native?.scanRestarts ?? null, screenOffSec: this.s.native?.screenOffSec ?? null, android: this.s.native?.android ?? null,
+      nativeSupervisor: this.s.native ? { quiet: this.s.native.quiet, baselinePerMin: this.s.native.baselinePerMin } : null,
       note: 'counts only: no unmatched device ids, names, payloads or locations; distinct counts are de-duplicated in memory only (may over-count across an app reload)',
     };
   }
@@ -192,6 +205,17 @@ export class SessionRecorder {
   get devices() { return new Set(this.s.records.map(r => r.dev)).size; }
   start(backend: string) { this.s.recording = true; this.s.startedAt ??= Date.now(); this.s.endedAt = undefined; this.s.backend = backend; this.save(); }
   stop() { this.s.recording = false; this.s.endedAt = Date.now(); this.save(); }
+  /** Latest native supervisor report (replaces the previous one; counts are cumulative per scan session). */
+  setNativeHealth(h: NativeHealthRecord) { this.s.native = { scanRestarts: { ...h.scanRestarts }, screenOffSec: h.screenOffSec, quiet: h.quiet, baselinePerMin: h.baselinePerMin, android: { ...h.android } }; this.saveSoon(); }
+  get confirmations(): ConfirmationRecord[] { return this.s.confirmations ?? []; }
+  /** Stores one confirmation tap. Precise location is coarsened to the grid cell here; nothing is uploaded. */
+  confirm(c: Omit<ConfirmationRecord, 'cell' | 't'> & { t?: number }, loc?: { lat: number; lng: number }) {
+    const cell = loc ? (() => { const g = coarsen(loc.lat, loc.lng, 150); return { lat: +g.lat.toFixed(5), lng: +g.lng.toFixed(5), meters: 150 }; })() : undefined;
+    const rec: ConfirmationRecord = { t: c.t ?? Date.now(), verdict: c.verdict, kind: c.kind, dev: c.dev, ...(c.radio ? { radio: c.radio } : {}), rules: [...c.rules], tier: c.tier, confidence: +c.confidence.toFixed(2), ...(typeof c.rssi === 'number' ? { rssi: c.rssi } : {}), ...(cell ? { cell } : {}) };
+    const list = (this.s.confirmations ??= []); list.push(rec); if (list.length > MAX_CONFIRMATIONS) list.shift(); this.save(); return rec;
+  }
+  /** Last verdict given for a session device / vehicle id (for the card's pressed state). */
+  confirmedAs(dev: string): ConfirmVerdict | undefined { const l = this.confirmations; for (let i = l.length - 1; i >= 0; i--) if (l[i].dev === dev) return l[i].verdict; return undefined; }
   /** Set or change the field-test label (during or after the session). Passing null removes it. */
   setLabel(v: FieldLabel | null) {
     if (v === null) { delete this.s.label; this.save(); return; }
@@ -286,6 +310,7 @@ export class SessionRecorder {
       signatureHits: this.signatureHits(),
       vehicles: this.vehicles.map(v => ({ ...v, firstSeen: new Date(v.firstSeen).toISOString(), lastSeen: new Date(v.lastSeen).toISOString() })),
       devices: this.summary(),
+      confirmations: this.confirmations.map(c => ({ ...c, t: new Date(c.t).toISOString() })),
       records: this.s.records,
     };
   }
