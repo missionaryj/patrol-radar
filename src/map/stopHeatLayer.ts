@@ -58,7 +58,8 @@ export function topReasons(r: number[], f: HeatFilter, labels: string[], yearBas
     if (f.year != null && yearBase + r[i] !== f.year) continue;
     m.set(r[i + 1], (m.get(r[i + 1]) ?? 0) + r[i + 2]);
   }
-  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([i, n]) => ({ label: labels[i] ?? 'other', n }));
+  const total = [...m.values()].reduce((sum, n) => sum + n, 0);
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([i, n]) => ({ label: labels[i] ?? 'other', n, total }));
 }
 
 export function filterCaption(f: HeatFilter, tod: HeatTod[], dow: string[]) {
@@ -70,7 +71,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 const pct = (part: number, n: number) => n ? Math.round(100 * part / n) : 0;
 
 export interface HeatPopupInput {
-  title: string; place?: string; count: HeatCount; reasons: { label: string; n: number }[];
+  title: string; place?: string; count: HeatCount; reasons: { label: string; n: number; total?: number }[];
   filter: HeatFilter; caption: string; sources: Pick<HeatSource, 'name' | 'url' | 'license' | 'last_updated'>[];
   gridM?: number;
 }
@@ -78,13 +79,13 @@ export function heatPopup(p: HeatPopupInput): string {
   const known = p.count.cite + p.count.warn + p.count.arrest;
   const share = ([['Citation', p.count.cite], ['Warning', p.count.warn], ['Arrest', p.count.arrest]] as [string, number][]).filter(([, n]) => n > 0);
   const reasons = p.reasons.filter(r => r.n > 0);
-  const reasonSum = reasons.reduce((a, r) => a + r.n, 0);
+  const reasonSum = reasons[0]?.total ?? reasons.reduce((a, r) => a + r.n, 0);
   const srcs = p.sources.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a> (${esc(s.license)}${s.last_updated ? `, updated ${esc(s.last_updated)}` : ''})`).join('<br>');
   const where = p.place ? `${esc(p.title)} · ${esc(p.place)}` : esc(p.title);
   const reasonNote = p.filter.tod != null || p.filter.dow != null ? 'Reason mix follows the selected year, not the hour or weekday.' : '';
   return `<b>Historical stops</b><br>${where}<br><b>${p.count.n.toLocaleString()}</b> stops · ${esc(p.caption)}`
     + (share.length ? `<br>${share.map(([k, n]) => `${k} ${pct(n, known)}%`).join(' · ')}${known < p.count.n ? ' <small>(of stops that recorded an outcome)</small>' : ''}` : '')
-    + (reasons.length ? `<br>Common reasons: ${reasons.map(r => `${esc(r.label)} ${pct(r.n, reasonSum)}%`).join(', ')}` : '')
+    + (reasons.length ? `<br>Common reasons (of categorized stops): ${reasons.map(r => `${esc(r.label)} ${pct(r.n, reasonSum)}%`).join(', ')}` : '')
     + (reasonNote ? `<br><small>${reasonNote}</small>` : '')
     + `<br><small>${p.gridM ? `About a ${p.gridM} m cell` : 'Police beat or precinct'}, not one stop and not a live scan. Official data can be years behind. Coverage is uneven.</small>`
     + (srcs ? `<br><small>Source: ${srcs}</small>` : '');
