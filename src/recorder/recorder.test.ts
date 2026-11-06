@@ -102,3 +102,15 @@ describe('SessionRecorder', () => {
     expect(new SessionRecorder(s).health.adverts).toBe(0);
   });
 });
+
+it('exports only allowlisted native health, including actual versus requested filter mode', () => {
+  const r = new SessionRecorder(mem()); r.start('native');
+  r.setNativeHealth({ scanRestarts: { stall: 1, periodic: 0, screen: 2, failed: 1 },
+    screenOffSec: 30, quiet: false, baselinePerMin: 100, android: { sdk: 30, release: '11', deviceClass: 'android-8.1-11' },
+    nativeCallbacks: 250, lastCallbackAgeMs: 1000, scanState: 'starting', lastRestartResult: 'pending',
+    requestedFiltered: false, filteredNow: true, rawPayload: 'never-export-this' } as any);
+  const h = r.healthExport();
+  expect(h.scanRestarts?.failed).toBe(1);
+  expect(h.nativeSupervisor).toMatchObject({ nativeCallbacks: 250, lastRestartResult: 'pending', requestedFiltered: false, filteredNow: true });
+  expect(JSON.stringify(r.exportObject('test'))).not.toContain('never-export-this');
+});
