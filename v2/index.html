@@ -65,6 +65,7 @@
     <label class="switch"><input type="checkbox" id="flockmap" checked/><span></span><em>Flock camera (mapped)<small>Known Flock plate-reader cameras from OpenStreetMap. Not scan hits. © OpenStreetMap contributors (ODbL)</small></em></label>
     <small id="flock-status">Loading mapped cameras…</small>
     <button type="button" id="open-tc" class="nav-row"><span><b>Traffic cameras</b><small id="tc-summary">Shown · alerts on</small></span><i aria-hidden="true">›</i></button>
+    <button type="button" id="open-heat" class="nav-row"><span><b>Stop history</b><small id="heat-summary">Historical stops, shaded</small></span><i aria-hidden="true">›</i></button>
   </div>
 
   <h3 class="group-title">Map &amp; travel</h3>
@@ -162,7 +163,38 @@
   <h3 class="group-title">Sources</h3>
   <div class="group"><small class="tc-credits">© OpenStreetMap contributors (ODbL 1.0); City of Chicago Data Portal; DC DDOT Automated Safety Cameras (CC BY 4.0); Seattle SDOT ATSC; Arlington County VA. Locations can be out of date.</small></div>
 </aside>
+<div id="heat-bar" class="heat-bar" hidden>
+  <header><b>Stop history</b><span id="heat-bar-count"></span></header>
+  <div class="heat-filters">
+    <select id="heat-year" aria-label="Year"><option value="">All years</option></select>
+    <select id="heat-tod" aria-label="Time of day"><option value="">All hours</option></select>
+    <select id="heat-dow" aria-label="Day of week"><option value="">All days</option></select>
+  </div>
+  <p>Official data can be years behind. Many places are beat-level only, and coverage is incomplete.</p>
+  <div class="heat-ramp" aria-hidden="true"><span><i id="heat-sw-1"></i>Fewer</span><span><i id="heat-sw-2"></i></span><span><i id="heat-sw-3"></i></span><span><i id="heat-sw-4"></i>More</span></div>
+</div>
 <div id="tc-banner" class="tc-banner" role="status" aria-live="assertive" hidden></div>
+<aside id="heat-settings" class="drawer sub" aria-label="Stop history" aria-hidden="true">
+  <header><button id="back-heat" class="icon-btn" aria-label="Back to Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>Stop history</h2><span class="hdr-spacer"></span></header>
+  <h3 class="group-title">On the map</h3>
+  <div class="group">
+    <label class="switch"><input type="checkbox" id="stopheat" checked/><span></span><em>Show historical stops<small>Shaded beats or about 150 m cells. Not live pins, and not a scan hit.</small></em></label>
+    <small id="heat-status">Loading stop history…</small>
+    <p class="heat-disclaimer">Official data can be months or years behind. Many places are beat-level only. Coverage is incomplete and uneven: stronger where a city already publishes, thinner elsewhere.</p>
+  </div>
+  <h3 class="group-title">Period</h3>
+  <div class="group">
+    <label class="field">Year<select id="heat-year-set" aria-label="Year"><option value="">All years</option></select></label>
+    <label class="field">Time of day<select id="heat-tod-set" aria-label="Time of day"><option value="">All hours</option></select></label>
+    <label class="field">Day of week<select id="heat-dow-set" aria-label="Day of week"><option value="">All days</option></select></label>
+    <small>Filters count stops in the shaded area. Reason mix follows the year, not the hour or weekday.</small>
+  </div>
+  <h3 class="group-title">Sources</h3>
+  <div class="group"><div id="heat-sources" class="heat-sources"></div></div>
+  <h3 class="group-title">Not on this map</h3>
+  <div class="group"><div id="heat-gaps" class="heat-sources"></div></div>
+  <p class="heat-subnote">This layer may later be part of a subscription. It is not gated, and the app does not bill for it.</p>
+</aside>
 <aside id="updates" class="drawer" aria-label="Updates" aria-hidden="true">
   <header><h2>Updates</h2><button id="close-updates" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="seg updates-tabs" role="tablist"><button type="button" role="tab" id="tab-updates" class="on" aria-selected="true" aria-controls="pane-updates">Updates</button><button type="button" role="tab" id="tab-accuracy" aria-selected="false" aria-controls="pane-accuracy">Accuracy reports</button></div>

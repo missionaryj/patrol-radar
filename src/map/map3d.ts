@@ -27,6 +27,7 @@ export function toGeoJSON(m: Mirror) {
 
 export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
+  private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
   constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void) {}
   get active() { return !!this.map; }
   async open(center: { lat: number; lng: number }, zoom: number) {
@@ -48,7 +49,7 @@ export class Map3D {
       // Own location: drawn last so it stays on top of buildings and pins.
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true; if (this.pending) this.update(this.pending);
+      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat();
     });
   }
   close() { this.map?.remove(); this.map = undefined; this.ready = false; this.el.hidden = true; }
@@ -57,6 +58,27 @@ export class Map3D {
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }
   setPitch(p: number) { this.map?.easeTo({ pitch: p, duration: 300 }); }
   get pitch() { return this.map?.getPitch() ?? 0; }
+  /** Historical stop shading. Flat properties only: color, opacity, html. Drawn under the location dot. */
+  setHeat(fc: { type: 'FeatureCollection'; features: any[] }) {
+    this.heatFC = fc;
+    if (!this.map || !this.ready) return;
+    this.applyHeat();
+  }
+  private applyHeat() {
+    const map = this.map; if (!map) return;
+    const src = map.getSource('heat') as { setData?: (d: unknown) => void } | undefined;
+    if (!src) {
+      map.addSource('heat', { type: 'geojson', data: this.heatFC });
+      const before = map.getLayer('pts') ? 'pts' : undefined;
+      map.addLayer({ id: 'heat-fill', type: 'fill', source: 'heat', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'opacity'] } }, before);
+      map.on('click', 'heat-fill', (e: any) => {
+        const html = e.features?.[0]?.properties?.html;
+        if (html && this.ml) new this.ml.Popup({ closeButton: true, maxWidth: '280px' }).setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+      map.on('mouseenter', 'heat-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'heat-fill', () => { map.getCanvas().style.cursor = ''; });
+    } else src.setData?.(this.heatFC);
+  }
   update(m: Mirror) {
     if (!this.map || !this.ready) { this.pending = m; return; }
     const g = toGeoJSON(m);
