@@ -68,3 +68,23 @@ it('retains listeners through a retry failure and forwards callback-confirmed re
     scanner.stop(); expect(remove).toHaveBeenCalledTimes(2);
   } finally { vi.unstubAllGlobals(); }
 });
+
+it('cleans up listeners and reports an unrecoverable Android scan failure to the UI', async () => {
+  const listeners = new Map<string, (event: any) => void>();
+  const remove = vi.fn();
+  const plugin = { requestScanPermissions: async () => ({ ble: 'granted' }),
+    addListener: async (kind: string, cb: (event: any) => void) => { listeners.set(kind, cb); return { remove }; },
+    start: vi.fn(), stop: vi.fn() };
+  vi.stubGlobal('Capacitor', { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: { PatrolScan: plugin } });
+  try {
+    const scanner = new NativeScanner(); scanner.wifi = false;
+    scanner.onError = vi.fn();
+    await scanner.start(() => {});
+    listeners.get('state')!({ state: 'health', detail: JSON.stringify({ scanState: 'failed', scanFailureCode: 6 }) });
+    listeners.get('state')!({ state: 'error', detail: 'Bluetooth scan stopped (code 6). Tap Start to retry.' });
+    expect(scanner.onError).toHaveBeenCalledWith('Bluetooth scan stopped (code 6). Tap Start to retry.');
+    expect(remove).toHaveBeenCalledTimes(2);
+    scanner.stop();
+    expect(remove).toHaveBeenCalledTimes(2);
+  } finally { vi.unstubAllGlobals(); }
+});
