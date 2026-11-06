@@ -3,6 +3,8 @@ export const LEGEND_KEY = 'pr.legend.v1';
 interface Item { sw: string; label: string }
 export interface LegendCat { id: string; title: string; items: Item[] }
 import { TC_META, TC_TYPES, tcIcon } from './trafficCamLayer';
+import { heatPaint } from './stopHeatLayer';
+const heatSw = (n: number) => `<i class="lg-sw lg-sq" style="background:${heatPaint(n).css}"></i>`;
 const dot = (bg: string, extra = '') => `<i class="lg-sw" style="background:${bg};${extra}"></i>`;
 export const LEGEND: LegendCat[] = [
   { id: 'gear', title: 'Police gear', items: [
@@ -11,6 +13,9 @@ export const LEGEND: LegendCat[] = [
   { id: 'wifi', title: 'Wi-Fi', items: [
     { sw: dot('transparent', 'border:2px dashed #2979ff'), label: 'Wi-Fi hit' }, { sw: dot('#2979ff'), label: 'Cradlepoint' }] },
   { id: 'tcam', title: 'Traffic cameras', items: TC_TYPES.map(t => ({ sw: tcIcon(t), label: TC_META[t].short })) },
+  { id: 'heat', title: 'Stop history', items: [
+    { sw: heatSw(1), label: '1+' }, { sw: heatSw(10), label: '10+' },
+    { sw: heatSw(100), label: '100+' }, { sw: heatSw(1000), label: '1k+' }] },
   { id: 'veh', title: 'Vehicles', items: [{ sw: '<span class="lg-em">🚓</span>', label: 'Grouped' }] },
   { id: 'crowd', title: 'Crowd', items: [
     { sw: '<i class="lg-sw lg-sq" style="background:rgba(176,60,255,.32);border:2px solid #b03cff"></i>', label: 'Recent' },

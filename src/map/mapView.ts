@@ -12,6 +12,7 @@ import { mountLegend } from './legend';
 import { RASTER_2D, PITCH_3D } from './palette';
 import { Map3D, type Pin3D } from './map3d';
 import { type TcIndex, type TcRow, type TcType, TC_ATTRIBUTION, TC_MIN_ZOOM, TC_META, tcInBounds, tcIcon, tcPopup } from './trafficCamLayer';
+import { type HeatCell, type HeatFilter, type StopHeatIndex, HEAT_CELL_CAP, HEAT_GRID_MIN_ZOOM, OPEN_FILTER, STOP_HEAT_ATTRIBUTION, countBuckets, filterCaption, heatPaint, heatPopup, heatTilesFor, heatTooltip, sourcesFor, topReasons } from './stopHeatLayer';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
@@ -25,12 +26,17 @@ export class MapView {
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
   readonly tcLayer = L.layerGroup();
+  /** Historical stop counts (beats / ~150 m cells). Not mirrored into the 3D view: thousands of cells would cover the location dot and the live pins. */
+  readonly heatLayer = L.layerGroup();
   readonly follow: FollowController;
   /** Called when follow-me pauses (manual pan) or resumes. */
   onFollowChange?: (following: boolean) => void;
   private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
   private flockRenderer = L.canvas({ padding: 0.3 });
   private tcIdx?: TcIndex; private tcBase = ''; private tcTiles = new Map<string, Promise<TcRow[]>>(); private tcOn = false; private tcLoading?: Promise<void>; private tcDraw = 0; private tcTimer?: number; private tcTypes?: Set<TcType>;
+  private heatIdx?: StopHeatIndex; private heatBase = ''; private heatOn = false; private heatFilter: HeatFilter = { ...OPEN_FILTER };
+  private heatTiles = new Map<string, Promise<HeatCell[] | undefined>>(); private heatBeats: { features?: { geometry: { type: string; coordinates: number[][][] | number[][][][] }; properties: Record<string, any> }[] }[] = [];
+  private heatLoading?: Promise<void>; private heatDraw = 0; private heatTimer?: number; private heatRenderer!: L.Renderer;
   /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
   private liveRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
@@ -42,6 +48,11 @@ export class MapView {
     // Traffic cameras get their own pane above the overlay canvas (so they stay tappable); the own-location dot and its
     // accuracy circle sit in a still higher, click-through pane so nothing can ever cover them.
     this.map.createPane('tcPane').style.zIndex = '420';
+    // Above the overlay canvases (they eat every click) and below traffic-camera pins and the location dot.
+    // The pane itself ignores hits; only the polygon shapes are clickable, so flock dots stay tappable in the gaps.
+    const heatPane = this.map.createPane('heatPane'); heatPane.style.zIndex = '410';
+    // auto so the shapes receive clicks. The SVG root is pointer-events:none, so gaps still fall through to flock and the map.
+    this.heatRenderer = L.svg({ pane: 'heatPane' });
     const mp = this.map.createPane('mePane'); mp.style.zIndex = '640'; mp.style.pointerEvents = 'none';
     this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
@@ -49,9 +60,10 @@ export class MapView {
     this.map.on('dragstart', () => this.follow.userPanned());
     // Follow-me moves the map every frame, so redraw Flock dots at most every ~400 ms instead of on every moveend.
     this.map.on('moveend', () => { if (this.flockOn && this.flockTimer === undefined) this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400);
-      if (this.tcOn && this.tcTimer === undefined) this.tcTimer = window.setTimeout(() => { this.tcTimer = undefined; void this.drawTc(); }, 400); });
+      if (this.tcOn && this.tcTimer === undefined) this.tcTimer = window.setTimeout(() => { this.tcTimer = undefined; void this.drawTc(); }, 400);
+      if (this.heatOn && this.heatTimer === undefined) this.heatTimer = window.setTimeout(() => { this.heatTimer = undefined; void this.drawHeat(); }, 400); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.kick(); });
-    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'Traffic cameras': this.tcLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
+    if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'Traffic cameras': this.tcLayer, 'Stop history': this.heatLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
   }
   invalidate() { this.map.invalidateSize(); this.m3.resize(); }
   showCrowd(on: boolean) { if (on) this.crowdLayer.addTo(this.map); else this.crowdLayer.remove(); }
@@ -181,6 +193,116 @@ export class MapView {
     if (this.m3.active) this.mirror3d();
   }
   get flockInfo() { return this.flockIdx ? { count: this.flockIdx.count, osmBase: this.flockIdx.osm_base } : undefined; }
+  // ---- Historical stop heat: beat polygons, plus ~150 m grid cells only for stops that miss every beat. Not a live layer. ----
+  async showStopHeat(on: boolean, baseUrl: string) {
+    this.heatOn = on;
+    if (!on) { ++this.heatDraw; this.heatLayer.clearLayers(); this.heatLayer.remove(); this.m3.setHeat({ type: 'FeatureCollection', features: [] }); this.map.attributionControl.removeAttribution(STOP_HEAT_ATTRIBUTION); return; }
+    this.heatLayer.addTo(this.map); this.keepHeatUnderMarkers(); this.map.attributionControl.addAttribution(STOP_HEAT_ATTRIBUTION);
+    await this.loadHeat(baseUrl); if (this.heatOn) await this.drawHeat();
+  }
+  /** year / time-of-day / weekday. Null means all. Counts are recomputed from the stored buckets. */
+  setStopHeatFilter(f: HeatFilter) { this.heatFilter = f; if (this.heatOn) void this.drawHeat(); }
+  get stopHeatInfo() { return this.heatIdx; }
+  private async loadHeat(baseUrl: string) {
+    if (this.heatIdx && this.heatBase === baseUrl) return;
+    this.heatBase = baseUrl; this.heatTiles.clear();
+    this.heatLoading = fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(async (i: StopHeatIndex) => {
+      this.heatIdx = i;
+      const files = await Promise.all((i.beatFiles ?? []).map(f => fetch(`${baseUrl}${f}`).then(r => r.ok ? r.json() : null)));
+      this.heatBeats = files.filter(Boolean);
+    });
+    try { await this.heatLoading; } catch (e) { this.heatLoading = undefined; this.heatIdx = undefined; throw e; }
+  }
+  private heatTile(k: string) {
+    let p = this.heatTiles.get(k);
+    if (!p) { p = fetch(`${this.heatBase}tiles/${k}.json`).then(r => r.ok ? r.json() : undefined); p.catch(() => this.heatTiles.delete(k)); this.heatTiles.set(k, p); }
+    return p;
+  }
+  private async drawHeat() {
+    const gen = ++this.heatDraw; const idx = this.heatIdx;
+    if (!idx || !this.heatOn) { this.heatLayer.clearLayers(); return; }
+    const f = this.heatFilter;
+    const paint = (n: number) => { const p = heatPaint(n); return { color: p.stroke, weight: 1, opacity: 0.9, fillColor: p.stroke, fillOpacity: p.fillOpacity }; };
+    const features: GeoJSON.Feature[] = [];
+    for (const fc of this.heatBeats) for (const feat of fc.features ?? []) {
+      if (!countBuckets(feat.properties.b ?? [], feat.properties.o, f, idx.yearBase).n) continue;
+      features.push({ type: 'Feature', geometry: feat.geometry as GeoJSON.Geometry, properties: feat.properties });
+    }
+    const group = L.geoJSON({ type: 'FeatureCollection', features } as GeoJSON.GeoJSON, {
+      pane: 'heatPane', renderer: this.heatRenderer,
+      style: (feat) => paint(countBuckets(feat?.properties?.b ?? [], feat?.properties?.o, this.heatFilter, idx.yearBase).n),
+      onEachFeature: (feat, layer) => {
+        const path = layer as L.Path; path.options.renderer = this.heatRenderer; path.options.pane = 'heatPane';
+        this.arm(layer);
+        const props = feat.properties ?? {}; const b = props.b ?? [], o = props.o ?? [], r = props.r ?? [], src = props.src ?? [];
+        layer.bindTooltip('', { sticky: true, className: 'heat-tip' });
+        layer.on('tooltipopen', () => layer.setTooltipContent(heatTooltip(countBuckets(b, o, this.heatFilter, idx.yearBase).n)));
+        layer.bindPopup('');
+        layer.on('popupopen', () => layer.setPopupContent(heatPopup({
+          title: props.label ?? 'Beat', place: props.place, count: countBuckets(b, o, this.heatFilter, idx.yearBase),
+          reasons: topReasons(r, this.heatFilter, idx.reasons, idx.yearBase), filter: this.heatFilter,
+          caption: filterCaption(this.heatFilter, idx.tod, idx.dow), sources: sourcesFor(src, idx.sources),
+        })));
+      },
+    } as L.GeoJSONOptions);
+    let cells: L.Layer[] = [];
+    const grid3d: GeoJSON.Feature[] = [];
+    if (this.map.getZoom() >= HEAT_GRID_MIN_ZOOM) {
+      const bnds = this.map.getBounds().pad(0.15);
+      const bb = { south: bnds.getSouth(), west: bnds.getWest(), north: bnds.getNorth(), east: bnds.getEast() };
+      const keys = heatTilesFor(idx, bb);
+      const tiles = await Promise.all(keys.map(k => this.heatTile(k)));
+      if (gen !== this.heatDraw) return;
+      const picked: { n: number; layer: L.Layer; feature: GeoJSON.Feature }[] = [];
+      for (const t of tiles) if (t) for (const cell of t) {
+        const [lat, lng, src, buckets, o, r] = cell;
+        if (lat < bb.south || lat > bb.north || lng < bb.west || lng > bb.east) continue;
+        const count = countBuckets(buckets, o, this.heatFilter, idx.yearBase);
+        if (!count.n) continue;
+        const dLat = idx.gridM / 111_320, dLng = idx.gridM / (111_320 * Math.cos((lat * Math.PI) / 180));
+        const rect = L.rectangle([[lat - dLat / 2, lng - dLng / 2], [lat + dLat / 2, lng + dLng / 2]], { ...paint(count.n), renderer: this.heatRenderer, pane: 'heatPane' });
+        this.arm(rect);
+        rect.bindTooltip('', { sticky: true, className: 'heat-tip' });
+        rect.on('tooltipopen', () => rect.setTooltipContent(heatTooltip(countBuckets(buckets, o, this.heatFilter, idx.yearBase).n)));
+        rect.bindPopup('');
+        const html = heatPopup({
+          title: 'Historical stops', count, reasons: topReasons(r, this.heatFilter, idx.reasons, idx.yearBase), filter: this.heatFilter,
+          caption: filterCaption(this.heatFilter, idx.tod, idx.dow), sources: sourcesFor(src, idx.sources), gridM: idx.gridM,
+        });
+        rect.on('popupopen', () => rect.setPopupContent(html));
+        const pnt = heatPaint(count.n);
+        const ring: [number, number][] = [[lng - dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat - dLat / 2]];
+        picked.push({ n: count.n, layer: rect, feature: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity, html } } });
+      }
+      picked.sort((a, c) => c.n - a.n);
+      const visible = picked.slice(0, HEAT_CELL_CAP);
+      cells = visible.map(p => p.layer);
+      grid3d.push(...visible.map(p => p.feature));
+    }
+    if (gen !== this.heatDraw) return;
+    this.heatLayer.clearLayers(); group.addTo(this.heatLayer); for (const l of cells) l.addTo(this.heatLayer);
+    this.keepHeatUnderMarkers();
+    const beats3d: GeoJSON.Feature[] = features.map(f => {
+      const props = f.properties ?? {};
+      const count = countBuckets(props.b ?? [], props.o, this.heatFilter, idx.yearBase);
+      const p = heatPaint(count.n);
+      return { type: 'Feature', geometry: f.geometry, properties: { color: p.stroke, opacity: p.fillOpacity, html: heatPopup({
+        title: props.label ?? 'Beat', place: props.place, count, reasons: topReasons(props.r ?? [], this.heatFilter, idx.reasons, idx.yearBase),
+        filter: this.heatFilter, caption: filterCaption(this.heatFilter, idx.tod, idx.dow), sources: sourcesFor(props.src ?? [], idx.sources),
+      }) } };
+    });
+    this.m3.setHeat({ type: 'FeatureCollection', features: [...beats3d, ...grid3d] });
+  }
+  /** The heat pane ignores hits so gaps stay clickable; each shape opts back in (the none value is inherited). */
+  private arm(layer: L.Layer) {
+    layer.on('add', () => { const el = (layer as { _path?: SVGElement })._path; if (el) el.style.pointerEvents = 'auto'; });
+  }
+  /** Other overlay canvases stay above the shading so their clicks still win. The location dot is in a higher pane. */
+  private keepHeatUnderMarkers() {
+    for (const g of [this.layer, this.liveLayer, this.crowdLayer, this.flockLayer, this.tcLayer]) {
+      g.eachLayer(l => { const p = l as { bringToFront?: () => void }; if (p.bringToFront) { p.bringToFront(); return; } });
+    }
+  }
   private tile(k: string) {
     let p = this.flockTiles.get(k);
     if (!p) { p = fetch(`${this.flockBase}${k}.geojson`).then(r => r.json()); p.catch(() => this.flockTiles.delete(k)); this.flockTiles.set(k, p); }

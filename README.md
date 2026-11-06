@@ -63,5 +63,8 @@ Run the tests with `npm test`.
 ## Shared crowd map (opt-in)
 v2 Settings → "Share police-gear hits to the crowd map" (off by default). Uploads only `{cell (~200 m grid), bucket (5 min), kind, conf (low/med/high), reporter (random per-session token)}` to `https://patrol-radar-api.vercel.app/api/crowd` (source in `crowd-api/`, protocol in `src/crowd/protocol.ts`). Public reads are aggregated, ≥12 min delayed, expire after 2 h; a cell is "confirmed" with ≥2 distinct reporters or high confidence. Storage: Upstash Redis if `UPSTASH_REDIS_REST_URL/TOKEN` (or `KV_REST_API_URL/TOKEN`) are set, else ephemeral memory.
 
+## Historical stop heat
+`public/data/stop-heat/` is a shaded beat / ~150 m grid of **past** traffic stops from public downloads (Stanford Open Policing Project under the Open Data Commons Attribution License, plus city open data). Refresh with `node scripts/fetch-stop-heat.mjs`. Counts only: no names, addresses, officer ids, or precise points. Coverage is uneven. See [docs/stop-heat.md](docs/stop-heat.md).
+
 ## Flock camera (mapped) layer
 `public/data/flock/` holds US Flock ALPR nodes from OpenStreetMap (`surveillance:type=ALPR` + `manufacturer`/`brand` ~ Flock, the tags DeFlock.me uses), split into 5° tiles plus `index.json`. Refresh with `node scripts/fetch-flock.mjs` (Overpass API). Data © OpenStreetMap contributors, ODbL 1.0.

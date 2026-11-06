@@ -174,3 +174,10 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
     map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
       .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
   const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
+// Historical stop heat (beats / ~150 m cells). Extension point: may later be subscription-gated; no billing here.
+const HEAT_URL = `${import.meta.env.BASE_URL}data/stop-heat/`;
+{ const hb = document.getElementById('stopheat') as HTMLInputElement | null; const hs = document.getElementById('stopheat-status');
+  const setHeat = (on: boolean) => { localStorage.setItem('pr.stopheat', on ? '1' : '0');
+    map.showStopHeat(on, HEAT_URL).then(() => { const i = map.stopHeatInfo; if (hs && i) hs.textContent = `${i.totals.mapped.toLocaleString()} historical stops mapped · coverage is uneven`; })
+      .catch(e => { if (hs) hs.textContent = `Stop history unavailable (${(e as Error).message})`; }); };
+  const on = localStorage.getItem('pr.stopheat') !== '0'; if (hb) { hb.checked = on; hb.onchange = () => setHeat(hb.checked); } setHeat(on); }
