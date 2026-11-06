@@ -59,7 +59,7 @@ With the app in the background the web layer asks the plugin to post a "Police p
 `res/raw/police_ping.ogg` on its own channel (users can change/mute it in Android notification settings). This depends on the
 WebView still receiving adverts while backgrounded; if Android suspends the WebView, no ping fires until the app is reopened.
 
-## Scan supervisor (1.0.23)
+## Scan supervisor
 
 Field test 2026-11-04 (older Android phone, lowLatency, all devices): BLE adverts ran ~400/min for ~6 min after each start,
 then fell to 0-16/min while the scan was still on. `ScanService` now supervises the scan:
@@ -70,8 +70,54 @@ then fell to 0-16/min while the scan was still on. `ScanService` now supervises 
 - **Start-rate guard**: at most 3 `startScan` calls per 30 s (Android refuses the 6th).
 - **Screen off** (Android 8.1+ blocks unfiltered scans): switches to the police hardware filters (company IDs incl. Axon,
   service UUIDs incl. 0xFC81) until the screen is back on, then returns to all devices.
-- **Quiet warning**: after 3 stall restarts in a row with no recovery, the app shows "Bluetooth has gone quiet".
+- **Bounded silence recovery**: at most 3 stall/periodic restarts without a native callback. After that,
+  silence-triggered restarts pause until callbacks resume (or the user starts a new session). Silence can mean a quiet
+  RF environment, especially with filters; it is not evidence of broken hardware. Screen transitions remain available.
+- **Async failures**: codes 2, 3, 5 and 6 permit at most 3 retries per callback-free outage, after 31/62/93 seconds,
+  also subject to the start-rate guard. Other codes and synchronous exceptions require manual Stop/Start.
+  Failure notifications retain bridge listeners so retry recovery can reach the UI.
+- Screen transitions are coalesced by one 15-second supervisor tick when throttled. The latest requested mode wins.
+  Stopped/old scan callbacks are ignored. Stop/destruction removes all pending tasks, receiver and wake lock.
 - Foreground service + partial wake lock (6 h cap) as before.
 
 Debug file `health`: `scanRestarts {stall, periodic, screen, failed}`, `screenOffSec`, `android {sdk, release, deviceClass}`
 (version class only, no model or identifiers), events `screen-off` / `screen-on` / `auto-restart` / `scanner-quiet`.
+
+
+### Diagnostic semantics and field validation (Issue #18)
+
+`scanRestarts` keeps its existing keys; stall/periodic/screen count **attempts**, not confirmed recoveries, and failed
+counts failed restart attempts (initial-start failures are represented by scan state/code). The `restart` event is an
+attempt; `recovered` requires a real result from the current native scan. A normal return from Android `startScan`
+only means `starting`. `receiving` means at least one callback was received, not guaranteed continuous RF activity.
+
+Additional aggregate fields are allowlisted by the bridge and exported under `health.nativeSupervisor`:
+- `nativeCallbacks`: result count for this service session, including each batched result and callbacks while the
+  WebView sink is detached. Native counting happens before payload processing. BLE-only restarts do not reset it.
+- `nativeCallbacksPerMin`: latest watchdog sample of the current window's rate (up to 60 seconds); zero before the
+  first sample or on failure. `lastCallbackAgeMs`: monotonic age since the last real result, null before any result.
+- `scanState`: stopped / starting / receiving / failed; `lastRestartReason`: none / stall / periodic / screen / failure;
+  `lastRestartResult`: none / pending / failed / recovered. A screen change can supersede a pending attempt.
+- `scanFailureCode`: most recent Android failure code, retained after recovery; 0 means none or a synchronous start
+  exception (use `scanState` to distinguish). `requestedFiltered` is the user preference. Existing `filteredNow` is
+  the actual nonempty hardware filter mode of the last successfully submitted scan; consult `scanState` on failure.
+
+No addresses, raw payloads, SSIDs, GPS, device identifiers or model names enter these fields. JS/recorder advert
+counts can be lower than native callback counts when the UI is suspended. Neither count measures detection accuracy.
+
+On-device validation remains necessary:
+1. Run 10+ minutes screen-on with all devices/unfiltered. Record callback count/rate/age, 4-minute attempts, and
+   callback-confirmed recoveries. Compare counts before and after each attempt without interpreting volume as accuracy.
+2. Run 10+ minutes screen-off. Confirm filtered fallback, stable foreground service, and native counts after returning
+   to the UI. A filtered scan may legitimately have zero callbacks.
+3. Toggle screen off/on rapidly across the 3-starts/30-second limit. Verify eventual mode matches the latest screen
+   state, without duplicate streams or repeated queued restart tasks.
+4. Background/foreground the UI, including WebView detachment. Verify native counts continue and recovery is based
+   on callbacks even when no sink is attached. Check exported diagnostic fields after resuming.
+5. In a quiet area, verify automatic silence restarts stop after three. Inject Android scan failures (especially 6)
+   in a test build: verify failed state, bounded delayed retries, and no recovery event until callbacks resume.
+6. Repeat Start/Stop and destroy the service; verify no callbacks/retries continue, receiver is unregistered and wake
+   lock is released. BLE-only restarts should retain the per-session salt; a new user session should replace it.
+
+Pure native state tests live in `ScanHealthTest`; run `cd android && ./gradlew testDebugUnitTest` with the Android SDK
+and Java 21 installed. The helper has no Android dependencies and can also be compiled/run with JUnit 4 alone.

@@ -1,3 +1,4 @@
+import { nativeDiagnostics, type NativeDiagnostics } from '../ble/nativeScanner';
 import type { Advertisement } from '../ble/types';
 import type { Match } from '../ble/matcher';
 import { SIGNATURES, tierOf } from '../ble/signatures';
@@ -52,7 +53,7 @@ export interface ConfirmationRecord {
 }
 export const MAX_CONFIRMATIONS = 500;
 /** v5+: latest native scan-supervisor report (counts + Android version class only). */
-export interface NativeHealthRecord { scanRestarts: { stall: number; periodic: number; screen: number; failed: number }; screenOffSec: number; quiet: boolean; baselinePerMin: number; android: { sdk: number; release: string; deviceClass: string } }
+export interface NativeHealthRecord extends NativeDiagnostics { scanRestarts: { stall: number; periodic: number; screen: number; failed: number }; screenOffSec: number; quiet: boolean; baselinePerMin: number; android: { sdk: number; release: string; deviceClass: string } }
 export type ScanEventKind = 'start' | 'stop' | 'restart' | 'stall' | 'auto-restart' | 'possible-patrol-car' | 'error' | 'permission-denied' | 'location-denied' | 'location-error' | 'screen-off' | 'screen-on' | 'scanner-quiet' | 'scanner-recovered';
 export interface ScanEvent { t: number; kind: ScanEventKind; backend?: string; detail?: string }
 /** Counts-only scan health. Never holds unmatched ids, names, payloads or coordinates. */
@@ -186,7 +187,7 @@ export class SessionRecorder {
       location: { fixes: h.fixes, accuracyMeanM: h.fixes ? Math.round(h.accSum / h.fixes) : null, accuracyMinM: h.accMin ?? null, accuracyMaxM: h.accMax ?? null, accuracyBuckets: h.accBuckets },
       events: h.events.map(e => ({ ...e, t: new Date(e.t).toISOString() })),
       scanRestarts: this.s.native?.scanRestarts ?? null, screenOffSec: this.s.native?.screenOffSec ?? null, android: this.s.native?.android ?? null,
-      nativeSupervisor: this.s.native ? { quiet: this.s.native.quiet, baselinePerMin: this.s.native.baselinePerMin } : null,
+      nativeSupervisor: this.s.native ? { ...nativeDiagnostics(this.s.native), quiet: this.s.native.quiet, baselinePerMin: this.s.native.baselinePerMin } : null,
       note: 'counts only: no unmatched device ids, names, payloads or locations; distinct counts are de-duplicated in memory only (may over-count across an app reload)',
     };
   }
@@ -206,7 +207,7 @@ export class SessionRecorder {
   start(backend: string) { this.s.recording = true; this.s.startedAt ??= Date.now(); this.s.endedAt = undefined; this.s.backend = backend; this.save(); }
   stop() { this.s.recording = false; this.s.endedAt = Date.now(); this.save(); }
   /** Latest native supervisor report (replaces the previous one; counts are cumulative per scan session). */
-  setNativeHealth(h: NativeHealthRecord) { this.s.native = { scanRestarts: { ...h.scanRestarts }, screenOffSec: h.screenOffSec, quiet: h.quiet, baselinePerMin: h.baselinePerMin, android: { ...h.android } }; this.saveSoon(); }
+  setNativeHealth(h: NativeHealthRecord) { this.s.native = { ...nativeDiagnostics(h), scanRestarts: { ...h.scanRestarts }, screenOffSec: h.screenOffSec, quiet: h.quiet, baselinePerMin: h.baselinePerMin, android: { ...h.android } }; this.saveSoon(); }
   get confirmations(): ConfirmationRecord[] { return this.s.confirmations ?? []; }
   /** Stores one confirmation tap. Precise location is coarsened to the grid cell here; nothing is uploaded. */
   confirm(c: Omit<ConfirmationRecord, 'cell' | 't'> & { t?: number }, loc?: { lat: number; lng: number }) {

@@ -11,7 +11,28 @@ export type NativeScanMode = 'lowPower' | 'balanced' | 'lowLatency';
 export interface NativeWifiMatch { id: string; rssi?: number; rules: string[]; throttled?: number; radio?: string; freq?: number; t?: number }
 export interface NativeAdvert { id: string; name?: string; rssi?: number; txPower?: number; mfr?: Record<string, string>; uuids?: string[]; svc?: Record<string, string>; oui?: string; t?: number }
 
-export interface NativeScanHealth {
+export interface NativeDiagnostics {
+  nativeCallbacks?: number; nativeCallbacksPerMin?: number; lastCallbackAgeMs?: number | null;
+  scanState?: 'stopped' | 'starting' | 'receiving' | 'failed';
+  lastRestartReason?: 'none' | 'stall' | 'periodic' | 'screen' | 'failure';
+  lastRestartResult?: 'none' | 'pending' | 'failed' | 'recovered';
+  scanFailureCode?: number; requestedFiltered?: boolean; filteredNow?: boolean;
+}
+/** Explicit allowlist also used at the export boundary; arbitrary native fields never persist. */
+export function nativeDiagnostics(o: NativeDiagnostics): NativeDiagnostics {
+  const out: NativeDiagnostics = {};
+  for (const k of ['nativeCallbacks', 'nativeCallbacksPerMin', 'lastCallbackAgeMs', 'scanFailureCode'] as const) {
+    const v = o[k]; if (typeof v === 'number' && Number.isFinite(v) && v >= 0) out[k] = v;
+  }
+  if (o.lastCallbackAgeMs === null) out.lastCallbackAgeMs = null;
+  if (typeof o.requestedFiltered === 'boolean') out.requestedFiltered = o.requestedFiltered;
+  if (typeof o.filteredNow === 'boolean') out.filteredNow = o.filteredNow;
+  if (['stopped', 'starting', 'receiving', 'failed'].includes(o.scanState!)) out.scanState = o.scanState;
+  if (['none', 'stall', 'periodic', 'screen', 'failure'].includes(o.lastRestartReason!)) out.lastRestartReason = o.lastRestartReason;
+  if (['none', 'pending', 'failed', 'recovered'].includes(o.lastRestartResult!)) out.lastRestartResult = o.lastRestartResult;
+  return out;
+}
+export interface NativeScanHealth extends NativeDiagnostics {
   scanRestarts: { stall: number; periodic: number; screen: number; failed: number };
   screenOffSec: number; screenOn: boolean; filteredNow: boolean; quiet: boolean; baselinePerMin: number;
   android: { sdk: number; release: string; deviceClass: string };
@@ -21,6 +42,7 @@ export function parseNativeHealth(detail?: string): NativeScanHealth | null {
   try {
     const o = JSON.parse(detail ?? ''); const n = (x: unknown) => (typeof x === 'number' && isFinite(x) ? x : 0); const r = o.scanRestarts ?? {};
     return {
+      ...nativeDiagnostics(o),
       scanRestarts: { stall: n(r.stall), periodic: n(r.periodic), screen: n(r.screen), failed: n(r.failed) },
       screenOffSec: n(o.screenOffSec), screenOn: !!o.screenOn, filteredNow: !!o.filteredNow, quiet: !!o.quiet, baselinePerMin: n(o.baselinePerMin),
       android: { sdk: n(o.android?.sdk), release: String(o.android?.release ?? '').slice(0, 8), deviceClass: String(o.android?.deviceClass ?? '').slice(0, 24) },
