@@ -74,8 +74,8 @@ then fell to 0-16/min while the scan was still on. `ScanService` now supervises 
   silence-triggered restarts pause until callbacks resume (or the user starts a new session). Silence can mean a quiet
   RF environment, especially with filters; it is not evidence of broken hardware. Screen transitions remain available.
 - **Async failures**: codes 2, 3, 5 and 6 permit at most 3 retries per callback-free outage, after 31/62/93 seconds,
-  also subject to the start-rate guard. Other codes and synchronous exceptions require manual Stop/Start.
-  Failure notifications retain bridge listeners so retry recovery can reach the UI.
+  also subject to the start-rate guard. Other codes, exhausted retry budgets, and synchronous exceptions stop the native scan service and tell the UI scanning has ended; the user can tap Start again.
+  Retryable failures retain bridge listeners so recovery can reach the UI. No automatic release is performed during PR checks.
 - Screen transitions are coalesced by one 15-second supervisor tick when throttled. The latest requested mode wins.
   Stopped/old scan callbacks are ignored. Stop/destruction removes all pending tasks, receiver and wake lock.
 - Foreground service + partial wake lock (6 h cap) as before.
