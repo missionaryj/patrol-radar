@@ -71,6 +71,12 @@ describe('stop heat filters and popup', () => {
     expect(html).toContain('ODC-BY'); expect(html).toContain('200 m'); expect(html).toContain('uneven');
     expect(html).not.toMatch(/officer|badge|subject_age/);
     expect(heatPaint(1000).fillOpacity).toBeGreaterThan(heatPaint(1).fillOpacity);
+    const ranked = topReasons([29, 0, 4, 29, 1, 3, 29, 2, 2, 29, 3, 1], { year: 2019, tod: null, dow: null }, ['speeding', 'equipment', 'signal', 'other']);
+    expect(ranked).toHaveLength(3);
+    expect(ranked[0].total).toBe(10);
+    const rankedPopup = heatPopup({ title: 'Test', count: { n: 10, cite: 0, warn: 0, arrest: 0 }, reasons: ranked, filter: { year: 2019, tod: null, dow: null }, caption: '2019', sources: [] });
+    expect(rankedPopup).toContain('speeding 40%');
+    expect(rankedPopup).not.toContain('speeding 44%');
   });
 });
 
