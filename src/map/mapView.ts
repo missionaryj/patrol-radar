@@ -196,9 +196,9 @@ export class MapView {
   // ---- Historical stop heat: beat polygons, plus ~150 m grid cells only for stops that miss every beat. Not a live layer. ----
   async showStopHeat(on: boolean, baseUrl: string) {
     this.heatOn = on;
-    if (!on) { this.heatLayer.remove(); this.m3.setHeat({ type: 'FeatureCollection', features: [] }); this.map.attributionControl.removeAttribution(STOP_HEAT_ATTRIBUTION); return; }
+    if (!on) { ++this.heatDraw; this.heatLayer.clearLayers(); this.heatLayer.remove(); this.m3.setHeat({ type: 'FeatureCollection', features: [] }); this.map.attributionControl.removeAttribution(STOP_HEAT_ATTRIBUTION); return; }
     this.heatLayer.addTo(this.map); this.keepHeatUnderMarkers(); this.map.attributionControl.addAttribution(STOP_HEAT_ATTRIBUTION);
-    await this.loadHeat(baseUrl); await this.drawHeat();
+    await this.loadHeat(baseUrl); if (this.heatOn) await this.drawHeat();
   }
   /** year / time-of-day / weekday. Null means all. Counts are recomputed from the stored buckets. */
   setStopHeatFilter(f: HeatFilter) { this.heatFilter = f; if (this.heatOn) void this.drawHeat(); }
@@ -253,7 +253,7 @@ export class MapView {
       const keys = heatTilesFor(idx, bb);
       const tiles = await Promise.all(keys.map(k => this.heatTile(k)));
       if (gen !== this.heatDraw) return;
-      const picked: { n: number; layer: L.Layer }[] = [];
+      const picked: { n: number; layer: L.Layer; feature: GeoJSON.Feature }[] = [];
       for (const t of tiles) if (t) for (const cell of t) {
         const [lat, lng, src, buckets, o, r] = cell;
         if (lat < bb.south || lat > bb.north || lng < bb.west || lng > bb.east) continue;
@@ -272,10 +272,12 @@ export class MapView {
         rect.on('popupopen', () => rect.setPopupContent(html));
         const pnt = heatPaint(count.n);
         const ring: [number, number][] = [[lng - dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat - dLat / 2]];
-        grid3d.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity, html } });
-        picked.push({ n: count.n, layer: rect });
+        picked.push({ n: count.n, layer: rect, feature: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity, html } } });
       }
-      picked.sort((a, c) => c.n - a.n); cells = picked.slice(0, HEAT_CELL_CAP).map(p => p.layer);
+      picked.sort((a, c) => c.n - a.n);
+      const visible = picked.slice(0, HEAT_CELL_CAP);
+      cells = visible.map(p => p.layer);
+      grid3d.push(...visible.map(p => p.feature));
     }
     if (gen !== this.heatDraw) return;
     this.heatLayer.clearLayers(); group.addTo(this.heatLayer); for (const l of cells) l.addTo(this.heatLayer);
