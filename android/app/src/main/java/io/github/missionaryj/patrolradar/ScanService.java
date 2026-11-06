@@ -269,9 +269,15 @@ public class ScanService extends Service {
         stopBleOnly(); running = false; nativeRatePerMin = 0; quiet = false;
         health.failed(code, SystemClock.elapsedRealtime());
         if (restart) failedRestarts++;
-        // A recoverable failure must not detach the JS listeners (the legacy "error" event does).
-        emitState("restart-failed", "Scan failed (code " + code + "); " + (health.retryAt > 0 ? "retry scheduled" : "tap Stop then Start to retry"));
+        // Keep listeners during bounded retries, but stop the service and reset the UI when
+        // the failure cannot be recovered automatically. Do not display an active scanner.
         emitHealth();
+        if (health.retryAt > 0) {
+            emitState("restart-failed", "Scan failed (code " + code + "); retry scheduled");
+        } else {
+            emitState("error", "Bluetooth scan stopped (code " + code + "). Tap Start to retry.");
+            stopSelf();
+        }
     }
     private boolean attemptStart(String why) {
         if (!ScanHealth.canStart(starts, SystemClock.elapsedRealtime())) return false;
