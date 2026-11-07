@@ -377,13 +377,24 @@ const tcSet = loadTcSettings(), tcAlerter = new TrafficAlerter();
   const sty = sel('tc-style'); sty.value = tcSet.style; sty.onchange = () => { tcSet.style = sty.value as AlertStyle; apply(); if (tcSet.style === 'sound') void ping.unlock().then(() => ping.play('soft')); else if (tcSet.style === 'vibrate') navigator.vibrate?.(120); };
   apply(); if (tcSet.show) void show(true);
 }
-// Historical stop heat. Extension point: may later be subscription-gated. No Play Billing and no paywall here.
+// Historical Stop History preview and Pro presentation. Purchases must not be enabled without verified Play Billing.
 const HEAT_URL = `${import.meta.env.BASE_URL}data/stop-heat/`;
 const HEAT_FILTER_KEY = 'pr.stopheat.filter';
+const PRO_MONTHLY_USD = 1.99;
+// Fail closed: never infer a paid entitlement from localStorage, URL parameters, or the UI.
+const hasVerifiedPro = false; // TODO: replace with verified, server-backed Google Play entitlement.
 { const ck = (id: string) => document.getElementById(id) as HTMLInputElement;
   const sel = (id: string) => document.getElementById(id) as HTMLSelectElement;
-  const bar = $('heat-bar'), page = $('heat-settings'), st = document.getElementById('heat-status'), sum = document.getElementById('heat-summary');
+  const page = $('heat-settings'), st = document.getElementById('heat-status'), sum = document.getElementById('heat-summary');
   const openHeat = (o: boolean) => { page.classList.toggle('open', o); page.setAttribute('aria-hidden', String(!o)); };
+  map.setStopHeatPreview(!hasVerifiedPro);
+  $('heat-upgrade').onclick = () => toast(`Patrol Radar Pro: ${PRO_MONTHLY_USD.toFixed(2)}/month planned. Purchases are not live yet.`);
+  for (const id of ['heat-year-set', 'heat-tod-set', 'heat-dow-set']) {
+    const field = $(id) as HTMLSelectElement; field.disabled = !hasVerifiedPro;
+    field.setAttribute('aria-label', field.getAttribute('aria-label') + (!hasVerifiedPro ? ' (Pro subscription required)' : ''));
+  }
+  const offer = document.getElementById('heat-pro-offer');
+  if (offer) offer.hidden = hasVerifiedPro;
   $('open-heat').onclick = () => openHeat(true); $('back-heat').onclick = () => openHeat(false);
   $('close-settings').addEventListener('click', () => openHeat(false)); $('scrim').addEventListener('click', () => openHeat(false));
   let saved: HeatFilter = { year: null, tod: null, dow: null };
@@ -394,9 +405,9 @@ const HEAT_FILTER_KEY = 'pr.stopheat.filter';
     const yearOpts = '<option value="">All years</option>' + idx.years.map(y => `<option value="${y}">${y}</option>`).join('');
     const todOpts = '<option value="">All hours</option>' + idx.tod.map((t, i) => `<option value="${i}">${t.label} (${t.hint})</option>`).join('');
     const dowOpts = '<option value="">All days</option>' + idx.dow.map((d, i) => `<option value="${i}">${d}</option>`).join('');
-    for (const id of ['heat-year', 'heat-year-set']) sel(id).innerHTML = yearOpts;
-    for (const id of ['heat-tod', 'heat-tod-set']) sel(id).innerHTML = todOpts;
-    for (const id of ['heat-dow', 'heat-dow-set']) sel(id).innerHTML = dowOpts;
+    sel('heat-year-set').innerHTML = yearOpts;
+    sel('heat-tod-set').innerHTML = todOpts;
+    sel('heat-dow-set').innerHTML = dowOpts;
     sync();
     const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
     const src = document.getElementById('heat-sources');
@@ -407,30 +418,26 @@ const HEAT_FILTER_KEY = 'pr.stopheat.filter';
     document.querySelectorAll<HTMLElement>('.heat-ramp i').forEach((el, i) => { el.style.background = heatPaint(ramp[i] ?? 1).css; });
   };
   const sync = () => {
-    for (const id of ['heat-year', 'heat-year-set']) writeSel(sel(id), saved.year);
-    for (const id of ['heat-tod', 'heat-tod-set']) writeSel(sel(id), saved.tod);
-    for (const id of ['heat-dow', 'heat-dow-set']) writeSel(sel(id), saved.dow);
+    writeSel(sel('heat-year-set'), saved.year);
+    writeSel(sel('heat-tod-set'), saved.tod);
+    writeSel(sel('heat-dow-set'), saved.dow);
   };
   const applyFilter = () => {
     try { localStorage.setItem(HEAT_FILTER_KEY, JSON.stringify(saved)); } catch { /* ignore */ }
-    sync(); map.setStopHeatFilter(saved);
-    const idx = map.stopHeatInfo;
-    if (sum) sum.textContent = !ck('stopheat').checked ? 'Hidden' : saved.year || saved.tod != null || saved.dow != null ? 'Shown · filtered' : 'Shown · all periods';
-    const cap = document.getElementById('heat-bar-count');
-    if (cap && idx) cap.textContent = `${idx.totals.mapped.toLocaleString()} mapped`;
+    sync(); map.setStopHeatFilter(hasVerifiedPro ? saved : { year: null, tod: null, dow: null });
+    if (sum) sum.textContent = !ck('stopheat').checked ? 'Hidden' : !hasVerifiedPro ? 'Free preview · Pro filters locked' : saved.year || saved.tod != null || saved.dow != null ? 'Shown · filtered' : 'Shown · all periods';
   };
-  const onSel = (id: string, kind: 'year' | 'tod' | 'dow') => { sel(id).onchange = () => { saved = { ...saved, [kind]: read(sel(id), kind) }; applyFilter(); }; };
-  onSel('heat-year', 'year'); onSel('heat-year-set', 'year');
-  onSel('heat-tod', 'tod'); onSel('heat-tod-set', 'tod');
-  onSel('heat-dow', 'dow'); onSel('heat-dow-set', 'dow');
+  const onSel = (id: string, kind: 'year' | 'tod' | 'dow') => { sel(id).onchange = () => { if (!hasVerifiedPro) return; saved = { ...saved, [kind]: read(sel(id), kind) }; applyFilter(); }; };
+  onSel('heat-year-set', 'year');
+  onSel('heat-tod-set', 'tod');
+  onSel('heat-dow-set', 'dow');
   const show = (on: boolean) => {
-    bar.hidden = !on;
     map.showStopHeat(on, HEAT_URL).then(() => { const i = map.stopHeatInfo; if (i) { fill(i); if (st) st.textContent = `${i.totals.mapped.toLocaleString()} stops mapped · ${i.totals.beats.toLocaleString()} beats · ${i.totals.cells.toLocaleString()} grid cells · built ${i.generated.slice(0, 10)}`; } applyFilter(); })
       .catch(e => { if (st) st.textContent = `Stop history unavailable (${(e as Error).message})`; });
   };
   const m = ck('stopheat'); m.checked = localStorage.getItem('pr.stopheat') !== '0';
   m.onchange = () => { localStorage.setItem('pr.stopheat', m.checked ? '1' : '0'); applyFilter(); void show(m.checked); };
-  applyFilter(); if (m.checked) void show(true); else bar.hidden = true;
+  applyFilter(); if (m.checked) void show(true);
 }
 let tcBannerT: number | undefined, tcBusy = false;
 function showTcBanner(a: TcAlert) {

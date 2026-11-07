@@ -343,13 +343,8 @@ details.group{margin-top:14px}
 .tcam:empty.tcam-speed::after{content:'S'}.tcam:empty.tcam-red_light::after{content:'R'}.tcam:empty.tcam-school_zone::after{content:'Z'}.tcam:empty.tcam-work_zone::after{content:'W'}.tcam:empty.tcam-monitor::after{content:'M'}
 .tc-lbl{display:flex;align-items:center;gap:8px;font-weight:400}
 /* Historical stop heat: compact filter bar above the scan button, under the location dot's pane. */
-.heat-bar{position:fixed;z-index:998;left:calc(12px + var(--sl));bottom:calc(124px + var(--sb));width:min(300px,calc(50vw - 24px));padding:8px 10px 7px;border-radius:14px;background:rgba(10,12,16,.9);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--txt);backdrop-filter:blur(12px)}
-.heat-bar[hidden]{display:none!important}
-.heat-bar header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px}
-.heat-bar header span{font-weight:500;color:var(--mut);font-size:11px;font-variant-numeric:tabular-nums}
-.heat-filters{display:flex;gap:4px;margin-top:6px;overflow-x:auto}
 .heat-bar select,.heat-filters select{font-size:12px;padding:6px 22px 6px 8px;border-radius:9px;min-width:0}
-.heat-bar p,.heat-disclaimer{margin:6px 0 0;font-size:10.5px;line-height:1.35;color:var(--dim)}
+.heat-disclaimer{margin:6px 0 0;font-size:10.5px;line-height:1.35;color:var(--dim)}
 .heat-ramp{display:flex;gap:8px;margin-top:5px;font-size:10px;color:var(--mut);align-items:center}
 .heat-ramp i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:3px;vertical-align:-1px}
 .leaflet-tooltip.heat-tip{background:#111215;color:#f3f4f6;border:1px solid rgba(255,255,255,.14);border-radius:8px;box-shadow:none;font-weight:600;font-size:12px}
@@ -371,3 +366,13 @@ details.group{margin-top:14px}
 .scan-quiet .sq-btns{display:flex;gap:8px;margin-top:2px}
 .scan-quiet button{font:600 13px/1 system-ui,sans-serif;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,179,0,.55);background:rgba(255,179,0,.18);color:#ffe199}
 .scan-quiet button.ghost{background:none;border-color:var(--line);color:var(--mut)}
+
+/* Stop History free-preview / Pro information */
+.pro-mark{display:inline-flex;align-items:center;vertical-align:middle;font-size:10px;font-weight:700;letter-spacing:.05em;color:#17120a;background:#f1bc62;border-radius:5px;padding:2px 6px;margin-left:4px}
+.pro-offer{border:1px solid rgba(241,188,98,.3);background:linear-gradient(135deg,rgba(241,188,98,.13),rgba(241,188,98,.035));border-radius:14px;padding:14px;margin-top:10px}
+.pro-offer[hidden]{display:none}
+.pro-offer-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pro-offer p{color:var(--mut);font-size:13px;line-height:1.5;margin:8px 0}
+.pro-offer small{display:block;color:var(--dim);font-size:11px;margin-top:8px}
+.pro-upgrade{width:100%;padding:12px;border:0;border-radius:10px;background:#f1bc62;color:#1a1510;font-weight:700}
+#heat-settings select:disabled{opacity:.5;cursor:not-allowed}
