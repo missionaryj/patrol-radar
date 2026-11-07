@@ -45,4 +45,4 @@ No FOIA requests, no court or clerk scraping, no live CAD, scanner audio, or Ope
 
 ## Map
 
-Settings → Stop history, and the filter bar on the map (year, time of day, day of week). Tap a beat or cell for the count in that period, citation / warning / arrest share when the source published it, and common reason categories. The location dot stays on its own pane above the shading. Grid cells appear at zoom 11+, same idea as the traffic-camera tiles. The 3D view does not copy this layer, so extruded buildings and the location dot are unchanged.
+Settings → Stop history holds the display toggle, year / time-of-day / weekday filters, color scale, source links, license and data-coverage notes. The driving map draws historical beat or ~150 m cell shading only: these shapes never open a popup, tooltip or external site when tapped in 2D or 3D. Other map markers keep their own interactions. The location dot stays above the shading, and grid cells appear at zoom 11+. The 3D view mirrors this visual-only layer under the location dot.
