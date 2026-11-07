@@ -8,10 +8,13 @@ export function mountMapSettings(map: MapView, onTravel?: (m: TravelMode) => voi
   const tm = document.getElementById('travelmode') as HTMLSelectElement | null;
   const mode = loadTravelMode(); if (tm) { tm.value = mode; tm.onchange = () => { setTravelMode(tm.value as TravelMode); onTravel?.(tm.value as TravelMode); }; }
   const cb = document.getElementById('map3d') as HTMLInputElement | null, pitch = document.getElementById('pitch') as HTMLButtonElement | null;
+  let request = 0;
+  map.on3DFailure = () => { ++request; if (cb) cb.checked = false; if (pitch) pitch.hidden = true; };
   const set3d = async (on: boolean) => {
+    const current = ++request;
     try { localStorage.setItem(MAP3D_KEY, on ? '1' : '0'); } catch { /* ignore */ }
     if (pitch) pitch.hidden = !on;
-    try { await map.set3D(on); } catch (e) { console.warn('3D view failed', e); if (cb) cb.checked = false; if (pitch) pitch.hidden = true; await map.set3D(false); }
+    try { await map.set3D(on); } catch (e) { if (current !== request) return; console.warn('3D view failed', e); if (cb) cb.checked = false; if (pitch) pitch.hidden = true; await map.set3D(false); }
   };
   if (pitch) pitch.onclick = () => map.togglePitch();
   let on = true; try { on = map3dDefault(localStorage.getItem(MAP3D_KEY)); } catch { /* ignore */ }

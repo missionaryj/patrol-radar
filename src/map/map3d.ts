@@ -27,19 +27,41 @@ export function toGeoJSON(m: Mirror) {
 
 export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
+  private generation = 0; private cancelOpen?: () => void;
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
-  constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void) {}
+  constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void, private onFailure: () => void = () => {}) {}
   get active() { return !!this.map; }
   async open(center: { lat: number; lng: number }, zoom: number) {
     if (this.map) return;
+    const generation = ++this.generation;
     this.ml ??= (await import('maplibre-gl')).default as unknown as ML;
     await import('maplibre-gl/dist/maplibre-gl.css');
+    if (generation !== this.generation) return;
     this.el.hidden = false;
-    const map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: Math.max(zoom, 16), pitch: PITCH_3D, maxPitch: MAX_PITCH,
+    // MapLibre needs a laid-out container, but must not obscure the 2D map until it is ready.
+    this.el.style.visibility = 'hidden';
+    let map: import('maplibre-gl').Map;
+    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: Math.max(zoom, 16), pitch: PITCH_3D, maxPitch: MAX_PITCH,
       attributionControl: { compact: true }, antialias: false, fadeDuration: 0, pixelRatio: Math.min(2, window.devicePixelRatio || 1) } as any);
+    } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
     map.on('dragstart', () => this.onUserPan());
-    map.on('load', () => {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return; settled = true; clearTimeout(timer); this.cancelOpen = undefined;
+        if (error) { this.close(); reject(error); } else resolve();
+      };
+      const timer = setTimeout(() => finish(new Error('3D map did not load')), 15000);
+      this.cancelOpen = () => finish();
+      map.on('webglcontextlost', () => {
+        if (generation !== this.generation) return;
+        if (!settled) finish(new Error('3D map graphics context lost'));
+        else { this.close(); this.onFailure(); }
+      });
+      map.on('load', () => {
+      if (generation !== this.generation) return;
+      try {
       for (const id of ['acc', 'polys', 'pts', 'me']) map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({ id: 'polys-fill', type: 'fill', source: 'polys', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'cell'], 0.25, 0.1] } });
       map.addLayer({ id: 'polys-line', type: 'line', source: 'polys', paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.8 } });
@@ -50,9 +72,12 @@ export class Map3D {
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
       this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat();
+      this.el.style.visibility = ''; finish();
+      } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
+    });
     });
   }
-  close() { this.map?.remove(); this.map = undefined; this.ready = false; this.el.hidden = true; }
+  close() { ++this.generation; this.cancelOpen?.(); this.map?.remove(); this.map = undefined; this.ready = false; this.el.hidden = true; this.el.style.visibility = ''; }
   /** Follow-me: keep pitch/bearing the user chose, move the centre only. */
   follow(lat: number, lng: number) { this.map?.jumpTo({ center: [lng, lat] }); }
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }
