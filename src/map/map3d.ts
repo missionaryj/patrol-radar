@@ -58,7 +58,7 @@ export class Map3D {
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }
   setPitch(p: number) { this.map?.easeTo({ pitch: p, duration: 300 }); }
   get pitch() { return this.map?.getPitch() ?? 0; }
-  /** Historical stop shading. Flat properties only: color, opacity, html. Drawn under the location dot. */
+  /** Visual-only historical stop shading: color and opacity, never tappable. */
   setHeat(fc: { type: 'FeatureCollection'; features: any[] }) {
     this.heatFC = fc;
     if (!this.map || !this.ready) return;
@@ -71,12 +71,6 @@ export class Map3D {
       map.addSource('heat', { type: 'geojson', data: this.heatFC });
       const before = map.getLayer('pts') ? 'pts' : undefined;
       map.addLayer({ id: 'heat-fill', type: 'fill', source: 'heat', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'opacity'] } }, before);
-      map.on('click', 'heat-fill', (e: any) => {
-        const html = e.features?.[0]?.properties?.html;
-        if (html && this.ml) new this.ml.Popup({ closeButton: true, maxWidth: '280px' }).setLngLat(e.lngLat).setHTML(html).addTo(map);
-      });
-      map.on('mouseenter', 'heat-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', 'heat-fill', () => { map.getCanvas().style.cursor = ''; });
     } else src.setData?.(this.heatFC);
   }
   update(m: Mirror) {
