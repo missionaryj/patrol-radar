@@ -34,7 +34,7 @@ export class MapView {
   private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
   private flockRenderer = L.canvas({ padding: 0.3 });
   private tcIdx?: TcIndex; private tcBase = ''; private tcTiles = new Map<string, Promise<TcRow[]>>(); private tcOn = false; private tcLoading?: Promise<void>; private tcDraw = 0; private tcTimer?: number; private tcTypes?: Set<TcType>;
-  private heatIdx?: StopHeatIndex; private heatBase = ''; private heatOn = false; private heatFilter: HeatFilter = { ...OPEN_FILTER };
+  private heatIdx?: StopHeatIndex; private heatBase = ''; private heatOn = false; private heatPreview = true; private heatFilter: HeatFilter = { ...OPEN_FILTER };
   private heatTiles = new Map<string, Promise<HeatCell[] | undefined>>(); private heatBeats: { features?: { geometry: { type: string; coordinates: number[][][] | number[][][][] }; properties: Record<string, any> }[] }[] = [];
   private heatLoading?: Promise<void>; private heatDraw = 0; private heatTimer?: number; private heatRenderer!: L.Renderer;
   /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
@@ -200,8 +200,10 @@ export class MapView {
     this.heatLayer.addTo(this.map); this.keepHeatUnderMarkers(); this.map.attributionControl.addAttribution(STOP_HEAT_ATTRIBUTION);
     await this.loadHeat(baseUrl); if (this.heatOn) await this.drawHeat();
   }
+  /** Free preview is limited to overview shading; full filters require a verified Pro entitlement. */
+  setStopHeatPreview(preview: boolean) { this.heatPreview = preview; if (this.heatOn) void this.drawHeat(); }
   /** year / time-of-day / weekday. Null means all. Counts are recomputed from the stored buckets. */
-  setStopHeatFilter(f: HeatFilter) { this.heatFilter = f; if (this.heatOn) void this.drawHeat(); }
+  setStopHeatFilter(f: HeatFilter) { this.heatFilter = this.heatPreview ? { ...OPEN_FILTER } : f; if (this.heatOn) void this.drawHeat(); }
   get stopHeatInfo() { return this.heatIdx; }
   private async loadHeat(baseUrl: string) {
     if (this.heatIdx && this.heatBase === baseUrl) return;
@@ -222,7 +224,7 @@ export class MapView {
     const gen = ++this.heatDraw; const idx = this.heatIdx;
     if (!idx || !this.heatOn) { this.heatLayer.clearLayers(); return; }
     const f = this.heatFilter;
-    const paint = (n: number) => { const p = heatPaint(n); return { color: p.stroke, weight: 1, opacity: 0.9, fillColor: p.stroke, fillOpacity: p.fillOpacity }; };
+    const paint = (n: number) => { const p = heatPaint(n); return { color: p.stroke, weight: 1, opacity: 0.9, fillColor: p.stroke, fillOpacity: p.fillOpacity * (this.heatPreview ? 0.4 : 1) }; };
     const features: GeoJSON.Feature[] = [];
     for (const fc of this.heatBeats) for (const feat of fc.features ?? []) {
       if (!countBuckets(feat.properties.b ?? [], feat.properties.o, f, idx.yearBase).n) continue;
@@ -254,7 +256,7 @@ export class MapView {
         const rect = L.rectangle([[lat - dLat / 2, lng - dLng / 2], [lat + dLat / 2, lng + dLng / 2]], { ...paint(count.n), renderer: this.heatRenderer, pane: 'heatPane', interactive: false });
         const pnt = heatPaint(count.n);
         const ring: [number, number][] = [[lng - dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat - dLat / 2]];
-        picked.push({ n: count.n, layer: rect, feature: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity } } });
+        picked.push({ n: count.n, layer: rect, feature: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity * (this.heatPreview ? 0.4 : 1) } } });
       }
       picked.sort((a, c) => c.n - a.n);
       const visible = picked.slice(0, HEAT_CELL_CAP);
@@ -268,7 +270,7 @@ export class MapView {
       const props = f.properties ?? {};
       const count = countBuckets(props.b ?? [], props.o, this.heatFilter, idx.yearBase);
       const p = heatPaint(count.n);
-      return { type: 'Feature', geometry: f.geometry, properties: { color: p.stroke, opacity: p.fillOpacity } };
+      return { type: 'Feature', geometry: f.geometry, properties: { color: p.stroke, opacity: p.fillOpacity * (this.heatPreview ? 0.4 : 1) } };
     });
     this.m3.setHeat({ type: 'FeatureCollection', features: [...beats3d, ...grid3d] });
   }
