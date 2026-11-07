@@ -1,9 +1,28 @@
-/** Updates (bell) > Accuracy reports tab. Text supplied by the project owner (Community Accuracy Update, Nov 2, 2026); wording kept intact. */
+/** Updates (bell) > Accuracy reports tab. Newest first.
+ *  Field-test notes (6 November 2026) are explanatory copy only: no scoring changes.
+ *  The 2 November 2026 Community Accuracy Update is unchanged history; its wording stays intact.
+ */
 export type Block = { p: string } | { ul: string[] } | { table: { head: string[]; rows: string[][][] } };
 export interface AccuracySection { title: string; blocks: Block[] }
 export interface AccuracyReport { title: string; subtitle: string; date: string; sections: AccuracySection[]; footer: string }
 
 export const ACCURACY_REPORTS: AccuracyReport[] = [{
+  title: 'Patrol Radar', subtitle: 'Field-test notes', date: 'Updated 6 November 2026 · America/Chicago',
+  sections: [
+    { title: 'Field observations', blocks: [
+      { p: 'Dates below are America/Chicago. Percentages are existing app scores, not measured probabilities. The 2 November community update stays below as history; its 26 October line was not reverified against raw JSON for this note.' },
+      { ul: [
+        '26 October: An earlier field report recorded five Axon devices near a traffic stop. The original debug file wasn’t available for this review. It is a historical report from memory, not a result reverified against raw JSON, and it is not newly independently validated.',
+        '31 October–2 November: Some tests had no matches and extended scanner inactivity. These cannot reliably establish missed detections.',
+        '4 November (evening): One Axon device matched at 72%, with the session labelled “police present,” but no individual confirmation. The 72% figure is the app’s existing score on a session labelled “police present”; it is not an individual Confirm. Separate Flock and Cradlepoint hints remained unverified; one Flock hint was marked “not police.”',
+        '6 November: One Axon device matched at 72–85%, with both an in-app confirmation and the tester’s police sighting. Six advertisements from that one device are a single sighting, not six sightings.',
+        'City-bus observation: Cradlepoint hints were marked “not police.” Cradlepoint alone, even when travelling nearby, is not reliable evidence of police. An export spanning 5–6 November has four Cradlepoint hints at 30% and multiple “not police” taps; those records cannot all be tied to one router or one bus.',
+      ] },
+      { p: 'These are individual observations, not an overall accuracy percentage. Duplicate exports and repeated confirmation taps aren’t counted as independent sightings. Nothing in these notes changes how the app scores a detection.' },
+    ] },
+  ],
+  footer: 'Informal notes from individual observations. Scores are existing app match figures, not measured probabilities. Detection is probabilistic and not a guarantee of police presence or absence.',
+}, {
   title: 'Patrol Radar', subtitle: 'Community Accuracy Update', date: 'November 2, 2026 | Champaign-Urbana Focus',
   sections: [
     { title: 'Field Scan Accuracy Summary', blocks: [{ p: 'This report summarizes detection performance from recent field drives and recorded scans in the Champaign-Urbana area. Data is drawn from Android app sessions using Bluetooth and Wi-Fi signature matching (Axon, Cradlepoint, and related police device identifiers). Results reflect current app versions (1.0.18) prior to the latest map and signature improvements.' }] },
