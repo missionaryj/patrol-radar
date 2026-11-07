@@ -48,8 +48,25 @@ describe('map palette + 3D', () => {
   });
 });
 describe('accuracy reports', () => {
-  it('renders the owner text with table and escapes', () => {
+  it('keeps the 2 November community update and escapes', () => {
     const h = accuracyHtml(); expect(h).toContain('Community Accuracy Update'); expect(h).toContain('5 distinct Axon devices matched'); expect(h).toContain('<table>'); expect(h).toContain('Drive safe.');
     expect(accuracyHtml([{ title: '<x>', subtitle: '', date: '', sections: [], footer: '' }])).toContain('&lt;x&gt;');
+  });
+  it('prepends 6 November field-test notes without an overall rate or device identifiers', () => {
+    const h = accuracyHtml();
+    expect(h.match(/class="acc-report"/g)).toHaveLength(2);
+    expect(h.indexOf('Field-test notes')).toBeGreaterThanOrEqual(0);
+    expect(h.indexOf('Field-test notes')).toBeLessThan(h.indexOf('Community Accuracy Update'));
+    for (const s of [
+      'Updated 6 November 2026', 'America/Chicago', 'five Axon devices', 'original debug file',
+      'not reverified against raw JSON', 'not newly independently validated',
+      'cannot reliably establish missed detections', '4 November (evening)', '72%', 'police present',
+      'not an individual Confirm', 'not police', '72–85%', 'Six advertisements', 'not six sightings',
+      'travelling nearby', 'four Cradlepoint hints at 30%', '5–6 November', 'one router or one bus',
+      'not an overall accuracy percentage', 'existing app scores', 'not measured probabilities',
+      'Duplicate exports', 'repeated confirmation taps',
+    ]) expect(h, s).toContain(s);
+    expect(h).not.toMatch(/\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b/);
+    expect(h).not.toMatch(/-?\d{1,3}\.\d{3,}/);
   });
 });

@@ -104,7 +104,7 @@ body.pinging .toast{box-shadow:0 0 0 2px var(--acc),0 0 28px var(--acc-glow)}
 .tiles-slate-dark{filter:invert(1) grayscale(1) sepia(.4) hue-rotate(180deg) saturate(1.7) brightness(1.05) contrast(.8)}
 .map3d,.map3d.maplibregl-map{position:absolute!important;inset:0;width:100%;height:100%;z-index:450}
 .map3d[hidden]{display:none}
-.acc-table{overflow-x:auto}.acc-table table{border-collapse:collapse;font-size:12px;width:100%}.acc-table th,.acc-table td{border-bottom:1px solid rgba(128,128,128,.3);padding:4px 6px;text-align:left;vertical-align:top}.acc-sub,.acc-footer{opacity:.8}.acc-report h4{margin:12px 0 4px}
+.acc-table{overflow-x:auto}.acc-table table{border-collapse:collapse;font-size:12px;width:100%}.acc-table th,.acc-table td{border-bottom:1px solid rgba(128,128,128,.3);padding:4px 6px;text-align:left;vertical-align:top}.acc-sub,.acc-footer{opacity:.8}.acc-report h4{margin:12px 0 4px}.acc-report+.acc-report{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
 
 /* settings drawer */
 .scrim{position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
