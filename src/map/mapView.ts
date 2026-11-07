@@ -31,6 +31,7 @@ export class MapView {
   readonly follow: FollowController;
   /** Called when follow-me pauses (manual pan) or resumes. */
   onFollowChange?: (following: boolean) => void;
+  on3DFailure?: () => void;
   private flockIdx?: FlockIndex; private flockBase = ''; private flockTiles = new Map<string, Promise<FlockCollection>>(); private flockOn = false; private flockLoading?: Promise<void>; private flockDraw = 0;
   private flockRenderer = L.canvas({ padding: 0.3 });
   private tcIdx?: TcIndex; private tcBase = ''; private tcTiles = new Map<string, Promise<TcRow[]>>(); private tcOn = false; private tcLoading?: Promise<void>; private tcDraw = 0; private tcTimer?: number; private tcTypes?: Set<TcType>;
@@ -44,7 +45,7 @@ export class MapView {
     // Cool-slate basemap (OSM tiles + CSS filter, no API key); .tiles-slate adds a slight blue-grey tint.
     L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' }).addTo(this.map);
     const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
-    this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned());
+    this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned(), () => this.on3DFailure?.());
     // Traffic cameras get their own pane above the overlay canvas (so they stay tappable); the own-location dot and its
     // accuracy circle sit in a still higher, click-through pane so nothing can ever cover them.
     this.map.createPane('tcPane').style.zIndex = '420';
