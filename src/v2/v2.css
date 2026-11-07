@@ -343,13 +343,8 @@ details.group{margin-top:14px}
 .tcam:empty.tcam-speed::after{content:'S'}.tcam:empty.tcam-red_light::after{content:'R'}.tcam:empty.tcam-school_zone::after{content:'Z'}.tcam:empty.tcam-work_zone::after{content:'W'}.tcam:empty.tcam-monitor::after{content:'M'}
 .tc-lbl{display:flex;align-items:center;gap:8px;font-weight:400}
 /* Historical stop heat: compact filter bar above the scan button, under the location dot's pane. */
-.heat-bar{position:fixed;z-index:998;left:calc(12px + var(--sl));bottom:calc(124px + var(--sb));width:min(300px,calc(50vw - 24px));padding:8px 10px 7px;border-radius:14px;background:rgba(10,12,16,.9);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--txt);backdrop-filter:blur(12px)}
-.heat-bar[hidden]{display:none!important}
-.heat-bar header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px}
-.heat-bar header span{font-weight:500;color:var(--mut);font-size:11px;font-variant-numeric:tabular-nums}
-.heat-filters{display:flex;gap:4px;margin-top:6px;overflow-x:auto}
 .heat-bar select,.heat-filters select{font-size:12px;padding:6px 22px 6px 8px;border-radius:9px;min-width:0}
-.heat-bar p,.heat-disclaimer{margin:6px 0 0;font-size:10.5px;line-height:1.35;color:var(--dim)}
+.heat-disclaimer{margin:6px 0 0;font-size:10.5px;line-height:1.35;color:var(--dim)}
 .heat-ramp{display:flex;gap:8px;margin-top:5px;font-size:10px;color:var(--mut);align-items:center}
 .heat-ramp i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:3px;vertical-align:-1px}
 .leaflet-tooltip.heat-tip{background:#111215;color:#f3f4f6;border:1px solid rgba(255,255,255,.14);border-radius:8px;box-shadow:none;font-weight:600;font-size:12px}

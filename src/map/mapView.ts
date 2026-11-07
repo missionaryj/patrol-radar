@@ -12,7 +12,7 @@ import { mountLegend } from './legend';
 import { RASTER_2D, PITCH_3D } from './palette';
 import { Map3D, type Pin3D } from './map3d';
 import { type TcIndex, type TcRow, type TcType, TC_ATTRIBUTION, TC_MIN_ZOOM, TC_META, tcInBounds, tcIcon, tcPopup } from './trafficCamLayer';
-import { type HeatCell, type HeatFilter, type StopHeatIndex, HEAT_CELL_CAP, HEAT_GRID_MIN_ZOOM, OPEN_FILTER, STOP_HEAT_ATTRIBUTION, countBuckets, filterCaption, heatPaint, heatPopup, heatTilesFor, heatTooltip, sourcesFor, topReasons } from './stopHeatLayer';
+import { type HeatCell, type HeatFilter, type StopHeatIndex, HEAT_CELL_CAP, HEAT_GRID_MIN_ZOOM, OPEN_FILTER, STOP_HEAT_ATTRIBUTION, countBuckets, heatPaint, heatTilesFor } from './stopHeatLayer';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
@@ -50,8 +50,8 @@ export class MapView {
     this.map.createPane('tcPane').style.zIndex = '420';
     // Above the overlay canvases (they eat every click) and below traffic-camera pins and the location dot.
     // The pane itself ignores hits; only the polygon shapes are clickable, so flock dots stay tappable in the gaps.
-    const heatPane = this.map.createPane('heatPane'); heatPane.style.zIndex = '410';
-    // auto so the shapes receive clicks. The SVG root is pointer-events:none, so gaps still fall through to flock and the map.
+    const heatPane = this.map.createPane('heatPane'); heatPane.style.zIndex = '410'; heatPane.style.pointerEvents = 'none';
+    // Visual-only shading: never intercept pointer events intended for markers or the map.
     this.heatRenderer = L.svg({ pane: 'heatPane' });
     const mp = this.map.createPane('mePane'); mp.style.zIndex = '640'; mp.style.pointerEvents = 'none';
     this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
@@ -229,20 +229,11 @@ export class MapView {
       features.push({ type: 'Feature', geometry: feat.geometry as GeoJSON.Geometry, properties: feat.properties });
     }
     const group = L.geoJSON({ type: 'FeatureCollection', features } as GeoJSON.GeoJSON, {
-      pane: 'heatPane', renderer: this.heatRenderer,
+      pane: 'heatPane', renderer: this.heatRenderer, interactive: false,
       style: (feat) => paint(countBuckets(feat?.properties?.b ?? [], feat?.properties?.o, this.heatFilter, idx.yearBase).n),
-      onEachFeature: (feat, layer) => {
+      onEachFeature: (_feat, layer) => {
         const path = layer as L.Path; path.options.renderer = this.heatRenderer; path.options.pane = 'heatPane';
-        this.arm(layer);
-        const props = feat.properties ?? {}; const b = props.b ?? [], o = props.o ?? [], r = props.r ?? [], src = props.src ?? [];
-        layer.bindTooltip('', { sticky: true, className: 'heat-tip' });
-        layer.on('tooltipopen', () => layer.setTooltipContent(heatTooltip(countBuckets(b, o, this.heatFilter, idx.yearBase).n)));
-        layer.bindPopup('');
-        layer.on('popupopen', () => layer.setPopupContent(heatPopup({
-          title: props.label ?? 'Beat', place: props.place, count: countBuckets(b, o, this.heatFilter, idx.yearBase),
-          reasons: topReasons(r, this.heatFilter, idx.reasons, idx.yearBase), filter: this.heatFilter,
-          caption: filterCaption(this.heatFilter, idx.tod, idx.dow), sources: sourcesFor(src, idx.sources),
-        })));
+        path.options.interactive = false;
       },
     } as L.GeoJSONOptions);
     let cells: L.Layer[] = [];
@@ -255,24 +246,15 @@ export class MapView {
       if (gen !== this.heatDraw) return;
       const picked: { n: number; layer: L.Layer; feature: GeoJSON.Feature }[] = [];
       for (const t of tiles) if (t) for (const cell of t) {
-        const [lat, lng, src, buckets, o, r] = cell;
+        const [lat, lng, , buckets, o] = cell;
         if (lat < bb.south || lat > bb.north || lng < bb.west || lng > bb.east) continue;
         const count = countBuckets(buckets, o, this.heatFilter, idx.yearBase);
         if (!count.n) continue;
         const dLat = idx.gridM / 111_320, dLng = idx.gridM / (111_320 * Math.cos((lat * Math.PI) / 180));
-        const rect = L.rectangle([[lat - dLat / 2, lng - dLng / 2], [lat + dLat / 2, lng + dLng / 2]], { ...paint(count.n), renderer: this.heatRenderer, pane: 'heatPane' });
-        this.arm(rect);
-        rect.bindTooltip('', { sticky: true, className: 'heat-tip' });
-        rect.on('tooltipopen', () => rect.setTooltipContent(heatTooltip(countBuckets(buckets, o, this.heatFilter, idx.yearBase).n)));
-        rect.bindPopup('');
-        const html = heatPopup({
-          title: 'Historical stops', count, reasons: topReasons(r, this.heatFilter, idx.reasons, idx.yearBase), filter: this.heatFilter,
-          caption: filterCaption(this.heatFilter, idx.tod, idx.dow), sources: sourcesFor(src, idx.sources), gridM: idx.gridM,
-        });
-        rect.on('popupopen', () => rect.setPopupContent(html));
+        const rect = L.rectangle([[lat - dLat / 2, lng - dLng / 2], [lat + dLat / 2, lng + dLng / 2]], { ...paint(count.n), renderer: this.heatRenderer, pane: 'heatPane', interactive: false });
         const pnt = heatPaint(count.n);
         const ring: [number, number][] = [[lng - dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat - dLat / 2], [lng + dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat + dLat / 2], [lng - dLng / 2, lat - dLat / 2]];
-        picked.push({ n: count.n, layer: rect, feature: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity, html } } });
+        picked.push({ n: count.n, layer: rect, feature: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: { color: pnt.stroke, opacity: pnt.fillOpacity } } });
       }
       picked.sort((a, c) => c.n - a.n);
       const visible = picked.slice(0, HEAT_CELL_CAP);
@@ -286,16 +268,9 @@ export class MapView {
       const props = f.properties ?? {};
       const count = countBuckets(props.b ?? [], props.o, this.heatFilter, idx.yearBase);
       const p = heatPaint(count.n);
-      return { type: 'Feature', geometry: f.geometry, properties: { color: p.stroke, opacity: p.fillOpacity, html: heatPopup({
-        title: props.label ?? 'Beat', place: props.place, count, reasons: topReasons(props.r ?? [], this.heatFilter, idx.reasons, idx.yearBase),
-        filter: this.heatFilter, caption: filterCaption(this.heatFilter, idx.tod, idx.dow), sources: sourcesFor(props.src ?? [], idx.sources),
-      }) } };
+      return { type: 'Feature', geometry: f.geometry, properties: { color: p.stroke, opacity: p.fillOpacity } };
     });
     this.m3.setHeat({ type: 'FeatureCollection', features: [...beats3d, ...grid3d] });
-  }
-  /** The heat pane ignores hits so gaps stay clickable; each shape opts back in (the none value is inherited). */
-  private arm(layer: L.Layer) {
-    layer.on('add', () => { const el = (layer as { _path?: SVGElement })._path; if (el) el.style.pointerEvents = 'auto'; });
   }
   /** Other overlay canvases stay above the shading so their clicks still win. The location dot is in a higher pane. */
   private keepHeatUnderMarkers() {
