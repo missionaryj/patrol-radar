@@ -196,6 +196,7 @@ function onVehicle(v: Vehicle | undefined) {
 // ---- scan ----
 function logLine(text: string, color: string) { const li = document.createElement('li'); li.style.borderColor = color; li.textContent = text; $('log').prepend(li); }
 function setScanning(on: boolean) {
+  $('settings-scan-status').textContent = on ? 'Scanning active' : 'Scan is stopped';
   const b = $<HTMLButtonElement>('scan'); b.classList.toggle('on', on); $('scan-label').textContent = on ? 'Stop' : 'Scan'; b.setAttribute('aria-label', on ? 'Stop scan' : 'Start scan');
 }
 async function start() {
@@ -299,6 +300,11 @@ pollCrowd(); setInterval(pollCrowd, 90_000);
 
 // ---- police ping (audio alert on NEW police-gear match) ----
 const ping = new PingPlayer(), pingGate = new PingGate();
+const vibration = $<HTMLInputElement>('ping-vibrate');
+vibration.checked = localStorage.getItem('pr.pingVibrate') === 'on';
+vibration.onchange = () => localStorage.setItem('pr.pingVibrate', vibration.checked ? 'on' : 'off');
+if (!navigator.vibrate) $('vibrate-wrap').hidden = true;
+$('sound-sample').onclick = () => { void ping.unlock().then(() => ping.play('normal')); };
 const soundBox = $<HTMLInputElement>('sound'); soundBox.checked = soundEnabled();
 soundBox.onchange = () => { setSoundEnabled(soundBox.checked); if (soundBox.checked) { void ping.unlock().then(() => ping.play('soft')); } };
 function firePing(m: Match, loc: { lat: number; lng: number }) {
@@ -306,6 +312,7 @@ function firePing(m: Match, loc: { lat: number; lng: number }) {
   if (!level) return;
   toast(`🔔 Police gear nearby: ${m.signature.label} (${(m.confidence * 100).toFixed(0)}%)`);
   document.body.classList.add('pinging'); setTimeout(() => document.body.classList.remove('pinging'), 2500);
+  if (!document.hidden && vibration.checked) navigator.vibrate?.(180);
   if (!soundEnabled()) return;
   const pl = nativePlugin();
   if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft' }).catch(() => {}); return; }
@@ -460,3 +467,47 @@ import { mountTutorial, shouldAutoShow } from './tutorial';
 { const tour = mountTutorial({ onStep: s => { if (s.id !== 'sheet') sheet.classList.add('collapsed'); } });
   $('replay-tour').onclick = () => { setSettings(false); tour.open(); };
   if (shouldAutoShow(localStorage, location.search) && !location.hash) setTimeout(tour.open, 600); }
+
+// Settings summaries reflect the controls rather than storing a second copy of their state.
+function updateSettingsSummaries() {
+  const mode = $<HTMLSelectElement>('scanmode');
+  const modeLabel = ({ lowPower: 'Saver', balanced: 'Balanced', lowLatency: 'Fastest' } as Record<string, string>)[mode.value] ?? mode.value;
+  $('settings-mode').textContent = isNativeApp ? `Scan mode: ${modeLabel}` : `Scanner: ${sel.options[sel.selectedIndex]?.text ?? sel.value}`;
+  $('scanning-section-summary').textContent = `${isNativeApp ? modeLabel + ' · ' : ''}${picker.value === 'all' ? 'All devices' : 'Police gear'}`;
+  $('alerts-section-summary').textContent = `Police ping ${soundBox.checked ? 'on' : 'off'} · camera alerts in Map layers`;
+  $('crowd-section-summary').textContent = `Sharing ${shareBox.checked ? 'on' : 'off'} · crowd layer ${$<HTMLInputElement>('crowd').checked ? 'on' : 'off'}`;
+  $('travel-section-summary').textContent = `${$<HTMLSelectElement>('travelmode').value === 'foot' ? 'On foot' : 'Car'} · 3D buildings ${$<HTMLInputElement>('map3d').checked ? 'on' : 'off'}`;
+  $('layers-section-summary').textContent = `Flock cameras ${$<HTMLInputElement>('flockmap').checked ? 'on' : 'off'} · traffic cameras · Stop History`;
+}
+$('settings').addEventListener('change', updateSettingsSummaries);
+updateSettingsSummaries();
+const setupResults = $('setup-results');
+async function checkSetup() {
+  setupResults.hidden = false;
+  setupResults.textContent = 'Checking your setup…';
+  const pl = nativePlugin();
+  if (!pl) {
+    setupResults.textContent = `Scanner: ${scanner ? 'active' : 'stopped'}. Phone permissions and battery settings cannot be checked here. Check them in your browser or device settings.`;
+    return;
+  }
+  try {
+    const r = await pl.setupStatus();
+    const permission = (v: string) => v === 'granted' ? 'Allowed' : v === 'denied' ? 'Not allowed' : 'Not yet allowed';
+    const lines = [
+      ['Scanner', scanner ? 'Active' : 'Stopped — tap Scan on the map'],
+      ['Bluetooth', r.bluetooth === 'on' ? 'On' : r.bluetooth === 'off' ? 'Off — turn on Bluetooth' : 'Unable to check'],
+      ['Nearby devices', permission(r.ble)],
+      ['Location permission', permission(r.location)],
+      ['Notifications', r.notificationsEnabled === false ? 'Off in Android settings' : permission(r.notifications)],
+      ['Battery optimization', r.batteryExempt === true ? 'Unrestricted' : r.batteryExempt === false ? 'May limit background scanning' : 'Unable to check'],
+    ];
+    setupResults.replaceChildren();
+    const heading = document.createElement('strong'); heading.textContent = 'Setup check'; setupResults.append(heading);
+    for (const [label, value] of lines) { const row = document.createElement('div'); const name = document.createElement('span'); const state = document.createElement('b'); name.textContent = label; state.textContent = value; row.append(name, state); setupResults.append(row); }
+    const note = document.createElement('p'); note.textContent = 'Permissions can be changed in Android app settings. Starting a scan can request missing permissions. A setup check cannot guarantee a detection.'; setupResults.append(note);
+    if (r.batteryExempt === false) { const button = document.createElement('button'); button.type = 'button'; button.className = 'row-btn'; button.textContent = 'Open battery settings'; button.onclick = () => { void pl.openBatterySettings(); }; setupResults.append(button); }
+  } catch { setupResults.textContent = 'Setup information is unavailable on this version of the app. Check permissions and battery settings in Android settings.'; }
+}
+$('check-setup').onclick = () => { void checkSetup(); };
+$('open-pro-settings').onclick = () => { $('open-heat').click(); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !setupResults.hidden) void checkSetup(); });
