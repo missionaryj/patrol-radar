@@ -5,6 +5,7 @@ import type { Report } from '../reports/types';
 import type { CrowdCell } from '../crowd/protocol';
 import { type LiveDevice, bandRadius, WIFI_COLOR, offsetFor, applyOffset, opacityFor, LiveAnchors } from './liveDevices';
 import type { Vehicle } from '../fusion/vehicles';
+import { VEHICLE_EVIDENCE_LINE, WIFI_EVIDENCE_LINE } from '../wifi/identity';
 import { TTL_MS } from '../reports/localStore';
 import { FollowController } from './follow';
 import { SmoothLocation } from './smoothFollow';
@@ -352,7 +353,7 @@ export class MapView {
       const o = offsetFor(d.key); const { base, p, rel, est } = place(d.key, d.kind === 'match', o); const op = opacityFor(d.lastSeen, now); const wifi = d.radio === 'wifi';
       if (est) uncert(est, wifi ? WIFI_COLOR : d.color, op); else add(L.circle([base.lat, base.lng], { renderer: this.liveRenderer, radius: bandRadius(d.band), color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }), rel);
       const ago = Math.round((now - d.lastSeen) / 1000);
-      const popup = `${wifi ? '📶 <b>Wi-Fi</b> · ' : ''}${d.label}<br>${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${bandRadius(d.band)} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago${where(est, rel)}`;
+      const popup = `${wifi ? '📶 <b>Wi-Fi access point</b> · ' : ''}${d.label}<br>${wifi ? `<small>${WIFI_EVIDENCE_LINE}</small><br>` : ''}${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${bandRadius(d.band)} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago${where(est, rel)}`;
       add(L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: wifi ? 8 : 6, color: wifi ? WIFI_COLOR : '#111', weight: wifi ? 3 : 1, fillColor: d.color, fillOpacity: op, opacity: op }).bindPopup(popup), rel, o.dx, o.dy);
       if (wifi) add(L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'wifi-pin', html: '📶', iconSize: [18, 18], iconAnchor: [-4, 22] }), opacity: op, interactive: false, keyboard: false }), rel, o.dx, o.dy);
     }
@@ -361,7 +362,7 @@ export class MapView {
       uncert(est, '#ff1744', op);
       const list = v.members.map(m => `${m.radio === 'wifi' ? '📶' : 'ᛒ'} ${m.ruleId} (${Math.round(m.confidence * 100)}%)`).join('<br>');
       add(L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'veh-pin', html: `🚓 ${v.members.length}`, iconSize: [44, 22], iconAnchor: [22, 11] }), opacity: op, zIndexOffset: 1000 })
-        .bindPopup(`🚓 <b>Possible patrol vehicle</b> · ${Math.round(v.confidence * 100)}%<br>${v.members.length} signals (${v.radios.join(' + ')})${v.rssiCorrelated ? ', signal strength moves together' : ''}<br><small>${list}</small><br><small>best single signal ${Math.round(v.baseConfidence * 100)}%, +${Math.round(v.boost * 100)} for corroboration (capped)</small>${where(est, false)}`), false);
+        .bindPopup(`🚓 <b>Possible patrol vehicle</b> · ${Math.round(v.confidence * 100)}%<br>${v.members.length} signals (${v.radios.join(' + ')})${v.rssiCorrelated ? ', signal strength moves together' : ''}<br><small>${list}</small><br><small>best single signal ${Math.round(v.baseConfidence * 100)}%, +${Math.round(v.boost * 100)} for corroboration (capped)</small><br><small>${VEHICLE_EVIDENCE_LINE}</small>${where(est, false)}`), false);
     }
   }
 }

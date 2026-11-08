@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { VehicleGrouper, rssiCorrelation, combine, MAX_VEHICLE_CONF, type VehicleDetection } from './vehicles';
+import { VehicleGrouper, rssiCorrelation, combine, evidenceQuality, MAX_VEHICLE_CONF, type VehicleDetection } from './vehicles';
+import { scoreWifi } from '../wifi/tiers';
 import { ScanFusion, cellKey, wifiAsMatch } from '../session/extras';
 import { SessionRecorder, parseExport } from '../recorder/recorder';
-import { scoreWifi } from '../wifi/tiers';
 import type { Match } from '../ble/matcher';
 import { byId } from '../signatures';
 
@@ -41,6 +41,29 @@ describe('vehicle grouping', () => {
     g2.add(det({ key: 'radio', gear: 'radio', vendor: 'Motorola Solutions', confidence: 0.4, t: 16_000, rssi: -70 }));
     expect(g2.vehicleOf('radio')?.id).toBe(v.id); expect(v.members).toHaveLength(3);
   });
+  it('does not turn two access points with the same signature into two vehicles', () => {
+    const g = new VehicleGrouper();
+    const wifi = { radio: 'wifi' as const, ruleId: 'axon-oui-wifi', vendor: 'Axon', gear: 'body-camera', confidence: 0.6 };
+    expect(g.add(det({ key: 'n' + 'a'.repeat(16), ...wifi, t: 0 }))).toBeUndefined();
+    expect(g.add(det({ key: 'n' + 'b'.repeat(16), ...wifi, t: 1000 }))).toBeUndefined();
+    expect(g.list(1000)).toHaveLength(0);
+  });
+  it('keeps today\'s Axon group score and only labels the BLE overlap', () => {
+    expect(scoreWifi(['axon-oui-wifi'])!.confidence).toBe(0.6);
+    expect(scoreWifi(['axon-oui-wifi'], { bleAxon: true })!.confidence).toBe(0.88);
+    expect(scoreWifi(['axon-oui-wifi'], { bleAxon: true, persistent: true })!.confidence).toBe(0.88);
+    expect(scoreWifi(['cradlepoint-oui'])!.confidence).toBe(0.3);
+    const members = [
+      { key: 'ble', radio: 'ble' as const, ruleId: 'axon-cid', vendor: 'Axon', gear: 'body-camera', confidence: 0.85, lastSeen: 0, samples: [] as { t: number; rssi: number }[] },
+      { key: 'wifi', radio: 'wifi' as const, ruleId: 'axon-wifi-ble', vendor: 'Axon', gear: 'body-camera', confidence: 0.88, lastSeen: 0, samples: [] as { t: number; rssi: number }[] },
+    ];
+    const c = combine(members, false);
+    expect(c).toEqual({ confidence: 0.95, base: 0.88, boost: 0.07 });
+    const notes = evidenceQuality({ confidence: c.confidence, baseConfidence: c.base, boost: c.boost, rssiCorrelated: false, members });
+    expect(notes.join(' ')).toMatch(/already uses nearby Bluetooth/);
+    expect(notes.join(' ')).toMatch(/existing cap/);
+    expect(c.confidence).toBe(MAX_VEHICLE_CONF);
+  });
   it('combined confidence never exceeds the cap', () => {
     const ms = ['ble|a', 'wifi|b', 'ble|c'].map((k, i) => ({ key: k, radio: k.split('|')[0] as 'ble', ruleId: 'x', vendor: `v${i}`, gear: `g${i}`, confidence: 0.9, lastSeen: 0, samples: [] }));
     expect(combine(ms, true).confidence).toBe(MAX_VEHICLE_CONF);
@@ -63,7 +86,7 @@ describe('ScanFusion end to end (BLE then Wi-Fi in one cell)', () => {
     expect(rec.vehicle(v)).toBe(true);
     const o = rec.exportObject('t'); expect(o.vehicles).toHaveLength(1); expect(o.vehicles[0].members.map(m => m.radio).sort()).toEqual(['ble', 'wifi']);
     expect(JSON.stringify(o.vehicles)).not.toContain('40.1101');
-    const back = parseExport(JSON.stringify(o)); expect(back.schemaVersion).toBe(5); expect(back.vehicles).toHaveLength(1);
+    const back = parseExport(JSON.stringify(o)); expect(back.schemaVersion).toBe(6); expect(back.vehicles).toHaveLength(1);
     f.clear(); expect(f.vehicles.list(3000)).toHaveLength(0);
   });
   it('fixed cameras (Flock) never join a vehicle', () => {

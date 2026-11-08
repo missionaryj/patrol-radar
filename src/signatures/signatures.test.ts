@@ -152,7 +152,7 @@ describe('field-test label + export schema v3', () => {
     r.add(a, match(a), { lat: 40.1164, lng: -88.2433 }); r.stop();
     r.setLabel('police-present');
     const o = r.exportObject('1.0.18');
-    expect(o.header.schemaVersion).toBe(5);
+    expect(o.header.schemaVersion).toBe(6);
     expect(o.header.fieldLabel).toMatchObject({ value: 'police-present', setDuringSession: true });
     expect(o.signatureHits.map(h => [h.id, h.tier])).toEqual(expect.arrayContaining([['bwc-tag', 'strong'], ['axon-cid', 'likely']]));
     const json = JSON.stringify(o);

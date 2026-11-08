@@ -11,6 +11,8 @@ import { BluefyScanner } from './ble/bluefyScanner';
 import { NativeScanner } from './ble/nativeScanner';
 import { LiveDeviceTracker, colorFor, WIFI_COLOR } from './map/liveDevices';
 import { bandOfMHz } from './wifi/context';
+import { WIFI_EVIDENCE_LINE } from './wifi/identity';
+import { planWifi } from './wifi/observe';
 import type { Vehicle } from './fusion/vehicles';
 import { SessionRecorder } from './recorder/recorder';
 import { mountRecorder } from './recorder/ui';
@@ -28,6 +30,7 @@ const store = new LocalReportStore();
 const map = new MapView($('map'));
 mountMapSettings(map);
 let pos = { lat: 41.88, lng: -87.63 };
+let scanStartedAt = 0;
 let scanner: Scanner | undefined;
 const lastSeen = new Map<string, number>();
 const stats = new ScanStats();
@@ -76,6 +79,7 @@ $('recenter').onclick = () => { if (!map.recenter()) startGeo(); };
 const jitterDemo = () => coarsen(pos.lat + (Math.random() - 0.5) * 0.01, pos.lng + (Math.random() - 0.5) * 0.01);
 
 $('start').onclick = async () => {
+  scanStartedAt = Date.now();
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
   recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
@@ -121,14 +125,14 @@ $('add').onclick = async () => {
   try { await scanner.addDevice(); status(`Watching ${scanner.count} device(s).`, 'ok'); }
   catch (e) { const se = classify(e); status(`[${se.kind}] ${se.message}`, 'err'); }
 };
-$('stop').onclick = () => { supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); map.clearLive(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
+$('stop').onclick = () => { supervisor.stopped(); fusion.clear(); announced.clear(); recorder.discardWifiSession(); $('add').hidden = true; live.clear(); map.clearLive(); drawLive(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; status('Stopped'); $<HTMLButtonElement>('start').disabled = false; $<HTMLButtonElement>('stop').disabled = true; };
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
 
 const recorder = new SessionRecorder();
 const recHost = document.getElementById('start')!.parentElement!;
-mountRecorder(recHost, recorder, () => sel.value);
+mountRecorder(recHost, recorder, () => sel.value, () => pos);
 
 const ping = new PingPlayer(), pingGate = new PingGate();
 const soundBox = document.getElementById('sound') as HTMLInputElement; soundBox.checked = soundEnabled();
@@ -147,16 +151,18 @@ function patrolFlag(f: { possiblePatrolCar: boolean; gearTypes: string[] }, loc:
   addLog(`${new Date().toLocaleTimeString()} · 🚓 Possible patrol car: ${f.gearTypes.join(' + ')} in the same ~150 m area within 30 s`, '#ff1744');
   status(`🚓 Possible patrol car nearby (${f.gearTypes.join(' + ')})`, 'ok');
 }
-function onWifi(nm: import('./ble/nativeScanner').NativeWifiMatch) {
-  const w = fusion.scoreWifi(nm, pos); if (!w) return;
-  recorder.addWifi(w, nm.rssi, pos, Date.now(), bandOfMHz(nm.freq));
-  const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos); onVehicle(fusion.vehicle(m, pos));
-  map.loc.observe(m.sessionId, nm.t ?? Date.now(), m.rssi, 'wifi');
+function onWifi(raw: import('./ble/nativeScanner').NativeWifiMatch) {
+  const plan = planWifi(raw); if (!plan) return;
+  const w = fusion.scoreWifi(plan.context, pos); if (!w) return;
+  const noted = recorder.noteWifi({ match: w, rssi: plan.match.rssi, loc: pos, scanAt: plan.scanAt, receivedAt: Date.now(), scanStartedAt, cached: plan.cached, apId: plan.apId, radioId: plan.radioId, band: bandOfMHz(plan.match.freq) });
+  const m = wifiAsMatch(w, plan.match, noted.t); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos); onVehicle(fusion.vehicle(m, pos));
+  map.loc.observe(m.sessionId, noted.t, m.rssi, 'wifi');
   live.update(m.sessionId, m.rssi, m); drawLive();
   if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
   store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp, radio: 'wifi' });
   map.render(store.list());
-  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · 📶 Wi-Fi · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.tierRule ? ` (${m.tierRule})` : ''} · RSSI ${m.rssi ?? '?'} (unverified)`, WIFI_COLOR);
+  const kind = noted.identity === 'ap' ? 'separate access point' : 'signature only; access points not distinguishable';
+  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · 📶 Wi-Fi · ${m.signature.label} · ${kind} · ${(m.confidence * 100).toFixed(0)}%${m.tierRule ? ` (${m.tierRule})` : ''} · RSSI ${m.rssi ?? '?'} · ${WIFI_EVIDENCE_LINE}`, WIFI_COLOR);
 }
 const announced = new Set<string>();
 function onVehicle(v: Vehicle | undefined) {

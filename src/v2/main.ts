@@ -10,6 +10,8 @@ import { setupScannerPhrase, syncSetupScanner, webSetupMessage } from './setupCa
 import { LiveDeviceTracker, colorFor, WIFI_COLOR, bandRadius, type LiveDevice } from '../map/liveDevices';
 import { corroborationText, type Vehicle } from '../fusion/vehicles';
 import { bandOfMHz } from '../wifi/context';
+import { WIFI_EVIDENCE_LINE, VEHICLE_EVIDENCE_LINE } from '../wifi/identity';
+import { planWifi } from '../wifi/observe';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
 import { CrowdClient } from '../crowd/client';
@@ -35,6 +37,7 @@ const map = new MapView($('map'), undefined, { dark: true, legend: false, layers
 mountMapSettings(map);
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
+let scanStartedAt = 0;
 const lastSeen = new Map<string, number>();
 const stats = new ScanStats();
 const allDevs = new Set<string>(), policeDevs = new Set<string>();
@@ -150,7 +153,8 @@ function renderCards() {
       <div class="row"><span class="badge ${b.cls}">${b.text}</span><span class="name">${esc(d.label)}</span><span class="ago">${ago(d.lastSeen)}</span></div>
       ${d.kind === 'match' ? `<div class="conf"><span class="grade">${gradeOf(conf)}</span><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
       ${d.kind === 'match' && m ? confirmRow(d.key) : ''}
-      <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span><span class="loc">📍 ~${bandRadius(d.band)} m${map.anchors.get(d.key) ? ' · pinned' : ''}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">#${esc(d.key.slice(0, 6))}</span></div>
+      ${wifi ? `<p class="evidence">${esc(WIFI_EVIDENCE_LINE)}</p>` : ''}
+      <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span><span class="loc">📍 ~${bandRadius(d.band)} m${map.anchors.get(d.key) ? ' · pinned' : ''}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">${wifi ? (d.key.startsWith('wifi:') ? 'signature only' : `AP ${esc(d.key.slice(0, 6))}`) : `#${esc(d.key.slice(0, 6))}`}</span></div>
     </li>`;
   }).join('');
 }
@@ -182,6 +186,7 @@ function vehicleCard(v: Vehicle) {
     <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
     <div class="conf"><span class="grade">${gradeOf(v.confidence)}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     <div class="vmembers">${rows}</div>
+    <p class="evidence">${esc(VEHICLE_EVIDENCE_LINE)}</p>
     ${confirmRow(v.id)}
     <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">${corroborationText(v)}</span></div>
   </li>`;
@@ -202,6 +207,7 @@ function setScanning(on: boolean) {
   syncSetupScanner(document, on);
 }
 async function start() {
+  scanStartedAt = Date.now();
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
   if (kind !== 'native') recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
@@ -265,7 +271,7 @@ function setScanQuiet(on: boolean) { $('scan-quiet').hidden = !on || quietDismis
 $('sq-dismiss').onclick = () => { quietDismissed = true; $('scan-quiet').hidden = true; };
 $('sq-restart').onclick = () => { $('scan-quiet').hidden = true; quietDismissed = false; if (scanner) { recorder.event('restart', sel.value, 'user restart from scanner-quiet warning'); stop(); } void start(); };
 (globalThis as any).__prQuiet = setScanQuiet; // preview/debug hook
-function stop() { setScanQuiet(false); supervisor.stopped(); fusion.clear(); announced.clear(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
+function stop() { setScanQuiet(false); supervisor.stopped(); fusion.clear(); announced.clear(); recorder.discardWifiSession(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
 // Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
 for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {
@@ -284,7 +290,7 @@ if (new URLSearchParams(location.search).get('autostart') === '1') setTimeout(st
 
 const recorder = new SessionRecorder();
 const recHost = document.createElement('div'); document.querySelector('.sheet-head')!.after(recHost);
-mountRecorder(recHost, recorder, () => sel.value);
+mountRecorder(recHost, recorder, () => sel.value, () => pos);
 document.addEventListener('visibilitychange', () => { if (document.hidden) recorder.flush(); });
 addEventListener('pagehide', () => recorder.flush());
 
@@ -334,17 +340,19 @@ function patrolFlag(f: { possiblePatrolCar: boolean; gearTypes: string[] }, loc:
   addLog(`${new Date().toLocaleTimeString()} · 🚓 Possible patrol car: ${f.gearTypes.join(' + ')} in the same ~150 m area within 30 s`, '#ff1744');
   status(`🚓 Possible patrol car nearby (${f.gearTypes.join(' + ')})`, 'ok');
 }
-function onWifi(nm: import('../ble/nativeScanner').NativeWifiMatch) {
-  const w = fusion.scoreWifi(nm, pos); if (!w) return;
-  recorder.addWifi(w, nm.rssi, pos, Date.now(), bandOfMHz(nm.freq));
-  const m = wifiAsMatch(w, nm); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
+function onWifi(raw: import('../ble/nativeScanner').NativeWifiMatch) {
+  const plan = planWifi(raw); if (!plan) return;
+  const w = fusion.scoreWifi(plan.context, pos); if (!w) return;
+  const noted = recorder.noteWifi({ match: w, rssi: plan.match.rssi, loc: pos, scanAt: plan.scanAt, receivedAt: Date.now(), scanStartedAt, cached: plan.cached, apId: plan.apId, radioId: plan.radioId, band: bandOfMHz(plan.match.freq) });
+  const m = wifiAsMatch(w, plan.match, noted.t); const f = fusion.wifi(w, pos); if (f) patrolFlag(f, pos);
   matches.set(m.sessionId, m); onVehicle(fusion.vehicle(m, pos));
-  map.loc.observe(m.sessionId, nm.t ?? Date.now(), m.rssi, 'wifi');
+  map.loc.observe(m.sessionId, noted.t, m.rssi, 'wifi');
   live.update(m.sessionId, m.rssi, m); drawLiveSoon();
   if (Date.now() - (lastSeen.get(m.sessionId) ?? 0) < 30_000) return; lastSeen.set(m.sessionId, Date.now());
   store.add({ id: crypto.randomUUID(), category: m.signature.category, label: m.signature.label, confidence: m.confidence, ...pos, timestamp: m.timestamp, radio: 'wifi' });
   map.render(store.list());
-  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · 📶 Wi-Fi · ${m.signature.label} · ${(m.confidence * 100).toFixed(0)}%${m.tierRule ? ` (${m.tierRule})` : ''} · RSSI ${m.rssi ?? '?'} (unverified)`, WIFI_COLOR);
+  const kind = noted.identity === 'ap' ? 'separate access point' : 'signature only; access points not distinguishable';
+  addLog(`${new Date(m.timestamp).toLocaleTimeString()} · 📶 Wi-Fi · ${m.signature.label} · ${kind} · ${(m.confidence * 100).toFixed(0)}%${m.tierRule ? ` (${m.tierRule})` : ''} · RSSI ${m.rssi ?? '?'} · ${WIFI_EVIDENCE_LINE}`, WIFI_COLOR);
 }
 // Follow-me: on by default; a manual pan pauses it and the recenter button resumes it.
 { const rb = document.getElementById('recenter'); map.onFollowChange = on => { rb?.classList.toggle('follow-paused', !on); if (rb) rb.title = on ? 'Following your location' : 'Recenter and follow'; }; }

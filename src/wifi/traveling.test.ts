@@ -42,7 +42,7 @@ describe('confirmations + native health in the debug export', () => {
     const c = r.confirm({ verdict: 'police', kind: 'device', dev: 'wifi:cp1', radio: 'wifi', rules: ['cradlepoint-oui', 'cradlepoint-traveling'], tier: 'likely', confidence: 0.6, rssi: -62 }, { lat: 40.123456, lng: -88.234567 });
     expect(c.cell!.meters).toBe(150); expect(c.cell!.lat).not.toBe(40.123456);
     expect(r.confirmedAs('wifi:cp1')).toBe('police');
-    const ex = r.exportObject('test'); expect(ex.header.schemaVersion).toBe(5);
+    const ex = r.exportObject('test'); expect(ex.header.schemaVersion).toBe(6);
     expect(ex.confirmations).toHaveLength(1); expect(JSON.stringify(ex.confirmations)).not.toContain('40.123456');
     r.setNativeHealth(parseNativeHealth(JSON.stringify({ scanRestarts: { stall: 2, periodic: 5, screen: 1, failed: 0 }, screenOffSec: 300, quiet: false, baselinePerMin: 410, android: { sdk: 28, release: '9', deviceClass: 'android-8.1-11' }, serial: 'X' }))!);
     const h = r.exportObject('test').health as any; expect(h.scanRestarts.stall).toBe(2); expect(h.android.sdk).toBe(28); expect(JSON.stringify(h)).not.toContain('serial');

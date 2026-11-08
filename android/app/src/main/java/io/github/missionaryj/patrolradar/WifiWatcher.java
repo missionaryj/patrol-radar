@@ -22,7 +22,8 @@ import org.json.JSONObject;
 /**
  * PASSIVE Wi-Fi watcher: reads WifiManager scan results only. Never connects, joins, or probes a network.
  * SSIDs/BSSIDs are matched here against rule patterns from the web layer and then discarded: only the
- * matched rule ids, RSSI, the channel frequency and per-session salted hashes (AP, radio) leave this class. Nothing is written to disk.
+ * matched rule ids, RSSI, the channel frequency, a cached-scan flag and per-session salted hashes (AP, radio) leave this class.
+ * The BSSID is hashed in memory and discarded. Nothing is written to disk. Scan cadence is unchanged.
  *
  * Throttling (Android 9+): foreground apps get 4 startScan() calls per 2 minutes, background apps 1 per
  * 30 minutes. We request at most one scan every SCAN_INTERVAL_MS (30 s = 4 per 2 min), treat a false return
@@ -36,7 +37,7 @@ public class WifiWatcher {
     private final Context ctx; private final List<Rule> rules; private final Out out; private final HashFn hash;
     private final Handler h = new Handler(Looper.getMainLooper());
     private final Map<String, Long> lastEmit = new HashMap<>();
-    private long lastSeenTs = 0; private boolean running; private int throttled;
+    private long lastSeenTs = 0; private long watchStartUs = 0; private boolean running; private int throttled;
     interface HashFn { String apply(String s) throws Exception; }
 
     WifiWatcher(Context ctx, JSONArray rulesJson, HashFn hash, Out out) {
@@ -71,6 +72,7 @@ public class WifiWatcher {
 
     void start() {
         if (running || rules.isEmpty()) return; running = true;
+        watchStartUs = SystemClock.elapsedRealtime() * 1000;
         if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(rx, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION), Context.RECEIVER_NOT_EXPORTED);
         else ctx.registerReceiver(rx, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
         read(); h.post(tick);
@@ -107,6 +109,7 @@ public class WifiWatcher {
                 if (b.length() >= 14) o.put("radio", hash.apply("radio:" + b.substring(0, 14)));
                 o.put("freq", r.frequency);
                 o.put("t", System.currentTimeMillis() - (SystemClock.elapsedRealtime() * 1000 - r.timestamp) / 1000); // scan time (r.timestamp is us since boot)
+                o.put("cached", WifiObs.cached(r.timestamp, watchStartUs)); // OS cache from before this watcher, not a live hit
                 out.onMatch(o); // ssid/bssid deliberately not included
             } catch (Exception ignored) { }
         }
