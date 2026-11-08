@@ -137,6 +137,25 @@ describe('Wi-Fi access-point identity', () => {
     expect(WIFI_EVIDENCE_LINE).toMatch(/Not a car or officer count/);
   });
 
+  it('keeps an earlier row at the score and cell from that observation', () => {
+    const r = new SessionRecorder(mem()); r.start('native');
+    const t0 = Date.now();
+    const near = { lat: 40.11, lng: -88.24 };
+    const far = { lat: 40.2, lng: -88.24 };
+    const plain = scoreWifi(['axon-oui-wifi'])!;
+    const withBle = scoreWifi(['axon-oui-wifi'], { bleAxon: true })!;
+    expect(plain.confidence).toBe(0.6);
+    expect(withBle.confidence).toBe(0.88);
+    r.noteWifi({ match: plain, rssi: -80, apId: ap('a'), scanAt: t0, receivedAt: t0, scanStartedAt: t0 - 1000, loc: near });
+    r.noteWifi({ match: withBle, rssi: -60, apId: ap('a'), scanAt: t0 + 30_000, receivedAt: t0 + 30_000, scanStartedAt: t0 - 1000, loc: far });
+    const rows = r.s.records.filter(x => x.dev === ap('a'));
+    expect(rows.map(x => x.confidence)).toEqual([0.6, 0.88]);
+    expect(rows[0].tierRule).toBeUndefined();
+    expect(rows[1].tierRule).toBe('axon-wifi-ble');
+    expect(rows[0].cell!.lat).not.toBe(rows[1].cell!.lat);
+    expect(r.summary().find(d => d.dev === ap('a'))!.maxConfidence).toBe(0.88);
+  });
+
   it('does not let a missing hash share persistence context or leak into the record', () => {
     const mac = { id: '00:25:DF:AB:CD:EF', rules: ['axon-oui-wifi'], rssi: -60, radio: '00:25:DF:AB:CD:EE', t: 10, freq: 2412 };
     const a = planWifi(mac)!; const b = planWifi({ ...mac, id: '00:25:DF:00:11:22' })!;

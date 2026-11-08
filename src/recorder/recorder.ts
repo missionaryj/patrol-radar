@@ -123,7 +123,11 @@ export function perMinuteTimeline(perMinute: Record<string, number>, lo: number 
 /** Rule ids that matched this advert (same predicates as the matcher, including payload-shape gates). */
 function rulesHit(adv: Advertisement, m: Match): string[] { return (m.hits ?? ruleHits(adv)).map(h => h.signature.id); }
 
-interface WifiSample { t: number; rssi?: number; receivedAt: number; retention: WifiRetention; timeSource: WifiTimeSource }
+interface WifiSample {
+  t: number; rssi?: number; receivedAt: number; retention: WifiRetention; timeSource: WifiTimeSource;
+  confidence: number; corroborated: boolean; rules: string[]; tierRule?: string; features?: string[]; band?: string;
+  cell?: { lat: number; lng: number; meters: number };
+}
 interface WifiTrack {
   dev: string; identity: WifiIdentityKind; radioId?: string; ruleId: string; rules: string[];
   tierRule?: string; features?: string[]; band?: string; confidence: number; corroborated: boolean;
@@ -331,7 +335,12 @@ export class SessionRecorder {
     const idn = wifiDev(n.match.best.id, n.apId);
     const when = classifyWifiTime({ scanAt: n.scanAt, receivedAt, scanStartedAt: n.scanStartedAt, recordingStartedAt: this.s.startedAt, cached: n.cached, recording: this.s.recording });
     if (n.loc) this.cell(n.loc);
-    const sample: WifiSample = { t: when.t, rssi: n.rssi, receivedAt, retention: when.retention, timeSource: when.timeSource };
+    const sample: WifiSample = {
+      t: when.t, rssi: n.rssi, receivedAt, retention: when.retention, timeSource: when.timeSource,
+      confidence: n.match.confidence, corroborated: n.match.corroborated, rules: [...n.match.rules],
+      ...(n.match.tierRule ? { tierRule: n.match.tierRule, features: [...(n.match.features ?? [])] } : {}),
+      ...(n.band ? { band: n.band } : {}), cell: coarseCell(n.loc),
+    };
     const tr = this.wifiTracks.get(idn.dev) ?? {
       dev: idn.dev, identity: idn.identity, radioId: idn.identity === 'ap' && isSessionHash(n.radioId) ? n.radioId : undefined,
       ruleId: n.match.best.id, rules: [...n.match.rules], confidence: n.match.confidence, corroborated: n.match.corroborated, samples: [],
@@ -343,7 +352,7 @@ export class SessionRecorder {
     if (n.match.tierRule) tr.tierRule = n.match.tierRule;
     if (n.match.features) tr.features = [...n.match.features];
     if (n.band) tr.band = n.band;
-    tr.cell = coarseCell(n.loc) ?? tr.cell;
+    if (sample.cell) tr.cell = sample.cell;
     if (!tr.first || sample.t < tr.first.t) tr.first = sample;
     if (!tr.samples.some(s => s.t === sample.t)) {
       tr.samples.push(sample);
@@ -379,11 +388,11 @@ export class SessionRecorder {
     if (!force && !this.s.recording) return false;
     if (this.s.records.some(r => r.radio === 'wifi' && r.dev === tr.dev && r.t === s.t)) return false;
     this.s.records.push({
-      t: s.t, dev: tr.dev, rssi: s.rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...tr.rules], bestRule: tr.ruleId,
-      confidence: tr.confidence, corroborated: tr.corroborated, cell: tr.cell, radio: 'wifi', identity: tr.identity, retention: s.retention, timeSource: s.timeSource,
+      t: s.t, dev: tr.dev, rssi: s.rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...s.rules], bestRule: tr.ruleId,
+      confidence: s.confidence, corroborated: s.corroborated, cell: s.cell, radio: 'wifi', identity: tr.identity, retention: s.retention, timeSource: s.timeSource,
       ...(tr.radioId ? { radioId: tr.radioId } : {}),
-      ...(tr.tierRule ? { tierRule: tr.tierRule, features: [...(tr.features ?? [])] } : {}),
-      ...(tr.band ? { band: tr.band } : {}),
+      ...(s.tierRule ? { tierRule: s.tierRule, features: [...(s.features ?? [])] } : {}),
+      ...(s.band ? { band: s.band } : {}),
     });
     if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
     this.saveSoon(); return true;
