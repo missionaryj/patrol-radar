@@ -7,6 +7,8 @@ import { WIFI_RULES } from '../wifi/rules';
 import { WIFI_TIERS } from '../wifi/tiers';
 import { coarsen } from '../map/coarsen';
 import type { WifiMatch } from '../wifi/rules';
+import { classifyWifiTime, isSessionHash, wifiDev, type WifiIdentityKind, type WifiRetention, type WifiTimeSource } from '../wifi/identity';
+import { evidenceQuality } from '../fusion/vehicles';
 
 /**
  * Session recorder: keeps raw advert payloads for POLICE-GEAR MATCHES ONLY.
@@ -15,7 +17,8 @@ import type { WifiMatch } from '../wifi/rules';
  * (callers may pass precise coords, they are coarsened before storage);
  * printable-ASCII runs that look like serials/unit IDs (>=6 alnum chars incl. a digit) are masked.
  */
-export const SCHEMA_VERSION = 5; // v5 (1.0.23): confirmations[] (user 'saw police' / 'not police' taps) + health.native (scan supervisor counts)
+export const SCHEMA_VERSION = 6; // v6: Wi-Fi rows keep a per-session AP hash when the phone can tell access points apart, plus retention (session | buffered | history) and user sighting marks. Confidence tables are unchanged.
+export const SCHEMA_V5 = 5; // v5 (1.0.23): confirmations[] (user 'saw police' / 'not police' taps) + health.native (scan supervisor counts)
 export const SCHEMA_V4 = 4; // v3 (1.0.18): field-test label + per-signature hit summary (id, tier)
 // v4 (1.0.19): records carry `radio` ('ble' | 'wifi'); Wi-Fi records may carry `tierRule`, `features` and `band`;
 // top-level `vehicles` lists multi-signal vehicle groups. All additive: v1-v3 readers ignore the new fields.
@@ -36,6 +39,14 @@ export interface RecordEntry {
   radio?: 'ble' | 'wifi';
   /** v4+, Wi-Fi only: contextual tier rule that set the confidence, the features that fired it, and the band (no SSID/BSSID). */
   tierRule?: string; features?: string[]; band?: string;
+  /** v6, Wi-Fi: 'ap' is one per-session salted hash. 'signature' means the phone could not tell access points apart. */
+  identity?: WifiIdentityKind;
+  /** v6, Wi-Fi: session = heard while recording; buffered = OS cache from before this scan; history = held before Record was on. */
+  retention?: WifiRetention;
+  /** v6: 'scan' uses the OS result time; 'received' is when the app got it because no usable scan time was present. */
+  timeSource?: WifiTimeSource;
+  /** v6: per-session hash of one radio (2.4/5 GHz pair). Not a vehicle id. Omitted unless it matches the hash shape. */
+  radioId?: string;
 }
 /** v4+: one multi-signal vehicle group. Member ids are the per-session salted hashes already used in records. */
 export interface VehicleRecord {
@@ -52,6 +63,14 @@ export interface ConfirmationRecord {
   cell?: { lat: number; lng: number; meters: number };
 }
 export const MAX_CONFIRMATIONS = 500;
+/** v6: a user mark that a vehicle came into view or left. Time and coarse cell only. Not tied to a radio and not a vehicle count. */
+export type SightingKind = 'vehicle-arrived' | 'vehicle-left';
+export interface SightingRecord {
+  t: number; kind: SightingKind;
+  cell?: { lat: number; lng: number; meters: number };
+}
+export const MAX_SIGHTINGS = 200;
+const WIFI_SAMPLE_CAP = 60;
 /** v5+: latest native scan-supervisor report (counts + Android version class only). */
 export interface NativeHealthRecord extends NativeDiagnostics { scanRestarts: { stall: number; periodic: number; screen: number; failed: number }; screenOffSec: number; quiet: boolean; baselinePerMin: number; android: { sdk: number; release: string; deviceClass: string } }
 export type ScanEventKind = 'start' | 'stop' | 'restart' | 'stall' | 'auto-restart' | 'possible-patrol-car' | 'error' | 'permission-denied' | 'location-denied' | 'location-error' | 'screen-off' | 'screen-on' | 'scanner-quiet' | 'scanner-recovered';
@@ -68,7 +87,7 @@ export interface Health {
 }
 export const newHealth = (): Health => ({ adverts: 0, matched: 0, distinctDevices: 0, cellsVisited: 0, longestGapMs: 0, perMinute: {}, events: [], fixes: 0, accSum: 0, accBuckets: { le20: 0, le50: 0, le100: 0, gt100: 0 } });
 export type Verdict = 'healthy' | 'scanner idle' | 'no adverts' | 'no location' | 'scanner errors' | 'not recorded';
-interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; vehicles?: VehicleRecord[]; health?: Health; confirmations?: ConfirmationRecord[]; native?: NativeHealthRecord; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
+interface State { recording: boolean; startedAt?: number; endedAt?: number; backend?: string; records: RecordEntry[]; dropped: number; vehicles?: VehicleRecord[]; health?: Health; confirmations?: ConfirmationRecord[]; sightings?: SightingRecord[]; native?: NativeHealthRecord; label?: { value: FieldLabel; setAt: number; updatedAt: number; duringSession: boolean } }
 const MAX_EVENTS = 200; const SAVE_EVERY_MS = 2000; const IDLE_GAP_MS = 120_000;
 const detailSafe = (d?: string) => d?.replace(/([0-9A-F]{2}:){5}[0-9A-F]{2}/gi, '[mac]').slice(0, 120);
 
@@ -104,6 +123,20 @@ export function perMinuteTimeline(perMinute: Record<string, number>, lo: number 
 /** Rule ids that matched this advert (same predicates as the matcher, including payload-shape gates). */
 function rulesHit(adv: Advertisement, m: Match): string[] { return (m.hits ?? ruleHits(adv)).map(h => h.signature.id); }
 
+interface WifiSample { t: number; rssi?: number; receivedAt: number; retention: WifiRetention; timeSource: WifiTimeSource }
+interface WifiTrack {
+  dev: string; identity: WifiIdentityKind; radioId?: string; ruleId: string; rules: string[];
+  tierRule?: string; features?: string[]; band?: string; confidence: number; corroborated: boolean;
+  cell?: { lat: number; lng: number; meters: number };
+  first?: WifiSample; samples: WifiSample[];
+}
+
+const coarseCell = (loc?: { lat: number; lng: number }) => {
+  if (!loc) return undefined;
+  const g = coarsen(loc.lat, loc.lng, 150);
+  return { lat: +g.lat.toFixed(5), lng: +g.lng.toFixed(5), meters: 150 };
+};
+
 export class SessionRecorder {
   s: State;
   constructor(private storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined = globalThis.localStorage) {
@@ -114,6 +147,8 @@ export class SessionRecorder {
   }
   // in-memory only (never persisted/exported): de-dupe sets for distinct counts
   private seenDevs = new Set<string>(); private seenCells = new Set<string>();
+  /** Wi-Fi observations since this scan session. Dropped on scan stop so a new salt cannot be linked. Not the export. */
+  private wifiTracks = new Map<string, WifiTrack>();
   get health(): Health { return this.s.health!; }
   private evt(kind: ScanEventKind, backend?: string, detail?: string) {
     const h = this.health; const t = Date.now(); h.events.push({ t, kind, backend, detail: detailSafe(detail) });
@@ -204,16 +239,28 @@ export class SessionRecorder {
   get recording() { return this.s.recording; }
   get count() { return this.s.records.length; }
   get devices() { return new Set(this.s.records.map(r => r.dev)).size; }
-  start(backend: string) { this.s.recording = true; this.s.startedAt ??= Date.now(); this.s.endedAt = undefined; this.s.backend = backend; this.save(); }
+  start(backend: string) { this.s.recording = true; this.s.startedAt ??= Date.now(); this.s.endedAt = undefined; this.s.backend = backend; this.flushWifiTracks(); this.save(); }
   stop() { this.s.recording = false; this.s.endedAt = Date.now(); this.save(); }
   /** Latest native supervisor report (replaces the previous one; counts are cumulative per scan session). */
   setNativeHealth(h: NativeHealthRecord) { this.s.native = { ...nativeDiagnostics(h), scanRestarts: { ...h.scanRestarts }, screenOffSec: h.screenOffSec, quiet: h.quiet, baselinePerMin: h.baselinePerMin, android: { ...h.android } }; this.saveSoon(); }
   get confirmations(): ConfirmationRecord[] { return this.s.confirmations ?? []; }
   /** Stores one confirmation tap. Precise location is coarsened to the grid cell here; nothing is uploaded. */
   confirm(c: Omit<ConfirmationRecord, 'cell' | 't'> & { t?: number }, loc?: { lat: number; lng: number }) {
-    const cell = loc ? (() => { const g = coarsen(loc.lat, loc.lng, 150); return { lat: +g.lat.toFixed(5), lng: +g.lng.toFixed(5), meters: 150 }; })() : undefined;
+    this.retainWifi(c.dev);
+    const cell = coarseCell(loc);
     const rec: ConfirmationRecord = { t: c.t ?? Date.now(), verdict: c.verdict, kind: c.kind, dev: c.dev, ...(c.radio ? { radio: c.radio } : {}), rules: [...c.rules], tier: c.tier, confidence: +c.confidence.toFixed(2), ...(typeof c.rssi === 'number' ? { rssi: c.rssi } : {}), ...(cell ? { cell } : {}) };
     const list = (this.s.confirmations ??= []); list.push(rec); if (list.length > MAX_CONFIRMATIONS) list.shift(); this.save(); return rec;
+  }
+  get sightings(): SightingRecord[] { return this.s.sightings ?? []; }
+  /**
+   * User mark that a vehicle arrived or left. Stored with a timestamp and an optional coarse cell.
+   * It is not attached to an access point and is not a claim that any radio was in that vehicle.
+   */
+  markSighting(kind: SightingKind, loc?: { lat: number; lng: number }, t = Date.now()): SightingRecord | undefined {
+    if (kind !== 'vehicle-arrived' && kind !== 'vehicle-left') return undefined;
+    const cell = coarseCell(loc);
+    const rec: SightingRecord = { t, kind, ...(cell ? { cell } : {}) };
+    const list = (this.s.sightings ??= []); list.push(rec); if (list.length > MAX_SIGHTINGS) list.shift(); this.save(); return rec;
   }
   /** Last verdict given for a session device / vehicle id (for the card's pressed state). */
   confirmedAs(dev: string): ConfirmVerdict | undefined { const l = this.confirmations; for (let i = l.length - 1; i >= 0; i--) if (l[i].dev === dev) return l[i].verdict; return undefined; }
@@ -238,7 +285,7 @@ export class SessionRecorder {
       return { id, radio: sig ? 'ble' : 'wifi', tier: sig ? tierOf(sig) : conf >= 0.85 ? 'strong' : conf >= 0.5 ? 'likely' : 'hint', status: sig?.status ?? w?.status ?? 'unverified', baseConfidence: conf, records: d.records, devices: d.devices.size, bestRuleRecords: d.best, maxConfidence: d.maxConfidence };
     }).sort((a, b) => b.records - a.records);
   }
-  clear() { this.s = { recording: this.s.recording, startedAt: this.s.recording ? Date.now() : undefined, backend: this.s.backend, records: [], dropped: 0, health: newHealth() }; this.seenDevs.clear(); this.seenCells.clear(); this.save(); }
+  clear() { this.s = { recording: this.s.recording, startedAt: this.s.recording ? Date.now() : undefined, backend: this.s.backend, records: [], dropped: 0, health: newHealth() }; this.seenDevs.clear(); this.seenCells.clear(); this.wifiTracks.clear(); this.save(); }
 
   /** Returns true if stored. Unmatched adverts are always rejected. */
   add(adv: Advertisement, m: Match | null, loc?: { lat: number; lng: number }): boolean {
@@ -262,14 +309,82 @@ export class SessionRecorder {
     return true;
   }
 
-  /** Wi-Fi rule match (Android). Stores ONLY rule ids, confidence, RSSI and the coarse cell: no SSID, BSSID or hash. */
+  /**
+   * Wi-Fi rule match. Stores rule ids, confidence, RSSI, the coarse cell and, when Android provided one,
+   * the per-session salted access-point hash. Never an SSID, BSSID, MAC or payload.
+   * Without a hash every access point of that signature shares one row group, marked identity 'signature'.
+   */
   addWifi(m: WifiMatch & { tierRule?: string; features?: string[] }, rssi: number | undefined, loc?: { lat: number; lng: number }, t = Date.now(), band?: string): boolean {
-    if (!this.s.recording) return false;
-    if (loc) this.cell(loc);
-    const c = loc ? coarsen(loc.lat, loc.lng, 150) : undefined;
-    this.s.records.push({ t, dev: `wifi:${m.best.id}`, rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...m.rules], bestRule: m.best.id,
-      confidence: m.confidence, corroborated: m.corroborated, cell: c && { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), meters: 150 }, radio: 'wifi',
-      ...(m.tierRule ? { tierRule: m.tierRule, features: [...(m.features ?? [])] } : {}), ...(band ? { band } : {}) });
+    return this.noteWifi({ match: m, rssi, loc, receivedAt: t, band }).stored;
+  }
+  /**
+   * Remember one access-point observation. While recording, append a row. Before recording, hold it in
+   * memory and flush it as history when Record starts. A confirmation also keeps the earliest time.
+   */
+  noteWifi(n: {
+    match: WifiMatch & { tierRule?: string; features?: string[] };
+    rssi?: number; loc?: { lat: number; lng: number };
+    receivedAt?: number; scanAt?: number; scanStartedAt?: number; cached?: boolean;
+    apId?: string; radioId?: string; band?: string;
+  }): { stored: boolean; dev: string; identity: WifiIdentityKind; t: number; retention: WifiRetention } {
+    const receivedAt = n.receivedAt ?? Date.now();
+    const idn = wifiDev(n.match.best.id, n.apId);
+    const when = classifyWifiTime({ scanAt: n.scanAt, receivedAt, scanStartedAt: n.scanStartedAt, recordingStartedAt: this.s.startedAt, cached: n.cached, recording: this.s.recording });
+    if (n.loc) this.cell(n.loc);
+    const sample: WifiSample = { t: when.t, rssi: n.rssi, receivedAt, retention: when.retention, timeSource: when.timeSource };
+    const tr = this.wifiTracks.get(idn.dev) ?? {
+      dev: idn.dev, identity: idn.identity, radioId: idn.identity === 'ap' && isSessionHash(n.radioId) ? n.radioId : undefined,
+      ruleId: n.match.best.id, rules: [...n.match.rules], confidence: n.match.confidence, corroborated: n.match.corroborated, samples: [],
+    };
+    tr.confidence = Math.max(tr.confidence, n.match.confidence);
+    tr.corroborated = tr.corroborated || n.match.corroborated;
+    tr.rules = [...new Set([...tr.rules, ...n.match.rules])];
+    if (!tr.radioId && idn.identity === 'ap' && isSessionHash(n.radioId)) tr.radioId = n.radioId;
+    if (n.match.tierRule) tr.tierRule = n.match.tierRule;
+    if (n.match.features) tr.features = [...n.match.features];
+    if (n.band) tr.band = n.band;
+    tr.cell = coarseCell(n.loc) ?? tr.cell;
+    if (!tr.first || sample.t < tr.first.t) tr.first = sample;
+    if (!tr.samples.some(s => s.t === sample.t)) {
+      tr.samples.push(sample);
+      tr.samples.sort((a, b) => a.t - b.t);
+      if (tr.samples.length > WIFI_SAMPLE_CAP) {
+        const first = tr.samples[0], last = tr.samples[tr.samples.length - 1];
+        tr.samples = [first, ...tr.samples.slice(1, -1).slice(-(WIFI_SAMPLE_CAP - 2)), last];
+      }
+    }
+    this.wifiTracks.set(idn.dev, tr);
+    const stored = this.appendWifi(tr, sample, false);
+    return { stored, dev: idn.dev, identity: idn.identity, t: sample.t, retention: sample.retention };
+  }
+  /** Drop in-memory Wi-Fi tracks at scan stop. A new scan has a new salt; do not carry ids across it. Already stored rows stay. */
+  discardWifiSession() { this.wifiTracks.clear(); }
+  private flushWifiTracks() {
+    if (!this.s.recording) return;
+    for (const tr of this.wifiTracks.values()) for (const s of tr.samples) this.appendWifi(tr, this.asRecorded(s), false);
+  }
+  /** Re-label a pre-recording sample now that Record is on. Buffered stays buffered. */
+  private asRecorded(s: WifiSample): WifiSample {
+    if (s.retention === 'buffered') return s;
+    if (this.s.startedAt !== undefined && s.t < this.s.startedAt) return { ...s, retention: 'history' };
+    return s;
+  }
+  /** Keep this access point's observed samples, including ones from before Record was on. */
+  private retainWifi(dev: string) {
+    const tr = this.wifiTracks.get(dev); if (!tr) return;
+    const samples = tr.first && !tr.samples.some(s => s.t === tr.first!.t) ? [tr.first, ...tr.samples] : tr.samples;
+    for (const s of samples) this.appendWifi(tr, s, true);
+  }
+  private appendWifi(tr: WifiTrack, s: WifiSample, force: boolean): boolean {
+    if (!force && !this.s.recording) return false;
+    if (this.s.records.some(r => r.radio === 'wifi' && r.dev === tr.dev && r.t === s.t)) return false;
+    this.s.records.push({
+      t: s.t, dev: tr.dev, rssi: s.rssi, serviceUuids: [], manufacturerData: [], serviceData: [], rules: [...tr.rules], bestRule: tr.ruleId,
+      confidence: tr.confidence, corroborated: tr.corroborated, cell: tr.cell, radio: 'wifi', identity: tr.identity, retention: s.retention, timeSource: s.timeSource,
+      ...(tr.radioId ? { radioId: tr.radioId } : {}),
+      ...(tr.tierRule ? { tierRule: tr.tierRule, features: [...(tr.features ?? [])] } : {}),
+      ...(tr.band ? { band: tr.band } : {}),
+    });
     if (this.s.records.length > MAX_RECORDS) { this.s.records.splice(0, this.s.records.length - MAX_RECORDS); this.s.dropped++; }
     this.saveSoon(); return true;
   }
@@ -294,7 +409,15 @@ export class SessionRecorder {
       if (r.rssi !== undefined) { d.minRssi = Math.min(d.minRssi ?? r.rssi, r.rssi); d.maxRssi = Math.max(d.maxRssi ?? r.rssi, r.rssi); }
       r.rules.forEach(x => d.rules.add(x)); d.maxConfidence = Math.max(d.maxConfidence, r.confidence); by.set(r.dev, d);
     }
-    return [...by.values()].map(d => ({ ...d, rules: [...d.rules], firstSeen: new Date(d.firstSeen).toISOString(), lastSeen: new Date(d.lastSeen).toISOString() }));
+    return [...by.values()].map(d => {
+      const rows = this.s.records.filter(r => r.dev === d.dev);
+      const wifi = rows.filter(r => r.radio === 'wifi');
+      const identity = wifi.length && wifi.every(r => r.identity === wifi[0].identity) ? wifi[0].identity : undefined;
+      const retentions = [...new Set(wifi.map(r => r.retention).filter((x): x is WifiRetention => !!x))];
+      const sessionRows = wifi.filter(r => r.retention === 'session');
+      const sessionFirstSeen = sessionRows.length ? new Date(Math.min(...sessionRows.map(r => r.t))).toISOString() : undefined;
+      return { ...d, rules: [...d.rules], firstSeen: new Date(d.firstSeen).toISOString(), lastSeen: new Date(d.lastSeen).toISOString(), ...(identity ? { identity } : {}), ...(retentions.length ? { retentions } : {}), ...(sessionFirstSeen ? { sessionFirstSeen } : {}) };
+    });
   }
 
   exportObject(appVersion: string) {
@@ -305,13 +428,14 @@ export class SessionRecorder {
         sessionEnd: new Date(this.s.endedAt ?? Date.now()).toISOString(),
         backend: this.s.backend ?? null, records: this.count, distinctDevices: this.devices, cap: MAX_RECORDS, truncated: this.s.dropped > 0,
         fieldLabel: this.s.label ? { value: this.s.label.value, setAt: new Date(this.s.label.setAt).toISOString(), updatedAt: new Date(this.s.label.updatedAt).toISOString(), setDuringSession: this.s.label.duringSession } : null,
-        privacy: 'police-gear matches only; device ids are per-session salted hashes; no names/MACs; location = 150 m grid cell; serial-like ASCII runs in payloads masked as **; health = aggregate counts only',
+        privacy: 'police-gear matches only; device ids are per-session salted hashes; a Wi-Fi row uses that hash when Android can tell access points apart, otherwise only the signature id (not one access point); no names, MACs, SSIDs or BSSIDs; location = 150 m grid cell; serial-like ASCII runs in payloads masked as **; health = aggregate counts only; sightings are the user\'s clock marks and are not a vehicle count',
       },
       health: this.healthExport(),
       signatureHits: this.signatureHits(),
-      vehicles: this.vehicles.map(v => ({ ...v, firstSeen: new Date(v.firstSeen).toISOString(), lastSeen: new Date(v.lastSeen).toISOString() })),
+      vehicles: this.vehicles.map(v => ({ ...v, firstSeen: new Date(v.firstSeen).toISOString(), lastSeen: new Date(v.lastSeen).toISOString(), notes: evidenceQuality(v) })),
       devices: this.summary(),
       confirmations: this.confirmations.map(c => ({ ...c, t: new Date(c.t).toISOString() })),
+      sightings: this.sightings.map(s => ({ kind: s.kind, t: new Date(s.t).toISOString(), ...(s.cell ? { cell: s.cell } : {}) })),
       records: this.s.records,
     };
   }
@@ -323,5 +447,5 @@ export function parseExport(json: string) {
   if (o?.header?.app !== 'patrol-radar') throw new Error('not a patrol-radar session file');
   const v = Number(o.header.schemaVersion ?? 1);
   if (v > SCHEMA_VERSION) throw new Error(`schema v${v} is newer than this app (v${SCHEMA_VERSION})`);
-  return { schemaVersion: v, header: o.header, health: (o.health ?? null) as ReturnType<SessionRecorder['healthExport']> | null, devices: o.devices ?? [], records: (o.records ?? []) as RecordEntry[], vehicles: (o.vehicles ?? []) as unknown[] };
+  return { schemaVersion: v, header: o.header, health: (o.health ?? null) as ReturnType<SessionRecorder['healthExport']> | null, devices: o.devices ?? [], records: (o.records ?? []) as RecordEntry[], vehicles: (o.vehicles ?? []) as unknown[], sightings: (o.sightings ?? []) as unknown[] };
 }

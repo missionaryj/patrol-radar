@@ -31,8 +31,23 @@ export function rssiCorrelation(a: { t: number; rssi: number }[], b: { t: number
   return sxy / Math.sqrt(sxx * syy);
 }
 const lastRssi = (m: VehicleMember) => m.samples[m.samples.length - 1]?.rssi;
-/** Two members are independent evidence if they come from different radios or different gear types / vendors. */
+/**
+ * Two members are independent evidence if they come from different radios or different gear types / vendors.
+ * A different radio is not automatically a second sighting: Wi-Fi tiers such as axon-wifi-ble already consumed
+ * nearby Bluetooth. evidenceQuality() says so. Do not add another confidence boost for that overlap, and do not
+ * treat two access points that share radio, gear and vendor as two vehicles.
+ */
 const independent = (a: VehicleMember, b: { radio: Radio; gear: string; vendor: string }) => a.radio !== b.radio || a.gear !== b.gear || a.vendor !== b.vendor;
+
+/** Labels only. Does not change confidence, boost or the cap. */
+export function evidenceQuality(v: { confidence: number; baseConfidence: number; boost: number; rssiCorrelated: boolean; members: { radio: string; ruleId: string }[] }): string[] {
+  const notes = ['Radios grouped by coarse area and time. Not a verified count of vehicles or officers.'];
+  const wifiUsedBle = v.members.some(m => m.radio === 'wifi' && /ble/i.test(m.ruleId));
+  if (wifiUsedBle && v.members.some(m => m.radio === 'ble')) notes.push('The Wi-Fi score already uses nearby Bluetooth, so the group boost is not a second independent sighting.');
+  if (!v.rssiCorrelated && v.boost > 0) notes.push('No RSSI correlation. Added points are the existing uncorrelated cap, not proof the radios moved together.');
+  if (v.confidence >= MAX_VEHICLE_CONF) notes.push('The group score is at the existing cap. A longer stay does not raise it.');
+  return notes;
+}
 
 /** Combined confidence: noisy-OR over independent members, then capped at best + boost cap and MAX_VEHICLE_CONF. */
 export function combine(members: VehicleMember[], correlated: boolean): { confidence: number; base: number; boost: number } {

@@ -41,7 +41,7 @@
   - Below API 35, static (top bits 11) and resolvable (01) random addresses are rejected.
   - A non-resolvable random address (00) cannot be told apart from a public one there. The chance that it matches by accident is 1 in 2^22.
   - With "Police gear only" on, Android hardware filters cannot match a MAC prefix, so a device that shows *only* the OUI is seen only in "All devices" mode.
-- **Wi-Fi OUI:** `WifiWatcher.match()` compares the BSSID prefix in memory. Only the rule id, RSSI and a per-session salted hash cross the bridge. The recorder stores the rule id only, with no SSID, BSSID or hash. Android scan results list access points only, so this catches a camera or Fleet hub in AP mode, not client probes.
+- **Wi-Fi OUI:** `WifiWatcher.match()` compares the BSSID prefix in memory. Only the rule id, RSSI, a cached-scan flag and a per-session salted hash cross the bridge. The BSSID is hashed and discarded. The recorder stores that hash as the access-point id when it matches the native hash shape, and stores only the rule id (marked `identity: "signature"`) when it does not. No SSID or BSSID is stored. One hash is one access point in that scan session, not one vehicle. Android scan results list access points only, so this catches a camera or Fleet hub in AP mode, not client probes.
 
 ## Wi-Fi tiers and vehicle grouping (1.0.19)
 
