@@ -30,6 +30,8 @@ export class Map3D {
   private generation = 0; private cancelOpen?: () => void;
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
   constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void, private onFailure: () => void = () => {}) {}
+  onMoveEnd?: () => void;
+  bounds() { return this.map?.getBounds(); }
   get active() { return !!this.map; }
   async open(center: { lat: number; lng: number }, zoom: number) {
     if (this.map) return;
@@ -46,6 +48,7 @@ export class Map3D {
     } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
     map.on('dragstart', () => this.onUserPan());
+    map.on('moveend', () => this.onMoveEnd?.());
     await new Promise<void>((resolve, reject) => {
       let settled = false;
       const finish = (error?: Error) => {
