@@ -46,6 +46,7 @@ export class MapView {
     L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' }).addTo(this.map);
     const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
     this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned(), () => this.on3DFailure?.());
+    this.m3.onMoveEnd = () => { if (this.flockOn) this.scheduleFlock(); };
     // Traffic cameras get their own pane above the overlay canvas (so they stay tappable); the own-location dot and its
     // accuracy circle sit in a still higher, click-through pane so nothing can ever cover them.
     this.map.createPane('tcPane').style.zIndex = '420';
@@ -60,7 +61,7 @@ export class MapView {
     this.follow = new FollowController(true, f => this.onFollowChange?.(f));
     this.map.on('dragstart', () => this.follow.userPanned());
     // Follow-me moves the map every frame, so redraw Flock dots at most every ~400 ms instead of on every moveend.
-    this.map.on('moveend', () => { if (this.flockOn && this.flockTimer === undefined) this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400);
+    this.map.on('moveend', () => { if (this.flockOn) this.scheduleFlock();
       if (this.tcOn && this.tcTimer === undefined) this.tcTimer = window.setTimeout(() => { this.tcTimer = undefined; void this.drawTc(); }, 400);
       if (this.heatOn && this.heatTimer === undefined) this.heatTimer = window.setTimeout(() => { this.heatTimer = undefined; void this.drawHeat(); }, 400); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.kick(); });
@@ -127,8 +128,8 @@ export class MapView {
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }
   async set3D(on: boolean) {
-    if (!on) { const v = this.m3.view(); this.m3.close(); if (v && !this.follow.following) this.map.setView([v.lat, v.lng], Math.round(v.zoom)); return; }
-    const c = this.smooth.disp ?? this.map.getCenter(); await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom()); this.mirror3d(); this.kick();
+    if (!on) { const v = this.m3.view(); this.m3.close(); if (this.flockOn) this.scheduleFlock(); if (v && !this.follow.following) this.map.setView([v.lat, v.lng], Math.round(v.zoom)); return; }
+    const c = this.smooth.disp ?? this.map.getCenter(); await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom()); this.mirror3d(); if (this.flockOn) await this.drawFlock(); this.kick();
   }
   /** Tilt between flat and 3D while the 3D view is open. */
   togglePitch() { if (this.m3.active) this.m3.setPitch(this.m3.pitch > 5 ? 0 : PITCH_3D); }
@@ -145,13 +146,19 @@ export class MapView {
     });
     walk(this.layer, true); walk(this.crowdLayer, true); walk(this.liveLayer);
     if (this.tcOn) this.tcLayer.eachLayer(l => { const t = (l as any).tcType as TcType | undefined; if (t && l instanceof L.Marker) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: TC_META[t].color, r: 6, kind: 'dot', html: (l as any).tcHtml }); } });
+    if (this.flockOn) this.flockLayer.eachLayer(l => {
+      if (l instanceof L.CircleMarker) {
+        const c = l.getLatLng(); const html = l.getPopup()?.getContent();
+        pins.push({ lat: c.lat, lng: c.lng, color: '#00e5ff', r: 5, kind: 'dot', html: typeof html === 'string' ? html : undefined });
+      }
+    });
     const d = this.smooth.disp; this.m3.update({ pins, me: d ? { lat: d.lat, lng: d.lng, acc: this.smooth.acc } : undefined });
   }
   // ---- Flock camera (mapped) layer: static OSM export, lazy-loaded, only visible-bounds points drawn ----
   /** baseUrl = folder holding index.json + <lat>_<lng>.geojson tiles. */
   async showFlock(on: boolean, baseUrl: string) {
     this.flockOn = on;
-    if (!on) { this.flockLayer.remove(); this.map.attributionControl.removeAttribution(FLOCK_ATTRIBUTION); return; }
+    if (!on) { ++this.flockDraw; this.flockLayer.clearLayers(); this.flockLayer.remove(); this.map.attributionControl.removeAttribution(FLOCK_ATTRIBUTION); if (this.m3.active) this.mirror3d(); return; }
     this.flockLayer.addTo(this.map); this.map.attributionControl.addAttribution(FLOCK_ATTRIBUTION);
     this.flockBase = baseUrl;
     this.flockLoading ??= fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(i => { this.flockIdx = i; });
@@ -286,16 +293,22 @@ export class MapView {
     if (!p) { p = fetch(`${this.flockBase}${k}.geojson`).then(r => r.json()); p.catch(() => this.flockTiles.delete(k)); this.flockTiles.set(k, p); }
     return p;
   }
+  private scheduleFlock() {
+    if (this.flockTimer !== undefined) return;
+    this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400);
+  }
   private async drawFlock() {
     const gen = ++this.flockDraw;
-    if (!this.flockIdx || this.map.getZoom() < FLOCK_MIN_ZOOM) { this.flockLayer.clearLayers(); return; }
-    const b = this.map.getBounds().pad(0.2); const bb = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
+    if (!this.flockOn || !this.flockIdx || (this.m3.view()?.zoom ?? this.map.getZoom()) < FLOCK_MIN_ZOOM) { this.flockLayer.clearLayers(); if (this.m3.active) this.mirror3d(); return; }
+    const bounds = this.m3.bounds();
+    const b = (bounds ? L.latLngBounds([bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]) : this.map.getBounds()).pad(0.2); const bb = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
     const tiles = await Promise.all(tilesFor(this.flockIdx, bb).map(k => this.tile(k).catch(() => undefined)));
     if (gen !== this.flockDraw) return; this.flockLayer.clearLayers();
     for (const t of tiles) if (t) for (const p of flockInBounds(t, bb))
       L.circleMarker([p.lat, p.lng], { renderer: this.flockRenderer, radius: 5, color: '#00e5ff', weight: 2, fillColor: '#0b3d4a', fillOpacity: 0.9, className: 'flock-mapped' })
         .bindPopup(`📷 <b>Flock camera (mapped)</b>${p.dir ? `<br>facing ${p.dir}°` : ''}<br><small>From OpenStreetMap, not a scan hit. <a href="https://www.openstreetmap.org/node/${p.id}" target="_blank" rel="noopener">OSM node</a></small>`)
         .addTo(this.flockLayer);
+    if (this.m3.active) this.mirror3d();
   }
   private addLegend() {
     const Legend = L.Control.extend({ onAdd: () => { const d = L.DomUtil.create('div', 'map-legend'); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); mountLegend(d); return d; } });
