@@ -32,7 +32,7 @@ export function mountUpdates(o: { native: boolean; openSettings: () => void }) {
   const local = `${import.meta.env.BASE_URL}updates.json`;
   void loadUpdates(o.native ? [LIVE_UPDATES_URL, local] : [local]).then(p => { posts = p; render(); });
   ($('mail-debug') as HTMLAnchorElement).href = debugMailto(ver);
-  $('updates-help').onclick = () => { setOpen(false); o.openSettings(); const h = $('help') as HTMLDetailsElement; h.open = true; h.scrollIntoView({ block: 'start' }); };
+  $('updates-help').onclick = () => { setOpen(false); o.openSettings(); ($('help-section') as HTMLDetailsElement).open = true; const h = $('help') as HTMLDetailsElement; h.open = true; h.scrollIntoView({ block: 'start' }); };
   if (location.hash === '#updates') setOpen(true);
   if (location.hash === '#accuracy') { tab(true); setOpen(true); }
   if (location.hash === '#help') $('updates-help').click();

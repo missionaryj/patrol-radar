@@ -376,3 +376,50 @@ details.group{margin-top:14px}
 .pro-offer small{display:block;color:var(--dim);font-size:11px;margin-top:8px}
 .pro-upgrade{width:100%;padding:12px;border:0;border-radius:10px;background:#f1bc62;color:#1a1510;font-weight:700}
 #heat-settings select:disabled{opacity:.5;cursor:not-allowed}
+
+/* Settings control center: dark navy surfaces and Patrol Radar red accents.
+   The drawer is a fixed-height flex column. overflow:hidden (used below so
+   rounded sections clip their fill) makes a flex item's automatic minimum 0,
+   and flex-shrink then crushes open sections so the drawer never scrolls.
+   These blocks are scroll content: keep each one at its content height. */
+#settings{background:#081321;gap:10px}
+#settings>*{flex-shrink:0}
+#settings header{padding:8px 0 10px}
+#settings .control-status{background:linear-gradient(145deg,#17314e,#102238);border:1px solid #35516f;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:5px;box-shadow:0 10px 24px #0003}
+#settings .status-kicker{font-size:11px;font-weight:750;letter-spacing:.12em;color:#a9c1d9}
+#settings #settings-scan-status{font-size:20px;line-height:1.2}
+#settings #settings-mode{font-size:14px;color:#cad9e9}
+#settings .status-full{background:transparent;border:0;border-radius:0;padding:5px 0;color:#d0dce9;line-height:1.45}
+#settings .status-full.err{color:#ffb3b8}
+.setup-button{border:0;border-radius:12px;background:#d92336;color:white;min-height:46px;padding:10px 14px;font-weight:700;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.setup-button span{font-size:24px;line-height:1}
+.settings-section{background:#12253b;border:1px solid #2a405a;border-radius:17px;overflow:hidden}
+.settings-section>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:70px;padding:13px 16px}
+.settings-section>summary::-webkit-details-marker{display:none}
+.settings-section>summary::after{content:'›';font-size:25px;color:#a8bbd0;transition:transform .2s}
+.settings-section[open]>summary::after{transform:rotate(90deg)}
+.settings-section>summary b,.settings-section>summary small{display:block}
+.settings-section>summary b{font-size:16px}
+.settings-section>summary small{font-size:13px;color:#b4c6d9;margin-top:3px}
+#settings .settings-section .group{background:#192e47;border:0;border-radius:12px;margin:0 10px 10px;padding:4px 14px}
+#settings .settings-section .group small,#settings .crowd-note{color:#c0d0e1;font-size:13px;line-height:1.45}
+#settings .settings-section .switch,#settings .settings-section .field,#settings .nav-row{min-height:50px}
+#settings .settings-section .nav-row small{color:#b5c7d9}
+#settings .group-title{color:#b7cce0!important}
+#settings .advanced-scan{padding:12px 0}
+#settings .advanced-scan summary,#settings .crowd-note summary{color:#f3f6fa;cursor:pointer;font-weight:650}
+#settings .advanced-scan .field{padding:12px 0}
+#settings .advanced-scan .switch{border-top:1px solid var(--line)}
+#settings .crowd-note{padding:8px 0}
+#settings .crowd-note p{margin:8px 0}
+.setup-results{background:#192e47;border:1px solid #36516d;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.setup-results[hidden]{display:none}
+.setup-results>div{display:flex;justify-content:space-between;gap:14px;font-size:13px;color:#d1dfec}
+.setup-results>div b{text-align:right;color:#fff}
+.setup-results p{font-size:13px;line-height:1.45;color:#c0d0e1;margin:2px 0}
+#settings button:focus-visible,#settings summary:focus-visible{outline:2px solid white;outline-offset:-3px}
+
+#settings #vibrate-wrap[hidden]{display:none}
+.settings-pro{display:flex;align-items:center;justify-content:space-between;min-height:70px;text-align:left;padding:13px 16px;background:#12253b;border:1px solid #2a405a;border-radius:17px;color:var(--txt)}
+.settings-pro b,.settings-pro small{display:block}
+.settings-pro b{font-size:16px}.settings-pro small{font-size:13px;color:#b4c6d9;margin-top:3px}.settings-pro i{font-style:normal;font-size:25px;color:#a8bbd0}

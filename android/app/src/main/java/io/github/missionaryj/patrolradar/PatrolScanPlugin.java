@@ -88,6 +88,20 @@ public class PatrolScanPlugin extends Plugin {
     @PluginMethod public void stop(PluginCall call) { ScanService.stop(getContext()); call.resolve(); }
     @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); call.resolve(r); }
 
+    /** Read-only setup information; opening this screen never requests permissions. */
+    @PluginMethod public void setupStatus(PluginCall call) {
+        JSObject r = result();
+        android.bluetooth.BluetoothManager bm = (android.bluetooth.BluetoothManager) getContext().getSystemService(android.content.Context.BLUETOOTH_SERVICE);
+        android.bluetooth.BluetoothAdapter adapter = bm == null ? null : bm.getAdapter();
+        try { r.put("bluetooth", adapter == null ? "unavailable" : adapter.isEnabled() ? "on" : "off"); }
+        catch (SecurityException e) { r.put("bluetooth", "unknown"); }
+        PowerManager pm = (PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+        if (pm != null) r.put("batteryExempt", pm.isIgnoringBatteryOptimizations(getContext().getPackageName()));
+        android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        if (nm != null) r.put("notificationsEnabled", androidx.core.app.NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+        call.resolve(r);
+    }
+
     /** Opens the system dialog to exempt the app from battery optimisation (user choice). */
     @PluginMethod public void openBatterySettings(PluginCall call) {
         PowerManager pm = (PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
