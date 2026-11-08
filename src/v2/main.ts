@@ -6,6 +6,7 @@ import { LocalReportStore } from '../reports';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
 import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
+import { setupScannerPhrase, syncSetupScanner, webSetupMessage } from './setupCard';
 import { LiveDeviceTracker, colorFor, WIFI_COLOR, bandRadius, type LiveDevice } from '../map/liveDevices';
 import { corroborationText, type Vehicle } from '../fusion/vehicles';
 import { bandOfMHz } from '../wifi/context';
@@ -198,6 +199,7 @@ function logLine(text: string, color: string) { const li = document.createElemen
 function setScanning(on: boolean) {
   $('settings-scan-status').textContent = on ? 'Scanning active' : 'Scan is stopped';
   const b = $<HTMLButtonElement>('scan'); b.classList.toggle('on', on); $('scan-label').textContent = on ? 'Stop' : 'Scan'; b.setAttribute('aria-label', on ? 'Stop scan' : 'Start scan');
+  syncSetupScanner(document, on);
 }
 async function start() {
   void ping.unlock(); pingGate.reset();
@@ -487,14 +489,14 @@ async function checkSetup() {
   setupResults.textContent = 'Checking your setup…';
   const pl = nativePlugin();
   if (!pl) {
-    setupResults.textContent = `Scanner: ${scanner ? 'active' : 'stopped'}. Phone permissions and battery settings cannot be checked here. Check them in your browser or device settings.`;
+    setupResults.textContent = webSetupMessage(!!scanner);
     return;
   }
   try {
     const r = await pl.setupStatus();
     const permission = (v: string) => v === 'granted' ? 'Allowed' : v === 'denied' ? 'Not allowed' : 'Not yet allowed';
     const lines = [
-      ['Scanner', scanner ? 'Active' : 'Stopped — tap Scan on the map'],
+      ['Scanner', setupScannerPhrase(!!scanner, true)],
       ['Bluetooth', r.bluetooth === 'on' ? 'On' : r.bluetooth === 'off' ? 'Off — turn on Bluetooth' : 'Unable to check'],
       ['Nearby devices', permission(r.ble)],
       ['Location permission', permission(r.location)],
@@ -503,7 +505,7 @@ async function checkSetup() {
     ];
     setupResults.replaceChildren();
     const heading = document.createElement('strong'); heading.textContent = 'Setup check'; setupResults.append(heading);
-    for (const [label, value] of lines) { const row = document.createElement('div'); const name = document.createElement('span'); const state = document.createElement('b'); name.textContent = label; state.textContent = value; row.append(name, state); setupResults.append(row); }
+    for (const [label, value] of lines) { const row = document.createElement('div'); const name = document.createElement('span'); const state = document.createElement('b'); name.textContent = label; state.textContent = value; if (label === 'Scanner') state.id = 'setup-scanner-state'; row.append(name, state); setupResults.append(row); }
     const note = document.createElement('p'); note.textContent = 'Permissions can be changed in Android app settings. Starting a scan can request missing permissions. A setup check cannot guarantee a detection.'; setupResults.append(note);
     if (r.batteryExempt === false) { const button = document.createElement('button'); button.type = 'button'; button.className = 'row-btn'; button.textContent = 'Open battery settings'; button.onclick = () => { void pl.openBatterySettings(); }; setupResults.append(button); }
   } catch { setupResults.textContent = 'Setup information is unavailable on this version of the app. Check permissions and battery settings in Android settings.'; }

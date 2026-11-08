@@ -377,8 +377,13 @@ details.group{margin-top:14px}
 .pro-upgrade{width:100%;padding:12px;border:0;border-radius:10px;background:#f1bc62;color:#1a1510;font-weight:700}
 #heat-settings select:disabled{opacity:.5;cursor:not-allowed}
 
-/* Settings control center: dark navy surfaces and Patrol Radar red accents. */
+/* Settings control center: dark navy surfaces and Patrol Radar red accents.
+   The drawer is a fixed-height flex column. overflow:hidden (used below so
+   rounded sections clip their fill) makes a flex item's automatic minimum 0,
+   and flex-shrink then crushes open sections so the drawer never scrolls.
+   These blocks are scroll content: keep each one at its content height. */
 #settings{background:#081321;gap:10px}
+#settings>*{flex-shrink:0}
 #settings header{padding:8px 0 10px}
 #settings .control-status{background:linear-gradient(145deg,#17314e,#102238);border:1px solid #35516f;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:5px;box-shadow:0 10px 24px #0003}
 #settings .status-kicker{font-size:11px;font-weight:750;letter-spacing:.12em;color:#a9c1d9}
