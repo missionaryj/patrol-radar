@@ -22,6 +22,8 @@
   <input id="navigation-destination" type="search" autocomplete="street-address" placeholder="Search a destination" />
   <button id="navigation-search" type="button" class="navigation-search">Find route</button>
   <div id="navigation-results" class="navigation-results" aria-live="polite"></div>
+  <div id="navigation-guidance" class="navigation-guidance" hidden><strong id="navigation-instruction"></strong><span id="navigation-distance"></span></div>
+  <button id="navigation-stop" class="navigation-stop" type="button" hidden>End navigation</button>
   <p id="navigation-provider-status" role="status">Enter a destination to preview a traffic-aware route. Turn-by-turn guidance is coming next.</p>
 </section>
 <div id="map-startup" role="status">Finding your location…</div>
