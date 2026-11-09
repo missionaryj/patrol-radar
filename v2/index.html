@@ -1,8 +1,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
-<meta name="theme-color" content="#07080a"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title></head>
+<meta name="theme-color" content="#07080a"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title>
+<style>html,body{margin:0;background:#07080a;color:#eee}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style></head>
 <body>
 <div id="map"></div>
+<div id="map-startup" role="status">Finding your location…</div>
 
 <div class="top">
   <div id="pill" class="pill idle" role="status" aria-live="polite">

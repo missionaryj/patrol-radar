@@ -33,8 +33,9 @@ const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 mountLegend($('map-legend'));
-const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false });
+const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false, waitForLocation: true });
 mountMapSettings(map);
+void map.ready.then(() => { document.getElementById('map-startup')?.remove(); });
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
 let scanStartedAt = 0;
@@ -108,7 +109,7 @@ const drawLiveSoon = () => { if (liveTimer !== undefined) return; liveTimer = wi
 setInterval(drawLive, 2000);
 document.getElementById('showother')?.addEventListener('change', () => drawLive());
 function startGeo() {
-  if (!navigator.geolocation) { $('geo').textContent = 'Location unavailable'; return; }
+  if (!navigator.geolocation) { map.locationUnavailable(); $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
   geoWatch = navigator.geolocation.watchPosition(p => {
     map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading, p.timestamp);
@@ -118,6 +119,7 @@ function startGeo() {
     pos = coarsen(p.coords.latitude, p.coords.longitude);
     $('geo').textContent = `Location ±${Math.round(p.coords.accuracy)} m`;
   }, err => {
+    map.locationUnavailable();
     recorder.event(err.code === err.PERMISSION_DENIED ? 'location-denied' : 'location-error', undefined, err.message);
     $('geo').textContent = err.code === err.PERMISSION_DENIED ? 'Location denied: allow it for this site, then tap ◎' : `Location error: ${err.message}`;
   }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 });

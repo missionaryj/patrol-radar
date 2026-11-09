@@ -2,5 +2,7 @@
   "appId": "io.github.missionaryj.patrolradar",
   "appName": "Patrol Radar",
   "webDir": "dist",
+  "server": { "appStartPath": "/v2/index.html" },
+  "backgroundColor": "#07080a",
   "android": { "allowMixedContent": false }
 }
