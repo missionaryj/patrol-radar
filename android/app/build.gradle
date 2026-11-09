@@ -10,6 +10,12 @@ android {
         versionCode((System.getenv("VERSION_CODE") ?: "1") as int)
         versionName(System.getenv("VERSION_NAME") ?: new groovy.json.JsonSlurper().parse(file("../../package.json")).version)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // Public runtime token; never use the secret Maven downloads token here.
+        def publicToken = (System.getenv("VITE_MAPBOX_PUBLIC_TOKEN") ?: "").trim()
+        if (publicToken && !publicToken.startsWith("pk.")) {
+            throw new GradleException("VITE_MAPBOX_PUBLIC_TOKEN must start with pk.")
+        }
+        resValue "string", "mapbox_access_token", publicToken
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
