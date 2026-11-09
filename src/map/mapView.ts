@@ -50,6 +50,15 @@ export class MapView {
   private m3: Map3D; private lastMirror = 0;
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
+  private navigationLine?: L.Polyline;
+  /** Display-only route preview; active turn guidance belongs to the native SDK. */
+  setNavigationRoute(coords: [number, number][]) {
+    this.navigationLine?.remove();
+    if (coords.length < 2) { this.m3.setNavigationRoute([]); return; }
+    this.navigationLine = L.polyline(coords.map(([lng,lat]) => [lat,lng] as [number,number]), { color: '#357FFF', weight: 7, opacity: 0.9, interactive: false }).addTo(this.map);
+    this.m3.setNavigationRoute(coords);
+    this.map.fitBounds(this.navigationLine.getBounds(), { padding: [45,45] });
+  }
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
   readonly tcLayer = L.layerGroup();
