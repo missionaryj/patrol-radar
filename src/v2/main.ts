@@ -42,6 +42,9 @@ function chooseExperience(mode: MapExperience) {
   navigationPanel.hidden = mode !== 'navigation';
   changeMode.hidden = mode === 'navigation';
   document.body.dataset.experience = mode;
+  // Selecting either experience explicitly starts the native receiver if it is not running.
+  // Keep the same scanner instance across mode changes; Android permission prompts remain OS-controlled.
+  if (nativeAppPresent() && !scanner) void start();
   if (mode === 'navigation') {
     navDestination.focus();
   }
