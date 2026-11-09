@@ -17,10 +17,24 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// Opt-in only until the native Capacitor navigation bridge is ready.
+// Secrets are read at build time and are never added to source or app resources.
+def mapboxDownloadsToken = System.getenv('MAPBOX_DOWNLOADS_TOKEN') ?: (findProperty('MAPBOX_DOWNLOADS_TOKEN') ?: '').toString()
+def mapboxNavEnabled = System.getenv('MAPBOX_NAV_SDK_ENABLED') == 'true' && mapboxDownloadsToken.trim()
 allprojects {
     repositories {
         google()
         mavenCentral()
+        if (mapboxNavEnabled) {
+            maven {
+                url 'https://api.mapbox.com/downloads/v2/releases/maven'
+                credentials {
+                    username = 'mapbox'
+                    password = mapboxDownloadsToken
+                }
+                authentication { basic(BasicAuthentication) }
+            }
+        }
     }
 }
 
