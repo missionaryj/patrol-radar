@@ -21,7 +21,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build          # base '/', loaded from the app bundle
-        env: { VITE_SUPABASE_URL: '${{ vars.VITE_SUPABASE_URL }}', VITE_SUPABASE_ANON_KEY: '${{ vars.VITE_SUPABASE_ANON_KEY }}' }
+        env: { VITE_SUPABASE_URL: '${{ vars.VITE_SUPABASE_URL }}', VITE_SUPABASE_ANON_KEY: '${{ vars.VITE_SUPABASE_ANON_KEY }}', VITE_MAPBOX_PUBLIC_TOKEN: '${{ vars.VITE_MAPBOX_PUBLIC_TOKEN }}' }
       - run: npx cap sync android
       - run: cd android && ./gradlew testDebugUnitTest assembleDebug --no-daemon
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk patrol-radar-debug.apk
