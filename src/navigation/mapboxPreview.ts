@@ -1,7 +1,8 @@
 /** Real Mapbox route PREVIEW, not active turn-by-turn guidance. Do not persist temporary geocoding results. */
 export interface Coordinate { lat: number; lng: number }
 export interface Destination extends Coordinate { label: string }
-export interface PreviewRoute { distanceMeters: number; durationSeconds: number; geometry: [number,number][] }
+export interface RouteStep { instruction: string; location: [number,number]; distanceMeters: number }
+export interface PreviewRoute { distanceMeters: number; durationSeconds: number; geometry: [number,number][]; steps: RouteStep[] }
 async function getJSON(url: URL, signal: AbortSignal, request: typeof fetch): Promise<any> {
   const response = await request(url.toString(), { signal });
   if (!response.ok) {
@@ -41,6 +42,11 @@ export async function drivingRoutes(origin: Coordinate, destination: Coordinate,
     const p = route?.geometry?.coordinates;
     if (!Array.isArray(p) || p.length < 2 || !Number.isFinite(route.distance) || !Number.isFinite(route.duration)) return [];
     if (!p.every((a: unknown) => Array.isArray(a) && a.length >= 2 && a.slice(0,2).every((n: unknown) => typeof n === 'number' && Number.isFinite(n)))) return [];
-    return [{ distanceMeters: route.distance, durationSeconds: route.duration, geometry: p as [number,number][] }];
+    const steps: RouteStep[] = (Array.isArray(route.legs) ? route.legs : []).flatMap((leg: any) => Array.isArray(leg.steps) ? leg.steps : []).flatMap((s: any) => {
+      const location = s?.maneuver?.location;
+      if (!Array.isArray(location) || location.length < 2 || !location.slice(0,2).every((n: unknown) => typeof n === 'number' && Number.isFinite(n))) return [];
+      return [{ instruction: String(s.maneuver.instruction || 'Continue'), location: [location[0], location[1]] as [number,number], distanceMeters: Number(s.distance) || 0 }];
+    });
+    return [{ distanceMeters: route.distance, durationSeconds: route.duration, geometry: p as [number,number][], steps }];
   });
 }
