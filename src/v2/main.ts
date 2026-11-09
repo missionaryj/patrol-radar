@@ -143,7 +143,7 @@ function chooseExperience(mode: MapExperience) {
   changeMode.hidden=mode==='navigation';
   document.body.dataset.experience=mode;
   if(nativeAppPresent() && !scanner)void start();
-  if(mode==='navigation')refreshPlaces();
+  if(mode==='navigation')refreshPlaces();else map.setNavigationPlaces([]);
   window.dispatchEvent(new Event('resize'));
 }
 (document.getElementById('choose-navigation') as HTMLButtonElement).onclick=()=>chooseExperience('navigation');
@@ -152,7 +152,7 @@ function showModeChoices() {
   navigationRequest?.abort();
   if(!navSearchScreen.hidden)closeSearch();
   document.body.dataset.experience='';
-  navigationPanel.hidden=true;welcome.hidden=false;changeMode.hidden=true;
+  navigationPanel.hidden=true;welcome.hidden=false;changeMode.hidden=true;map.setNavigationPlaces([]);
 }
 changeMode.onclick=showModeChoices;
 (document.getElementById('navigation-back') as HTMLButtonElement).onclick=showModeChoices;
@@ -218,7 +218,7 @@ function updateActiveGuidance(fix:Coordinate,accuracy:number,speed?:number|null)
   if(!Number.isFinite(accuracy) || accuracy>80){navDrivingStatus.textContent='GPS signal weak. Guidance may be delayed.';return;}
   const progress=activeGuidance.update(fix,accuracy,Date.now());
   // Maneuver data comes from real Mapbox Directions steps; don't pretend this is lane guidance.
-  if(!nativeGuidanceActive)navInstruction.textContent=progress.instruction;
+  navInstruction.textContent=progress.instruction;
   navDistance.textContent=distanceToNextTurn(progress.metresToTurn)+' to next turn';
   const left=routeRemaining(currentRoute,fix);
   if(nativeGuidanceActive && nativeRemaining)renderTripSummary(nativeRemaining.distance,nativeRemaining.seconds);
