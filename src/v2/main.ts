@@ -1,4 +1,5 @@
 import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
+import { findDestination, drivingRoutes, type PreviewRoute } from '../navigation/mapboxPreview';
 import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
 import { MapView, coarsen } from '../map';
@@ -49,6 +50,7 @@ function chooseExperience(mode: MapExperience) {
 (document.getElementById('choose-navigation') as HTMLButtonElement).onclick = () => chooseExperience('navigation');
 (document.getElementById('choose-patrol') as HTMLButtonElement).onclick = () => chooseExperience('patrol');
 function showModeChoices() {
+  navigationRequest?.abort();
   document.body.dataset.experience = '';
   navigationPanel.hidden = true;
   welcome.hidden = false;
@@ -57,6 +59,71 @@ function showModeChoices() {
 changeMode.onclick = showModeChoices;
 (document.getElementById('navigation-back') as HTMLButtonElement).onclick = showModeChoices;
 
+const previewStatus = document.getElementById('navigation-provider-status')!;
+const previewResults = document.getElementById('navigation-results')!;
+const routeButton = document.getElementById('navigation-search') as HTMLButtonElement;
+const mapboxPublicToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN?.trim() ?? '';
+let navigationRequest: AbortController | undefined;
+routeButton.onclick = async () => {
+  if (!mapboxPublicToken.startsWith('pk.')) {
+    previewStatus.textContent = 'Mapbox public token not configured. Add VITE_MAPBOX_PUBLIC_TOKEN to GitHub Actions Variables.';
+    return;
+  }
+  const query = navDestination.value.trim();
+  if (!query || query.length > 256) { previewStatus.textContent = 'Enter a valid destination.'; return; }
+  if (!here) { previewStatus.textContent = 'Waiting for your GPS location. Enable location access to plan a route.'; return; }
+  navigationRequest?.abort();
+  const request = new AbortController();
+  navigationRequest = request;
+  routeButton.disabled = true;
+  previewResults.replaceChildren();
+  previewStatus.textContent = 'Finding destination and traffic-aware routes…';
+  try {
+    const places = await findDestination(query, mapboxPublicToken, { ...here }, request.signal);
+    if (!places.length) { previewStatus.textContent = 'No matching destination found. Try a fuller address.'; return; }
+    const origin = { ...here };
+    const candidates = places.slice(0, 3);
+    previewStatus.textContent = 'Select the correct destination to preview its route:';
+    for (const place of candidates) {
+      const button = document.createElement('button');
+      button.className = 'navigation-result';
+      button.type = 'button';
+      button.textContent = place.label;
+      button.onclick = async () => {
+        navigationRequest?.abort();
+        const routeRequest = new AbortController();
+        navigationRequest = routeRequest;
+        previewStatus.textContent = 'Calculating traffic-aware routes…';
+        routeButton.disabled = true;
+        try {
+          const routes = await drivingRoutes(origin, place, mapboxPublicToken, routeRequest.signal);
+          renderRoutes(routes, place.label);
+        } catch (error) {
+          if (!routeRequest.signal.aborted) previewStatus.textContent = error instanceof Error ? error.message : 'Route could not be calculated.';
+        } finally { if (navigationRequest === routeRequest) { navigationRequest = undefined; routeButton.disabled = false; } }
+      };
+      previewResults.append(button);
+    }
+  } catch (error) {
+    if (!request.signal.aborted) previewStatus.textContent = error instanceof Error ? error.message : 'Destination search unavailable.';
+  } finally {
+    if (navigationRequest === request) { navigationRequest = undefined; routeButton.disabled = false; }
+  }
+};
+function renderRoutes(routes: PreviewRoute[], destination: string) {
+  previewResults.replaceChildren();
+  if (!routes.length) { previewStatus.textContent = 'No drivable route found.'; return; }
+  previewStatus.textContent = 'Route preview only — spoken turn-by-turn guidance is not active yet.';
+  routes.forEach((route, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'navigation-result';
+    button.textContent = `${index === 0 ? 'Recommended' : 'Alternative'} · ${Math.round(route.durationSeconds / 60)} min · ${(route.distanceMeters / 1609.344).toFixed(1)} mi — ${destination}`;
+    button.onclick = () => map.setNavigationRoute(route.geometry);
+    previewResults.append(button);
+  });
+  map.setNavigationRoute(routes[0].geometry);
+}
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
