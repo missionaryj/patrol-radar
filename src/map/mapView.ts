@@ -59,8 +59,10 @@ export class MapView {
     this.navigationPlaces.clearLayers();
     for (const place of places.slice(0,16)) {
       if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) continue;
+      const text=document.createElement('span');
+      text.textContent=place.label; // Never inject geocoding labels as tooltip HTML.
       L.circleMarker([place.lat,place.lng],{radius:6,color:'#f87179',weight:2,fillColor:'#f34b5d',fillOpacity:0.95})
-        .bindTooltip(place.label,{direction:'top'}).addTo(this.navigationPlaces);
+        .bindTooltip(text,{direction:'top'}).addTo(this.navigationPlaces);
     }
     this.m3.setNavigationPlaces(places);
   }
