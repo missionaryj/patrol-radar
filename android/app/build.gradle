@@ -2,6 +2,11 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "io.github.missionaryj.patrolradar"
+    // Keep the optional native implementation out of normal release builds until validated.
+    if (System.getenv('MAPBOX_NAV_SDK_ENABLED') == 'true' &&
+        (System.getenv('MAPBOX_DOWNLOADS_TOKEN') ?: rootProject.findProperty('MAPBOX_DOWNLOADS_TOKEN'))) {
+        sourceSets.main.java.srcDirs += 'src/mapbox/java'
+    }
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "io.github.missionaryj.patrolradar"
