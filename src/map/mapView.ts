@@ -26,9 +26,18 @@ export class MapView {
   private wants3d = false;
   get wants3D() { return this.wants3d; }
   onPresentationChange?: (state: 'loading3d' | 'ready' | 'fallback') => void;
+  /** True once setView has run. Leaflet throws if a tile layer is added before that. */
+  private mapHasView = false;
+  private showBasemap = false;
   private present2D(show: boolean) {
+    this.showBasemap = show;
     this.map.getPane('mapPane')!.style.visibility = show ? '' : 'hidden';
-    if (show) this.raster.addTo(this.map); else this.raster.remove();
+    if (show) this.attachBasemap(); else this.raster.remove();
+  }
+  /** Street tiles stay off until there is a viewport, including when 2D is chosen during the location wait. */
+  private attachBasemap() {
+    if (!this.showBasemap || !this.mapHasView || this.map.hasLayer(this.raster)) return;
+    this.raster.addTo(this.map);
   }
   private startup?: InitialMapView;
   private waitingForLocation = false;
@@ -62,7 +71,7 @@ export class MapView {
     this.map = L.map(el, { zoomControl: opts.zoomControl ?? true });
     this.waitingForLocation = !!opts.waitForLocation;
     if (this.waitingForLocation) this.viewReady = new Promise(resolve => { this.resolveView = resolve; });
-    else this.map.setView(center, 15);
+    else { this.map.setView(center, 15); this.mapHasView = true; }
     // Cool-slate basemap (OSM tiles + CSS filter, no API key); .tiles-slate adds a slight blue-grey tint.
     this.raster = L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' });
     this.wants3d = !!opts.initial3D;
@@ -92,6 +101,8 @@ export class MapView {
     if (opts.waitForLocation) this.startup = new InitialMapView((lat, lng, zoom) => {
       this.waitingForLocation = false;
       this.map.setView([lat, lng], zoom, { animate: false });
+      this.mapHasView = true;
+      this.attachBasemap();
       this.resolveView?.();
     });
   }
