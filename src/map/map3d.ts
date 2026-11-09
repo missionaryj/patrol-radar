@@ -29,6 +29,19 @@ export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
   private generation = 0; private cancelOpen?: () => void;
   private navigationCoords: [number,number][] = [];
+  private navigationPlaces: {lat:number;lng:number;label:string}[] = [];
+  private driving = false;
+  setDrivingMode(on:boolean) { this.driving=on;this.map?.easeTo({pitch:on?62:PITCH_3D,zoom:on?Math.max(17,this.map.getZoom()):this.map.getZoom(),duration:400}); }
+  setNavigationPlaces(places:{lat:number;lng:number;label:string}[]) { this.navigationPlaces=places.slice(0,16);this.applyNavigationPlaces(); }
+  private applyNavigationPlaces(){
+    if(!this.map || !this.ready)return;
+    const data={type:'FeatureCollection' as const,features:this.navigationPlaces.map(p=>({type:'Feature' as const,properties:{},geometry:{type:'Point' as const,coordinates:[p.lng,p.lat]}}))};
+    const source=this.map.getSource('saved-navigation-places') as import('maplibre-gl').GeoJSONSource|undefined;
+    if(source)source.setData(data);else{
+      this.map.addSource('saved-navigation-places',{type:'geojson',data});
+      this.map.addLayer({id:'saved-navigation-dots',type:'circle',source:'saved-navigation-places',paint:{'circle-color':'#f34b5d','circle-radius':7,'circle-stroke-color':'#fff','circle-stroke-width':2}});
+    }
+  }
   private navigationCongestion: string[] = [];
   setNavigationRoute(coords: [number,number][], congestion: string[] = []) {
     this.navigationCoords = coords; this.navigationCongestion = congestion; this.applyNavigationRoute();
@@ -72,7 +85,7 @@ export class Map3D {
     // Keep the first visible map frame fully initialized; MapView suppresses 2D while loading.
     this.el.style.visibility = 'hidden';
     let map: import('maplibre-gl').Map;
-    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom, pitch: PITCH_3D, maxPitch: MAX_PITCH,
+    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom, pitch: this.driving ? 62 : PITCH_3D, maxPitch: MAX_PITCH,
       attributionControl: { compact: true }, antialias: false, fadeDuration: 0, pixelRatio: Math.min(2, window.devicePixelRatio || 1) } as any);
     } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
@@ -103,7 +116,7 @@ export class Map3D {
       // Own location: drawn last so it stays on top of buildings and pins.
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
+      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();this.applyNavigationPlaces();
       this.el.style.visibility = ''; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });
@@ -111,7 +124,7 @@ export class Map3D {
   }
   close() { ++this.generation; this.cancelOpen?.(); this.map?.remove(); this.map = undefined; this.ready = false; this.el.hidden = true; this.el.style.visibility = ''; }
   /** Follow-me: keep pitch/bearing the user chose, move the centre only. */
-  follow(lat: number, lng: number, zoom?: number) { this.map?.jumpTo({ center: [lng, lat], ...(zoom === undefined ? {} : { zoom }) }); }
+  follow(lat: number, lng: number, zoom?: number, bearing?:number) { this.map?.jumpTo({ center: [lng, lat], ...(zoom === undefined ? {} : { zoom }), ...(bearing === undefined ? {} : { bearing }) }); }
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }
   setPitch(p: number) { this.map?.easeTo({ pitch: p, duration: 300 }); }
   get pitch() { return this.map?.getPitch() ?? 0; }
