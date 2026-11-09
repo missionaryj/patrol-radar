@@ -13,6 +13,7 @@ import { SmoothLocation } from './smoothFollow';
 import { mountLegend } from './legend';
 import { RASTER_2D, PITCH_3D } from './palette';
 import { Map3D, type Pin3D } from './map3d';
+import { PatrolMotion, headingStep, patrolZoom } from './patrolDriving';
 import { type TcIndex, type TcRow, type TcType, TC_ATTRIBUTION, TC_MIN_ZOOM, TC_META, tcInBounds, tcIcon, tcPopup } from './trafficCamLayer';
 import { type HeatCell, type HeatFilter, type StopHeatIndex, HEAT_CELL_CAP, HEAT_GRID_MIN_ZOOM, OPEN_FILTER, STOP_HEAT_ATTRIBUTION, countBuckets, heatPaint, heatTilesFor } from './stopHeatLayer';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
@@ -48,6 +49,8 @@ export class MapView {
   /** Release the location wait on denial/unavailability; a later fix can still recenter. */
   locationUnavailable() { this.startup?.fallback(); }
   private m3: Map3D; private lastMirror = 0;
+  private patrolMotion = new PatrolMotion(); private patrolMoving = false;
+  private patrolHeading?: number; private last3DFollow = 0;
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
   private navigationLine?: L.Polyline;
@@ -165,13 +168,26 @@ export class MapView {
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
   setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
     this.startup?.locate(lat, lng);
+    const moving = document.body.dataset.experience === 'patrol' && this.patrolMotion.update(speed, accuracy, t);
+    if (moving !== this.patrolMoving) {
+      this.patrolMoving = moving;
+      if (!moving) this.patrolHeading = undefined;
+      this.m3.setPatrolMoving(moving);
+      this.meAcc?.setStyle({ fillOpacity: moving ? 0.02 : 0.12, opacity: moving ? 0.28 : 1 });
+      if (moving && this.follow.following) {
+        this.map.setZoom(patrolZoom(this.map.getZoom(), true), { animate: false });
+      }
+    }
+    // Do not rotate the driving map using inaccurate or stationary compass values.
+    if (moving && accuracy <= 35 && speed != null && speed >= 4.5)
+      this.patrolHeading = headingStep(this.patrolHeading, heading);
     const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
     this.loc.fix({ t, lat, lng, acc: accuracy, speed }); // in-memory track for closest-approach pins (never stored)
     if (!this.me) {
       this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
       this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
     }
-    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16), { animate: false }); this.m3.follow(lat, lng, this.map.getZoom()); }
+    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 16), { animate: false }); this.m3.follow(lat, lng, this.map.getZoom(), this.patrolHeading); }
     this.kick();
   }
   /** Start the frame loop if it isn't running. It stops itself once the dot settles (or the page is hidden) to save battery. */
@@ -185,12 +201,23 @@ export class MapView {
     const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
     this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
     this.moveRel(); // unknown-device dots + rings ride with the user dot (were redrawn only on the ~3/s data tick)
-    if (this.follow.onFix()) { this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions); this.m3.follow(d.lat, d.lng); }
+    if (this.follow.onFix()) {
+      this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions);
+      // 3D camera jumps on every 60 Hz frame can churn tiles and outpace the dot redraw on slower Android phones.
+      if (ts - this.last3DFollow >= (this.patrolMoving ? 80 : 35)) {
+        this.last3DFollow = ts;
+        this.m3.follow(d.lat, d.lng, undefined, this.patrolMoving ? this.patrolHeading : undefined);
+      }
+    }
     if (this.m3.active && ts - this.lastMirror > 200) this.mirror3d();
     if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
   };
   /** Recenter and resume follow-me. */
-  recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng(); this.map.setView(c, Math.max(this.map.getZoom(), 15)); this.m3.follow(c.lat, c.lng); this.kick(); return true; }
+  recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng();
+    const zoom = this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 15);
+    this.map.setView(c, zoom);
+    this.m3.follow(c.lat, c.lng, this.patrolMoving ? zoom : undefined, this.patrolMoving ? this.patrolHeading : undefined);
+    this.kick(); return true; }
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }
   async set3D(on: boolean) {
@@ -232,14 +259,15 @@ export class MapView {
   private mirror3d() {
     this.lastMirror = performance.now(); if (!this.m3.active) return;
     const pins: Pin3D[] = [];
-    const walk = (g: L.LayerGroup, cell = false) => g.eachLayer(l => {
+    const walk = (g: L.LayerGroup, cell = false, hideRangeRings = false) => g.eachLayer(l => {
+      if (hideRangeRings && l instanceof L.Circle) return;
       const o = (l as any).options ?? {}; const color = o.fillColor ?? o.color ?? '#e33';
       if (l instanceof L.Rectangle) { const c = l.getBounds().getCenter(); pins.push({ lat: c.lat, lng: c.lng, color, r: 0, ring: 100, kind: 'cell' }); }
       else if (l instanceof L.Circle) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: o.color ?? color, r: 0, ring: l.getRadius(), kind: cell ? 'cell' : 'ring' }); }
       else if (l instanceof L.CircleMarker) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color, r: l.getRadius(), kind: 'dot' }); }
       else if (l instanceof L.Marker && (l.options.icon?.options as any)?.className === 'veh-pin') { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: '#ff1744', r: 10, kind: 'veh' }); }
     });
-    walk(this.layer, true); walk(this.crowdLayer, true); walk(this.liveLayer);
+    walk(this.layer, true); walk(this.crowdLayer, true); walk(this.liveLayer, false, this.patrolMoving);
     if (this.tcOn) this.tcLayer.eachLayer(l => { const t = (l as any).tcType as TcType | undefined; if (t && l instanceof L.Marker) { const c = l.getLatLng(); pins.push({ lat: c.lat, lng: c.lng, color: TC_META[t].color, r: 6, kind: 'dot', html: (l as any).tcHtml }); } });
     if (this.flockOn) this.flockLayer.eachLayer(l => {
       if (l instanceof L.CircleMarker) {
@@ -447,11 +475,11 @@ export class MapView {
       const anc = this.anchors.anchor(key, fixed, me, now); const base = anc ?? me; return { base, p: applyOffset(base.lat, base.lng, o), rel: !anc, est: undefined as Estimate | undefined };
     };
     const where = (est: Estimate | undefined, rel: boolean) => rel ? '' : est ? `<br><small>${est.quality === 'moving' ? `seems to be moving with you · last heard near here (±${est.radius} m)` : `${est.quality === 'approx' ? 'approx. ' : 'closest approach · '}±${est.radius} m · side of road unknown`}</small>` : '<br><small>pinned where first detected</small>';
-    const uncert = (est: Estimate | undefined, color: string, op: number) => { if (est) add(L.circle([est.lat, est.lng], { renderer: this.liveRenderer, radius: est.radius, color, weight: 1, dashArray: est.quality === 'closest-approach' ? undefined : '4 4', opacity: 0.6 * op, fillColor: color, fillOpacity: 0.12 * op, interactive: false }), false); };
+    const uncert = (est: Estimate | undefined, color: string, op: number) => { if (est && !this.patrolMoving) add(L.circle([est.lat, est.lng], { renderer: this.liveRenderer, radius: est.radius, color, weight: 1, dashArray: est.quality === 'closest-approach' ? undefined : '4 4', opacity: 0.6 * op, fillColor: color, fillOpacity: 0.12 * op, interactive: false }), false); };
     const add = <T extends L.CircleMarker | L.Circle | L.Marker>(layer: T, rel: boolean, dx = 0, dy = 0): T => { layer.addTo(this.liveLayer); if (rel) this.relItems.push({ layer, dx, dy }); return layer; };
     for (const d of devs) {
       const o = offsetFor(d.key); const { base, p, rel, est } = place(d.key, d.kind === 'match', o); const op = opacityFor(d.lastSeen, now); const wifi = d.radio === 'wifi';
-      if (est) uncert(est, wifi ? WIFI_COLOR : d.color, op); else add(L.circle([base.lat, base.lng], { renderer: this.liveRenderer, radius: bandRadius(d.band), color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }), rel);
+      if (est) uncert(est, wifi ? WIFI_COLOR : d.color, op); else if (!this.patrolMoving) add(L.circle([base.lat, base.lng], { renderer: this.liveRenderer, radius: bandRadius(d.band), color: wifi ? WIFI_COLOR : d.color, weight: wifi ? 2 : 1, dashArray: wifi ? '6 4' : undefined, opacity: (wifi ? 0.8 : 0.4) * op, fillOpacity: 0.07 * op, interactive: false }), rel);
       const ago = Math.round((now - d.lastSeen) / 1000);
       const popup = `${wifi ? '📶 <b>Wi-Fi access point</b> · ' : ''}${d.label}<br>${wifi ? `<small>${WIFI_EVIDENCE_LINE}</small><br>` : ''}${d.confidence !== undefined ? `conf ${(d.confidence * 100).toFixed(0)}%<br>` : ''}${d.band} (~${bandRadius(d.band)} m est.) · RSSI ${d.rssi}<br>last seen ${ago}s ago${where(est, rel)}`;
       add(L.circleMarker([p.lat, p.lng], { renderer: this.liveRenderer, radius: wifi ? 8 : 6, color: wifi ? WIFI_COLOR : '#111', weight: wifi ? 3 : 1, fillColor: d.color, fillOpacity: op, opacity: op }).bindPopup(popup), rel, o.dx, o.dy);
