@@ -51,6 +51,25 @@ export class MapView {
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
   private navigationLine?: L.Polyline;
+  private navigationPlaces = L.layerGroup();
+  private driving = false;
+  private drivingHeading?: number;
+  /** Pins for places explicitly saved on this device. */
+  setNavigationPlaces(places: Array<{lat:number;lng:number;label:string}>) {
+    this.navigationPlaces.clearLayers();
+    for (const place of places.slice(0,16)) {
+      if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) continue;
+      L.circleMarker([place.lat,place.lng],{radius:6,color:'#f87179',weight:2,fillColor:'#f34b5d',fillOpacity:0.95})
+        .bindTooltip(place.label,{direction:'top'}).addTo(this.navigationPlaces);
+    }
+    this.m3.setNavigationPlaces(places);
+  }
+  /** The route is already selected: follow at driving zoom without refitting the whole trip every update. */
+  setDrivingMode(on:boolean) {
+    this.driving=on;
+    this.m3.setDrivingMode(on);
+    if(on){this.recenter();this.map.setZoom(Math.max(this.map.getZoom(),17));const c=this.smooth.disp;if(c)this.m3.follow(c.lat,c.lng,Math.max(this.map.getZoom(),17),this.drivingHeading);}
+  }
   private trafficLines = L.layerGroup();
   /** Display-only route preview; active turn guidance belongs to the native SDK. */
   setNavigationRoute(coords: [number, number][], congestion: string[] = []) {
@@ -74,7 +93,7 @@ export class MapView {
       this.trafficLines.addTo(this.map);
     }
     this.m3.setNavigationRoute(coords,congestion);
-    this.map.fitBounds(this.navigationLine.getBounds(), { padding: [45,45] });
+    if (!this.driving) this.map.fitBounds(this.navigationLine.getBounds(), { padding: [45,45] });
   }
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
@@ -114,7 +133,7 @@ export class MapView {
     // Visual-only shading: never intercept pointer events intended for markers or the map.
     this.heatRenderer = L.svg({ pane: 'heatPane' });
     const mp = this.map.createPane('mePane'); mp.style.zIndex = '640'; mp.style.pointerEvents = 'none';
-    this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
+    this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map); this.navigationPlaces.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
     this.follow = new FollowController(true, f => this.onFollowChange?.(f));
     this.map.on('dragstart', () => this.follow.userPanned());
@@ -165,6 +184,7 @@ export class MapView {
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
   setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
     this.startup?.locate(lat, lng);
+    if(this.driving && heading != null && Number.isFinite(heading) && heading>=0 && (speed ?? 0)>1.5)this.drivingHeading=heading;
     const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
     this.loc.fix({ t, lat, lng, acc: accuracy, speed }); // in-memory track for closest-approach pins (never stored)
     if (!this.me) {
@@ -185,12 +205,12 @@ export class MapView {
     const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
     this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
     this.moveRel(); // unknown-device dots + rings ride with the user dot (were redrawn only on the ~3/s data tick)
-    if (this.follow.onFix()) { this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions); this.m3.follow(d.lat, d.lng); }
+    if (this.follow.onFix()) { this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions); this.m3.follow(d.lat, d.lng, this.driving ? Math.max(17,this.map.getZoom()) : undefined, this.driving ? this.drivingHeading : undefined); }
     if (this.m3.active && ts - this.lastMirror > 200) this.mirror3d();
     if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
   };
   /** Recenter and resume follow-me. */
-  recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng(); this.map.setView(c, Math.max(this.map.getZoom(), 15)); this.m3.follow(c.lat, c.lng); this.kick(); return true; }
+  recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng(); this.map.setView(c, Math.max(this.map.getZoom(), 15)); this.m3.follow(c.lat, c.lng, this.driving ? Math.max(17,this.map.getZoom()) : undefined, this.driving ? this.drivingHeading : undefined); this.kick(); return true; }
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }
   async set3D(on: boolean) {
