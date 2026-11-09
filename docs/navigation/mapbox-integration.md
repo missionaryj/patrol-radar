@@ -41,3 +41,13 @@ Docs: https://docs.mapbox.com/android/navigation/guides/install/ and https://doc
 - It is **off by default**. To opt into native SDK resolution, set `MAPBOX_NAV_SDK_ENABLED=true` and provide `MAPBOX_DOWNLOADS_TOKEN` in the build environment or the user's private Gradle properties. No secret is committed.
 - The GitHub repository secret's presence has **not been independently verified**; the GitHub connector in this chat does not expose Actions secret names or values. This scaffold does not automatically consume that secret in CI yet.
 - No public access token has been configured; routing, geocoding and guidance are unimplemented. Do not enable the flag in the release pipeline until the native integration and its tests are ready.
+
+## Route preview milestone (implemented in draft PR)
+- `src/navigation/mapboxPreview.ts`: Mapbox Geocoding v6 (explicit user search; temporary results only) and Directions v5 driving-traffic route alternatives.
+- `src/map/mapView.ts` and `src/map/map3d.ts`: route preview line in 2D and 3D.
+- `src/v2/main.ts`: choose a destination and route; no background geocoding on every keystroke.
+- `src/navigation/mapboxPreview.test.ts`: request shape and missing-token tests.
+- Runtime setup: GitHub repository **Settings → Secrets and variables → Actions → Variables → New repository variable**, name `VITE_MAPBOX_PUBLIC_TOKEN`, value the account's `pk.` token. This is intentionally a **public** token and will be visible in built browser JavaScript; restrict its scopes and monitor usage. Do not store any `sk.` token in this variable.
+- CI web app builds receive `VITE_MAPBOX_PUBLIC_TOKEN`. Without it, the UI reports that navigation search is unconfigured. The separate `MAPBOX_DOWNLOADS_TOKEN` secret only grants Maven downloads and does NOT configure the runtime web requests.
+- Route-preview Directions calls can be separately billable. Add Mapbox usage monitoring and validate the project's actual billing plans before alpha rollout.
+- **Not yet done:** native Mapbox Navigation activity/Capacitor bridge, active trip sessions, voice, rerouting, user-supplied route alternatives when driving, Search Box POI discovery, and driving/device QA.
