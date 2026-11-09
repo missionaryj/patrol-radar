@@ -3,6 +3,7 @@
  * pins and follow-me; this view mirrors them. Display only: nothing here is stored or sent.
  */
 import { style3d, MAX_PITCH, PITCH_3D } from './palette';
+import { headingStep, patrolZoom, MAX_PATROL_ZOOM } from './patrolDriving';
 type ML = typeof import('maplibre-gl');
 export interface Pin3D { lat: number; lng: number; color: string; r: number; ring?: number; kind: 'dot' | 'ring' | 'cell' | 'veh'; html?: string }
 export interface Mirror { pins: Pin3D[]; me?: { lat: number; lng: number; acc: number } }
@@ -28,6 +29,7 @@ export function toGeoJSON(m: Mirror) {
 export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
   private generation = 0; private cancelOpen?: () => void;
+  private patrolMoving = false; private patrolBearing?: number;
   private navigationCoords: [number,number][] = [];
   private navigationCongestion: string[] = [];
   setNavigationRoute(coords: [number,number][], congestion: string[] = []) {
@@ -60,6 +62,16 @@ export class Map3D {
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
   constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void, private onFailure: () => void = () => {}) {}
   onMoveEnd?: () => void;
+  /** Driving presentation only: do not alter scan data or GPS session. */
+  setPatrolMoving(on: boolean) {
+    if (this.patrolMoving === on) return;
+    this.patrolMoving = on;
+    if (!on) { this.patrolBearing = undefined; }
+    if (!this.map || !this.ready) return;
+    // Follow updates use jumpTo, which cancels easeTo animations; reset the unsafe zoom atomically.
+    if (on) this.map.jumpTo({ zoom: patrolZoom(this.map.getZoom(), true), pitch: Math.min(this.map.getPitch(), 48) });
+    this.map.setPaintProperty('acc', 'fill-opacity', on ? 0.025 : 0.12);
+  }
   bounds() { return this.map?.getBounds(); }
   get active() { return !!this.map; }
   async open(center: { lat: number; lng: number }, zoom: number) {
@@ -72,7 +84,7 @@ export class Map3D {
     // Keep the first visible map frame fully initialized; MapView suppresses 2D while loading.
     this.el.style.visibility = 'hidden';
     let map: import('maplibre-gl').Map;
-    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom, pitch: PITCH_3D, maxPitch: MAX_PITCH,
+    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: patrolZoom(zoom, this.patrolMoving), maxZoom: MAX_PATROL_ZOOM, pitch: this.patrolMoving ? 48 : PITCH_3D, maxPitch: MAX_PITCH,
       attributionControl: { compact: true }, antialias: false, fadeDuration: 0, pixelRatio: Math.min(2, window.devicePixelRatio || 1) } as any);
     } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
@@ -101,17 +113,29 @@ export class Map3D {
       // Tap a mapped traffic camera in 3D: same popup as 2D.
       map.on('click', 'pts', e => { const f = e.features?.[0]; const h = f?.properties?.html; if (h && this.ml) new this.ml.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat((f!.geometry as any).coordinates).setHTML(h).addTo(map); });
       // Own location: drawn last so it stays on top of buildings and pins.
-      map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
+      map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': this.patrolMoving ? 0.025 : 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
+      this.ready = true;
+      // GPS may start while 3D is loading; apply the moving camera once the style exists.
+      if (this.patrolMoving) map.jumpTo({ zoom: patrolZoom(map.getZoom(), true), pitch: Math.min(map.getPitch(), 48) });
+      if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
       this.el.style.visibility = ''; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });
     });
   }
   close() { ++this.generation; this.cancelOpen?.(); this.map?.remove(); this.map = undefined; this.ready = false; this.el.hidden = true; this.el.style.visibility = ''; }
-  /** Follow-me: keep pitch/bearing the user chose, move the centre only. */
-  follow(lat: number, lng: number, zoom?: number) { this.map?.jumpTo({ center: [lng, lat], ...(zoom === undefined ? {} : { zoom }) }); }
+  /** Follow the smoothed position. Rotate only for reliable driving headings; never for walking GPS drift. */
+  follow(lat: number, lng: number, zoom?: number, heading?: number) {
+    if (!this.map) return;
+    if (this.patrolMoving) this.patrolBearing = headingStep(this.patrolBearing, heading);
+    const bearing = this.patrolMoving ? this.patrolBearing : undefined;
+    this.map.jumpTo({
+      center: [lng, lat],
+      ...(zoom === undefined ? {} : { zoom: patrolZoom(zoom, this.patrolMoving) }),
+      ...(bearing === undefined ? {} : { bearing }),
+    });
+  }
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }
   setPitch(p: number) { this.map?.easeTo({ pitch: p, duration: 300 }); }
   get pitch() { return this.map?.getPitch() ?? 0; }
