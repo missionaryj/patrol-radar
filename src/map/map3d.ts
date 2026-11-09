@@ -40,7 +40,7 @@ export class Map3D {
     await import('maplibre-gl/dist/maplibre-gl.css');
     if (generation !== this.generation) return;
     this.el.hidden = false;
-    // MapLibre needs a laid-out container, but must not obscure the 2D map until it is ready.
+    // Keep the first visible map frame fully initialized; MapView suppresses 2D while loading.
     this.el.style.visibility = 'hidden';
     let map: import('maplibre-gl').Map;
     try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom, pitch: PITCH_3D, maxPitch: MAX_PITCH,
