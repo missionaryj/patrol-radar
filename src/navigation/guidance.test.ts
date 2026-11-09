@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {Guidance,metres} from './guidance';
 import type {PreviewRoute} from './mapboxPreview';
-const route:PreviewRoute={distanceMeters:1000,durationSeconds:200,geometry:[[0,0],[0.001,0],[0.002,0]],steps:[{instruction:'Continue',location:[0.001,0],distanceMeters:110}]};
+const route:PreviewRoute={distanceMeters:1000,durationSeconds:200,congestion:[],geometry:[[0,0],[0.001,0],[0.002,0]],steps:[{instruction:'Continue',location:[0.001,0],distanceMeters:110}]};
 describe('Guidance safety and distance',()=>{
  it('computes approximate distances',()=>expect(metres({lat:0,lng:0},{lat:0,lng:0.001})).toBeGreaterThan(100));
  it('announces a maneuver once',()=>{const g=new Guidance(route,{lat:0,lng:0.002});expect(g.update({lat:0,lng:0},10,1000).announce).toBe('Continue');expect(g.update({lat:0,lng:0},10,2000).announce).toBeUndefined()});
