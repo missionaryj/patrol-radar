@@ -34,3 +34,10 @@ Status: **provider selected; native SDK not yet integrated**. Do not represent t
 - Run `npm test`, `npm run build`, Android Gradle tests and at least one physical device drive test before release.
 
 Docs: https://docs.mapbox.com/android/navigation/guides/install/ and https://docs.mapbox.com/android/navigation/guides/pricing/
+
+## Current build scaffold
+- Gradle wiring lives in `android/build.gradle` and `android/app/build.gradle`.
+- The Mapbox SDK dependency is pinned to `com.mapbox.navigationcore:android-ndk27:3.34.2`, based on official installation docs checked November 2026.
+- It is **off by default**. To opt into native SDK resolution, set `MAPBOX_NAV_SDK_ENABLED=true` and provide `MAPBOX_DOWNLOADS_TOKEN` in the build environment or the user's private Gradle properties. No secret is committed.
+- The GitHub repository secret's presence has **not been independently verified**; the GitHub connector in this chat does not expose Actions secret names or values. This scaffold does not automatically consume that secret in CI yet.
+- No public access token has been configured; routing, geocoding and guidance are unimplemented. Do not enable the flag in the release pipeline until the native integration and its tests are ready.
