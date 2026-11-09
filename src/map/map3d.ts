@@ -28,6 +28,17 @@ export function toGeoJSON(m: Mirror) {
 export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
   private generation = 0; private cancelOpen?: () => void;
+  private navigationCoords: [number,number][] = [];
+  setNavigationRoute(coords: [number,number][]) { this.navigationCoords = coords; this.applyNavigationRoute(); }
+  private applyNavigationRoute() {
+    if (!this.map || !this.ready) return;
+    const data = { type: 'FeatureCollection' as const, features: this.navigationCoords.length < 2 ? [] : [{ type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: this.navigationCoords } }] };
+    const src = this.map.getSource('navigation-route') as import('maplibre-gl').GeoJSONSource | undefined;
+    if (src) src.setData(data); else {
+      this.map.addSource('navigation-route', { type: 'geojson', data });
+      this.map.addLayer({ id: 'navigation-route-line', type: 'line', source: 'navigation-route', paint: { 'line-color': '#347CFF', 'line-width': 7, 'line-opacity': 0.95 } });
+    }
+  }
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
   constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void, private onFailure: () => void = () => {}) {}
   onMoveEnd?: () => void;
@@ -74,7 +85,7 @@ export class Map3D {
       // Own location: drawn last so it stays on top of buildings and pins.
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat();
+      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
       this.el.style.visibility = ''; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });
