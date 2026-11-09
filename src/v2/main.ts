@@ -222,8 +222,8 @@ async function rerouteFrom(fix:Coordinate){
 }
 function updateActiveGuidance(fix:Coordinate,accuracy:number,speed?:number|null){
   if(!activeGuidance || !currentRoute || !activeDestination)return;
+  if(!Number.isFinite(accuracy) || accuracy>80){navSpeed.textContent='—';navDrivingStatus.textContent='GPS signal weak. Guidance may be delayed.';return;}
   navSpeed.textContent=speedMph(speed);
-  if(!Number.isFinite(accuracy) || accuracy>80){navDrivingStatus.textContent='GPS signal weak. Guidance may be delayed.';return;}
   const progress=activeGuidance.update(fix,accuracy,Date.now());
   // Maneuver data comes from real Mapbox Directions steps; don't pretend this is lane guidance.
   if(!nativeGuidanceActive || !nativeManeuverAvailable)navInstruction.textContent=progress.instruction;
