@@ -1,4 +1,4 @@
-import { mountMapSettings } from '../settings/mapSettings';
+import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
 import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
 import { MapView, coarsen } from '../map';
@@ -33,9 +33,14 @@ const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 mountLegend($('map-legend'));
-const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false, waitForLocation: true });
+const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false, waitForLocation: true, initial3D: savedMap3D() });
+map.onPresentationChange = state => {
+  const loading = document.getElementById('map-startup');
+  if (loading) { loading.hidden = state !== 'loading3d'; loading.textContent = 'Loading 3D map…'; }
+  if (state === 'fallback') toast('3D map unavailable. Showing 2D instead.', true);
+};
 mountMapSettings(map);
-void map.ready.then(() => { document.getElementById('map-startup')?.remove(); });
+void map.ready.then(() => { if (!map.wants3D) { const loading = document.getElementById('map-startup'); if (loading) loading.hidden = true; } });
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
 let scanStartedAt = 0;

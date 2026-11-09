@@ -19,9 +19,17 @@ import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOO
 
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
 export const MAX_LIVE_DOTS = 150;
-export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; waitForLocation?: boolean; }
+export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; waitForLocation?: boolean; initial3D?: boolean; }
 export class MapView {
   private map: L.Map;
+  private raster: L.TileLayer;
+  private wants3d = false;
+  get wants3D() { return this.wants3d; }
+  onPresentationChange?: (state: 'loading3d' | 'ready' | 'fallback') => void;
+  private present2D(show: boolean) {
+    this.map.getPane('mapPane')!.style.visibility = show ? '' : 'hidden';
+    if (show) this.raster.addTo(this.map); else this.raster.remove();
+  }
   private startup?: InitialMapView;
   private waitingForLocation = false;
   private viewReady: Promise<void> = Promise.resolve();
@@ -56,9 +64,11 @@ export class MapView {
     if (this.waitingForLocation) this.viewReady = new Promise(resolve => { this.resolveView = resolve; });
     else this.map.setView(center, 15);
     // Cool-slate basemap (OSM tiles + CSS filter, no API key); .tiles-slate adds a slight blue-grey tint.
-    L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' }).addTo(this.map);
+    this.raster = L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' });
+    this.wants3d = !!opts.initial3D;
+    this.present2D(!this.wants3d);
     const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
-    this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned(), () => this.on3DFailure?.());
+    this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned(), () => { void this.set3D(false); this.on3DFailure?.(); this.onPresentationChange?.('fallback'); });
     this.m3.onMoveEnd = () => { if (this.flockOn) this.scheduleFlock(); };
     // Traffic cameras get their own pane above the overlay canvas (so they stay tappable); the own-location dot and its
     // accuracy circle sit in a still higher, click-through pane so nothing can ever cover them.
@@ -148,14 +158,36 @@ export class MapView {
   get is3D() { return this.m3.active; }
   async set3D(on: boolean) {
     const request = ++this.view3dRequest;
-    if (!on) { const v = this.m3.view(); this.m3.close(); if (this.flockOn) this.scheduleFlock(); if (v && !this.follow.following) this.map.setView([v.lat, v.lng], Math.round(v.zoom)); return; }
+    this.wants3d = on;
+    this.present2D(!on);
+    if (!on) {
+      const v = this.m3.view(); this.m3.close();
+      if (this.flockOn) this.scheduleFlock();
+      if (v && !this.follow.following) this.map.setView([v.lat, v.lng], Math.round(v.zoom));
+      await this.viewReady;
+      if (request === this.view3dRequest) this.onPresentationChange?.('ready');
+      return;
+    }
+    this.onPresentationChange?.('loading3d');
     await this.viewReady;
     if (request !== this.view3dRequest) return;
-    const c = this.smooth.disp ?? this.map.getCenter(); await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom());
-    // GPS may have arrived while the 3D module/style was loading.
-    const latest = this.smooth.disp;
-    if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.map.getZoom());
-    this.mirror3d(); if (this.flockOn) await this.drawFlock(); this.kick();
+    try {
+      const c = this.smooth.disp ?? this.map.getCenter();
+      await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom());
+      if (request !== this.view3dRequest) return;
+      const latest = this.smooth.disp;
+      if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.map.getZoom());
+      this.mirror3d(); this.kick();
+      this.onPresentationChange?.('ready');
+    } catch {
+      if (request !== this.view3dRequest) return;
+      await this.set3D(false);
+      this.on3DFailure?.();
+      this.onPresentationChange?.('fallback');
+      return;
+    }
+    // Optional camera data must not delay the first usable 3D view or force a fallback.
+    if (this.flockOn) await this.drawFlock().catch(e => console.warn('Flock layer unavailable', e));
   }
   /** Tilt between flat and 3D while the 3D view is open. */
   togglePitch() { if (this.m3.active) this.m3.setPitch(this.m3.pitch > 5 ? 0 : PITCH_3D); }
