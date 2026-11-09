@@ -101,7 +101,7 @@ async function startGuidance(route: PreviewRoute, destination: Coordinate) {
   navInstruction.textContent = route.steps[0].instruction;
   navDistance.textContent = 'GPS guidance started';
   previewStatus.textContent = 'GPS guidance active while app is open. Follow road signs.';
-  map.setNavigationRoute(route.geometry);
+  map.setNavigationRoute(route.geometry, route.congestion);
   if (nativeNavigation && here) {
     try {
       await nativeNavigation.start({
@@ -203,7 +203,7 @@ function renderRoutes(routes: PreviewRoute[], destination: string, coordinate: C
     button.onclick = () => startGuidance(route, coordinate);
     previewResults.append(button);
   });
-  map.setNavigationRoute(routes[0].geometry);
+  map.setNavigationRoute(routes[0].geometry, routes[0].congestion);
 }
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
