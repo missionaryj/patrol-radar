@@ -68,6 +68,7 @@ let nativeRemaining: {distance: number;seconds: number} | undefined;
 const nativeNavigation = (globalThis as any).Capacitor?.isNativePlatform?.() ?
   ((globalThis as any).Capacitor?.Plugins?.MapboxNav ?? (globalThis as any).Capacitor?.registerPlugin?.('MapboxNav')) : undefined;
 let nativeGuidanceActive = false;
+let nativeManeuverAvailable = false;
 
 function renderTripSummary(metresRemaining: number, secondsRemaining: number) {
   if(!Number.isFinite(metresRemaining) || !Number.isFinite(secondsRemaining))return;
@@ -76,13 +77,19 @@ function renderTripSummary(metresRemaining: number, secondsRemaining: number) {
   navTripDistance.textContent=(Math.max(0,metresRemaining)/1609.344).toFixed(1)+' mi left';
 }
 if(nativeNavigation){
-  void nativeNavigation.addListener('progress',(data:{distanceRemaining?:number;durationRemaining?:number})=>{
+  void nativeNavigation.addListener('progress',(data:{distanceRemaining?:number;durationRemaining?:number;distanceToTurn?:number;instruction?:string})=>{
     if(!nativeGuidanceActive || !activeDestination)return;
     const distance=Number(data.distanceRemaining),seconds=Number(data.durationRemaining);
     if(Number.isFinite(distance) && distance>=0 && Number.isFinite(seconds) && seconds>=0){
       nativeRemaining={distance,seconds};
       renderTripSummary(distance,seconds);
     }
+    if(typeof data.instruction==='string' && data.instruction.trim()){
+      navInstruction.textContent=data.instruction;
+      nativeManeuverAvailable=true;
+    }
+    if(Number.isFinite(data.distanceToTurn) && (data.distanceToTurn ?? -1)>=0)
+      navDistance.textContent=distanceToNextTurn(data.distanceToTurn!)+' to next turn';
   });
   void nativeNavigation.addListener('route',(data:{geometry?:[number,number][]})=>{
     if(!nativeGuidanceActive || !Array.isArray(data.geometry) || data.geometry.length<2 || data.geometry.length>6000)return;
@@ -160,7 +167,7 @@ changeMode.onclick=showModeChoices;
 function stopGuidance() {
   ++tripGeneration;
   if(nativeGuidanceActive && nativeNavigation)void nativeNavigation.stop().catch(()=>{});
-  nativeGuidanceActive=false;nativeRemaining=undefined;
+  nativeGuidanceActive=false;nativeManeuverAvailable=false;nativeRemaining=undefined;
   activeGuidance=undefined;activeDestination=undefined;currentRoute=undefined;
   navDriving.hidden=true;document.body.dataset.navigationDriving='false';
   navigationPanel.hidden=document.body.dataset.experience!=='navigation';
@@ -218,8 +225,8 @@ function updateActiveGuidance(fix:Coordinate,accuracy:number,speed?:number|null)
   if(!Number.isFinite(accuracy) || accuracy>80){navDrivingStatus.textContent='GPS signal weak. Guidance may be delayed.';return;}
   const progress=activeGuidance.update(fix,accuracy,Date.now());
   // Maneuver data comes from real Mapbox Directions steps; don't pretend this is lane guidance.
-  navInstruction.textContent=progress.instruction;
-  navDistance.textContent=distanceToNextTurn(progress.metresToTurn)+' to next turn';
+  if(!nativeGuidanceActive || !nativeManeuverAvailable)navInstruction.textContent=progress.instruction;
+  if(!nativeGuidanceActive)navDistance.textContent=distanceToNextTurn(progress.metresToTurn)+' to next turn';
   const left=routeRemaining(currentRoute,fix);
   if(nativeGuidanceActive && nativeRemaining)renderTripSummary(nativeRemaining.distance,nativeRemaining.seconds);
   else renderTripSummary(left,remainingSeconds(currentRoute,left));
