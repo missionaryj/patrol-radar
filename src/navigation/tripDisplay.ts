@@ -1,12 +1,7 @@
 import type { Coordinate, PreviewRoute } from './mapboxPreview';
-import { metres } from './guidance';
 
 export function speedMph(speed: number | null | undefined): string {
   return speed == null || !Number.isFinite(speed) || speed < 0 ? '—' : String(Math.round(speed * 2.2369362921));
-}
-export function formatDistance(meters: number): string {
-  if (!Number.isFinite(meters) || meters < 0) return '—';
-  return meters < 402 ? Math.round(meters / 5) * 5 + ' ft'.replace('ft','m') : (meters / 1609.344).toFixed(1) + ' mi';
 }
 /** Distance to the destination along the route, using the closest projected polyline segment. */
 export function routeRemaining(route: PreviewRoute, fix: Coordinate): number {
