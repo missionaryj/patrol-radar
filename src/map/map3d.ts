@@ -68,7 +68,8 @@ export class Map3D {
     this.patrolMoving = on;
     if (!on) { this.patrolBearing = undefined; }
     if (!this.map || !this.ready) return;
-    if (on) this.map.easeTo({ zoom: patrolZoom(this.map.getZoom(), true), pitch: Math.min(this.map.getPitch(), 48), duration: 350 });
+    // Follow updates use jumpTo, which cancels easeTo animations; reset the unsafe zoom atomically.
+    if (on) this.map.jumpTo({ zoom: patrolZoom(this.map.getZoom(), true), pitch: Math.min(this.map.getPitch(), 48) });
     this.map.setPaintProperty('acc', 'fill-opacity', on ? 0.025 : 0.12);
   }
   bounds() { return this.map?.getBounds(); }
