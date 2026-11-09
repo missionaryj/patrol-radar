@@ -66,6 +66,19 @@ const routeButton = document.getElementById('navigation-search') as HTMLButtonEl
 const mapboxPublicToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN?.trim() ?? '';
 let navigationRequest: AbortController | undefined;
 let activeGuidance: Guidance | undefined;
+const nativeNavigation = (globalThis as any).Capacitor?.isNativePlatform?.() ? ((globalThis as any).Capacitor?.Plugins?.MapboxNav ?? (globalThis as any).Capacitor?.registerPlugin?.('MapboxNav')) : undefined;
+let nativeGuidanceActive = false;
+if (nativeNavigation) {
+  void nativeNavigation.addListener('progress', (data: {distanceRemaining?: number;durationRemaining?: number}) => {
+    if (!nativeGuidanceActive || !activeDestination) return;
+    const miles = Number(data.distanceRemaining) / 1609.344;
+    const minutes = Number(data.durationRemaining) / 60;
+    if (Number.isFinite(miles) && Number.isFinite(minutes)) navDistance.textContent = miles.toFixed(1) + ' mi remaining · ' + Math.round(minutes) + ' min';
+  });
+  void nativeNavigation.addListener('voice', (data: {instruction?: string}) => {
+    if (nativeGuidanceActive && data.instruction) navInstruction.textContent = data.instruction;
+  });
+}
 let activeDestination: Coordinate | undefined;
 let lastRerouteAt = 0;
 const navInstruction = document.getElementById('navigation-instruction')!;
@@ -73,13 +86,15 @@ const navDistance = document.getElementById('navigation-distance')!;
 const navGuidancePanel = document.getElementById('navigation-guidance')!;
 const navStop = document.getElementById('navigation-stop') as HTMLButtonElement;
 function stopGuidance() {
+  if (nativeGuidanceActive && nativeNavigation) void nativeNavigation.stop().catch(() => {});
+  nativeGuidanceActive = false;
   activeGuidance = undefined; activeDestination = undefined;
   navGuidancePanel.hidden = true; navStop.hidden = true;
   window.speechSynthesis?.cancel();
   map.setNavigationRoute([]);
 }
 navStop.onclick = () => { stopGuidance(); previewStatus.textContent = 'Trip ended.'; };
-function startGuidance(route: PreviewRoute, destination: Coordinate) {
+async function startGuidance(route: PreviewRoute, destination: Coordinate) {
   if (!route.steps.length) { previewStatus.textContent = 'No maneuvers provided for this route.'; return; }
   activeGuidance = new Guidance(route, destination); activeDestination = destination;
   navGuidancePanel.hidden = false; navStop.hidden = false;
@@ -87,6 +102,23 @@ function startGuidance(route: PreviewRoute, destination: Coordinate) {
   navDistance.textContent = 'GPS guidance started';
   previewStatus.textContent = 'GPS guidance active while app is open. Follow road signs.';
   map.setNavigationRoute(route.geometry);
+  if (nativeNavigation && here) {
+    try {
+      await nativeNavigation.start({
+        originLat: here.lat, originLng: here.lng,
+        destinationLat: destination.lat, destinationLng: destination.lng
+      });
+      if (activeDestination?.lat === destination.lat && activeDestination.lng === destination.lng) {
+        nativeGuidanceActive = true;
+        navDistance.textContent = 'Mapbox native guidance active';
+      } else {
+        void nativeNavigation.stop().catch(() => {});
+      }
+    } catch {
+      nativeGuidanceActive = false;
+      previewStatus.textContent = 'Native guidance unavailable. Keeping on-screen GPS guidance active while the app is open.';
+    }
+  }
 }
 async function rerouteFrom(fix: Coordinate) {
   if (!activeDestination || navigationRequest) return;
@@ -101,7 +133,7 @@ async function rerouteFrom(fix: Coordinate) {
   } finally { if (navigationRequest === request) navigationRequest = undefined; }
 }
 function updateActiveGuidance(fix: Coordinate, accuracy: number) {
-  if (!activeGuidance) return;
+  if (!activeGuidance || nativeGuidanceActive) return;
   const progress = activeGuidance.update(fix, accuracy, Date.now());
   navInstruction.textContent = progress.instruction;
   navDistance.textContent = progress.arrived ? 'Arrived' : Math.round(progress.metresToTurn) + ' m to next instruction';
