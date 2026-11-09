@@ -23,6 +23,7 @@ import com.mapbox.navigation.core.trip.session.RouteProgressObserver;
 import com.mapbox.navigation.core.directions.session.RoutesObserver;
 import com.mapbox.geojson.utils.PolylineUtils;
 import com.mapbox.navigation.core.trip.session.VoiceInstructionsObserver;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -85,6 +86,7 @@ public class MapboxNavPlugin extends Plugin {
   @PluginMethod public void start(PluginCall call) {
     Double originLat=call.getDouble("originLat"), originLng=call.getDouble("originLng");
     Double destLat=call.getDouble("destinationLat"), destLng=call.getDouble("destinationLng");
+    Double preferredDistance=call.getDouble("preferredDistanceMeters"), preferredDuration=call.getDouble("preferredDurationSeconds");
     if (originLat==null || originLng==null || destLat==null || destLng==null ||
         !Double.isFinite(originLat) || !Double.isFinite(originLng) || !Double.isFinite(destLat) || !Double.isFinite(destLng) ||
         Math.abs(originLat)>90 || Math.abs(destLat)>90 || Math.abs(originLng)>180 || Math.abs(destLng)>180) {
@@ -113,7 +115,23 @@ public class MapboxNavPlugin extends Plugin {
           @Override public void onRoutesReady(List<NavigationRoute> routes,String origin) {
             if(requestId!=generation || nav==null) { call.reject("Navigation request canceled");return; }
             if(routes.isEmpty()) {call.reject("No route available");return;}
-            nav.setNavigationRoutes(routes);
+            // Match the explicitly chosen preview route by distance and duration.
+            // The native session requests fresh alternatives, so indices are not assumed stable.
+            List<NavigationRoute> ordered = new ArrayList<>(routes);
+            int chosen = 0;
+            if(preferredDistance!=null && preferredDistance>0 && Double.isFinite(preferredDistance) &&
+               preferredDuration!=null && preferredDuration>0 && Double.isFinite(preferredDuration)) {
+              double best=Double.POSITIVE_INFINITY;
+              for(int i=0;i<ordered.size();i++){
+                double d=ordered.get(i).getDirectionsRoute().distance();
+                double t=ordered.get(i).getDirectionsRoute().duration();
+                double score=Math.abs(d-preferredDistance)/Math.max(100,preferredDistance)
+                  + Math.abs(t-preferredDuration)/Math.max(60,preferredDuration);
+                if(score<best){best=score;chosen=i;}
+              }
+            }
+            if(chosen>0)ordered.add(0,ordered.remove(chosen));
+            nav.setNavigationRoutes(ordered);
             nav.startTripSession();
             active=true;
             JSObject result=new JSObject();result.put("active",true);result.put("alternatives",routes.size());
