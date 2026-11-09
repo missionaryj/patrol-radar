@@ -29,6 +29,34 @@ import { mountUpdates } from './updatesUi';
 import { mountLegend } from '../map/legend';
 import { type HeatFilter, type StopHeatIndex, heatPaint } from '../map/stopHeatLayer';
 
+// Shared v2 app/map instance: choosing a mode never rebuilds the map or scanner.
+type MapExperience = 'patrol' | 'navigation';
+const welcome = document.getElementById('mode-welcome')!;
+const navigationPanel = document.getElementById('navigation-panel')!;
+const changeMode = document.getElementById('change-mode') as HTMLButtonElement;
+const navDestination = document.getElementById('navigation-destination') as HTMLInputElement;
+function chooseExperience(mode: MapExperience) {
+  welcome.hidden = true;
+  navigationPanel.hidden = mode !== 'navigation';
+  changeMode.hidden = mode === 'navigation';
+  document.body.dataset.experience = mode;
+  if (mode === 'navigation') {
+    navDestination.focus();
+  }
+  // Do not restart the Bluetooth scanner or reinitialize the 3D map.
+  window.dispatchEvent(new Event('resize'));
+}
+(document.getElementById('choose-navigation') as HTMLButtonElement).onclick = () => chooseExperience('navigation');
+(document.getElementById('choose-patrol') as HTMLButtonElement).onclick = () => chooseExperience('patrol');
+function showModeChoices() {
+  document.body.dataset.experience = '';
+  navigationPanel.hidden = true;
+  welcome.hidden = false;
+  changeMode.hidden = true;
+}
+changeMode.onclick = showModeChoices;
+(document.getElementById('navigation-back') as HTMLButtonElement).onclick = showModeChoices;
+
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
