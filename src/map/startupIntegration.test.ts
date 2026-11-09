@@ -79,6 +79,8 @@ describe('direct 3D presentation', () => {
   it('removes the raster source while 3D is selected, not just its pixels', () => {
     const { view } = setup(); const pane = { style: { visibility: '' } };
     view.map.getPane = () => pane;
+    view.map.hasLayer = () => false;
+    view.mapHasView = true;
     view.raster = { addTo: vi.fn(), remove: vi.fn() };
     delete view.present2D;
     view.present2D(false);
@@ -88,5 +90,18 @@ describe('direct 3D presentation', () => {
     view.present2D(true);
     expect(pane.style.visibility).toBe('');
     expect(view.raster.addTo).toHaveBeenCalledWith(view.map);
+  });
+  it('does not attach street tiles before the map has a center', () => {
+    const { view } = setup(); const pane = { style: { visibility: '' } };
+    view.map.getPane = () => pane;
+    view.map.hasLayer = () => false;
+    view.mapHasView = false;
+    view.raster = { addTo: vi.fn(), remove: vi.fn() };
+    delete view.present2D;
+    expect(() => view.present2D(true)).not.toThrow();
+    expect(view.raster.addTo).not.toHaveBeenCalled();
+    view.mapHasView = true;
+    view.attachBasemap();
+    expect(view.raster.addTo).toHaveBeenCalledOnce();
   });
 });
