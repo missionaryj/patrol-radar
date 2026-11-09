@@ -114,7 +114,10 @@ export class Map3D {
       // Own location: drawn last so it stays on top of buildings and pins.
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': this.patrolMoving ? 0.025 : 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
+      this.ready = true;
+      // GPS may start while 3D is loading; apply the moving camera once the style exists.
+      if (this.patrolMoving) map.jumpTo({ zoom: patrolZoom(map.getZoom(), true), pitch: Math.min(map.getPitch(), 48) });
+      if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
       this.el.style.visibility = ''; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });
