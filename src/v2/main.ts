@@ -1,5 +1,6 @@
 import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
-import { findDestination, drivingRoutes, type PreviewRoute } from '../navigation/mapboxPreview';
+import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate } from '../navigation/mapboxPreview';
+import { Guidance } from '../navigation/guidance';
 import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
 import { MapView, coarsen } from '../map';
@@ -64,6 +65,54 @@ const previewResults = document.getElementById('navigation-results')!;
 const routeButton = document.getElementById('navigation-search') as HTMLButtonElement;
 const mapboxPublicToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN?.trim() ?? '';
 let navigationRequest: AbortController | undefined;
+let activeGuidance: Guidance | undefined;
+let activeDestination: Coordinate | undefined;
+let lastRerouteAt = 0;
+const navInstruction = document.getElementById('navigation-instruction')!;
+const navDistance = document.getElementById('navigation-distance')!;
+const navGuidancePanel = document.getElementById('navigation-guidance')!;
+const navStop = document.getElementById('navigation-stop') as HTMLButtonElement;
+function stopGuidance() {
+  activeGuidance = undefined; activeDestination = undefined;
+  navGuidancePanel.hidden = true; navStop.hidden = true;
+  window.speechSynthesis?.cancel();
+  map.setNavigationRoute([]);
+}
+navStop.onclick = () => { stopGuidance(); previewStatus.textContent = 'Trip ended.'; };
+function startGuidance(route: PreviewRoute, destination: Coordinate) {
+  if (!route.steps.length) { previewStatus.textContent = 'No maneuvers provided for this route.'; return; }
+  activeGuidance = new Guidance(route, destination); activeDestination = destination;
+  navGuidancePanel.hidden = false; navStop.hidden = false;
+  navInstruction.textContent = route.steps[0].instruction;
+  navDistance.textContent = 'GPS guidance started';
+  previewStatus.textContent = 'GPS guidance active while app is open. Follow road signs.';
+  map.setNavigationRoute(route.geometry);
+}
+async function rerouteFrom(fix: Coordinate) {
+  if (!activeDestination || navigationRequest) return;
+  const dest = { ...activeDestination }, request = new AbortController();
+  navigationRequest = request; lastRerouteAt = Date.now();
+  navDistance.textContent = 'Recalculating…';
+  try {
+    const routes = await drivingRoutes(fix, dest, mapboxPublicToken, request.signal);
+    if (routes.length && activeDestination?.lat === dest.lat && activeDestination.lng === dest.lng) startGuidance(routes[0], dest);
+  } catch {
+    if (!request.signal.aborted) navDistance.textContent = 'Rerouting unavailable. Follow road signs.';
+  } finally { if (navigationRequest === request) navigationRequest = undefined; }
+}
+function updateActiveGuidance(fix: Coordinate, accuracy: number) {
+  if (!activeGuidance) return;
+  const progress = activeGuidance.update(fix, accuracy, Date.now());
+  navInstruction.textContent = progress.instruction;
+  navDistance.textContent = progress.arrived ? 'Arrived' : Math.round(progress.metresToTurn) + ' m to next instruction';
+  if (progress.announce && 'speechSynthesis' in window) {
+    try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(progress.announce)); }
+    catch { /* speech unavailable on some Android WebViews */ }
+  }
+  if (progress.arrived) { stopGuidance(); previewStatus.textContent = 'Arrived at destination.'; return; }
+  if (progress.reroute && Date.now() - lastRerouteAt > 60000) void rerouteFrom(fix);
+}
+
 routeButton.onclick = async () => {
   if (!mapboxPublicToken.startsWith('pk.')) {
     previewStatus.textContent = 'Mapbox public token not configured. Add VITE_MAPBOX_PUBLIC_TOKEN to GitHub Actions Variables.';
@@ -97,7 +146,7 @@ routeButton.onclick = async () => {
         routeButton.disabled = true;
         try {
           const routes = await drivingRoutes(origin, place, mapboxPublicToken, routeRequest.signal);
-          renderRoutes(routes, place.label);
+          renderRoutes(routes, place.label, place);
         } catch (error) {
           if (!routeRequest.signal.aborted) previewStatus.textContent = error instanceof Error ? error.message : 'Route could not be calculated.';
         } finally { if (navigationRequest === routeRequest) { navigationRequest = undefined; routeButton.disabled = false; } }
@@ -110,16 +159,16 @@ routeButton.onclick = async () => {
     if (navigationRequest === request) { navigationRequest = undefined; routeButton.disabled = false; }
   }
 };
-function renderRoutes(routes: PreviewRoute[], destination: string) {
+function renderRoutes(routes: PreviewRoute[], destination: string, coordinate: Coordinate) {
   previewResults.replaceChildren();
   if (!routes.length) { previewStatus.textContent = 'No drivable route found.'; return; }
-  previewStatus.textContent = 'Route preview only — spoken turn-by-turn guidance is not active yet.';
+  previewStatus.textContent = 'Choose a route to begin on-screen GPS guidance.';
   routes.forEach((route, index) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'navigation-result';
     button.textContent = `${index === 0 ? 'Recommended' : 'Alternative'} · ${Math.round(route.durationSeconds / 60)} min · ${(route.distanceMeters / 1609.344).toFixed(1)} mi — ${destination}`;
-    button.onclick = () => map.setNavigationRoute(route.geometry);
+    button.onclick = () => startGuidance(route, coordinate);
     previewResults.append(button);
   });
   map.setNavigationRoute(routes[0].geometry);
@@ -214,6 +263,7 @@ function startGeo() {
   geoWatch = navigator.geolocation.watchPosition(p => {
     map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading, p.timestamp);
     here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
+    updateActiveGuidance(here, p.coords.accuracy);
     void checkTrafficCams({ lat: p.coords.latitude, lng: p.coords.longitude, speed: p.coords.speed, heading: p.coords.heading, t: p.timestamp });
     recorder.fix(p.coords.accuracy, here);
     pos = coarsen(p.coords.latitude, p.coords.longitude);
