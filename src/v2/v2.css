@@ -453,3 +453,11 @@ details.group{margin-top:14px}
 .navigation-panel input{display:block;width:100%;border:1px solid #54647a;background:#222d3a;color:#fff;border-radius:12px;padding:14px;font:inherit}
 .navigation-panel p{font-size:12px;color:#b6c2d2;line-height:1.5}
 body[data-experience="navigation"] .sheet,body[data-experience="navigation"] .fab,body[data-experience="navigation"] .fab-col,body[data-experience="navigation"] .map-legend{display:none!important}
+
+/* Search is explicit, not per-keystroke, to avoid surprise Geocoding API requests. */
+.navigation-search,.navigation-result{width:100%;border-radius:12px;font:inherit;cursor:pointer}
+.navigation-search{border:0;background:#347CFF;color:#fff;font-weight:750;padding:12px;margin-top:10px}
+.navigation-search:disabled{opacity:.55;cursor:wait}
+.navigation-results{display:grid;gap:7px;max-height:180px;overflow-y:auto;margin-top:9px}
+.navigation-result{background:#1b2939;border:1px solid #50637c;color:#e6eefb;text-align:left;padding:10px;line-height:1.35;font-size:13px}
+.navigation-result:focus-visible{outline:2px solid #76a8ff}
