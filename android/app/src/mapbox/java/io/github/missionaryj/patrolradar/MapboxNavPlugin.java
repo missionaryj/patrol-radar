@@ -5,6 +5,7 @@ import android.content.pm.PackageManager;
 import android.speech.tts.TextToSpeech;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -18,6 +19,8 @@ import com.mapbox.navigation.base.route.RouterFailure;
 import com.mapbox.navigation.core.MapboxNavigation;
 import com.mapbox.navigation.core.MapboxNavigationProvider;
 import com.mapbox.navigation.core.trip.session.RouteProgressObserver;
+import com.mapbox.navigation.core.directions.session.RoutesObserver;
+import com.mapbox.geojson.utils.PolylineUtils;
 import com.mapbox.navigation.core.trip.session.VoiceInstructionsObserver;
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +35,25 @@ public class MapboxNavPlugin extends Plugin {
   private TextToSpeech tts;
   private long generation;
   private boolean active;
+  private final RoutesObserver routes = result -> {
+    if (!active || result.getNavigationRoutes().isEmpty()) return;
+    try {
+      String encoded = result.getNavigationRoutes().get(0).getDirectionsRoute().geometry();
+      if(encoded == null) return;
+      List<Point> points = PolylineUtils.decode(encoded, 6);
+      // Large cross-state webview transfers can jank on older Android devices.
+      if(points.size() < 2 || points.size() > 6000) return;
+      JSArray geometry = new JSArray();
+      for(Point p : points) {
+        JSArray pair = new JSArray();
+        pair.put(p.longitude()); pair.put(p.latitude());
+        geometry.put(pair);
+      }
+      JSObject output = new JSObject();
+      output.put("geometry", geometry);
+      notifyListeners("route", output);
+    } catch(Exception ignored) { /* Keep existing displayed geometry on decode failure. */ }
+  };
   private final RouteProgressObserver progress = routeProgress -> {
     JSObject state = new JSObject();
     state.put("distanceRemaining", routeProgress.getDistanceRemaining());
@@ -67,6 +89,7 @@ public class MapboxNavPlugin extends Plugin {
         stopInternal();
         nav=MapboxNavigationProvider.create(new NavigationOptions.Builder(getContext()).build());
         nav.registerRouteProgressObserver(progress);
+        nav.registerRoutesObserver(routes);
         nav.registerVoiceInstructionsObserver(voice);
         tts=new TextToSpeech(getContext(), code -> {
           if (code == TextToSpeech.SUCCESS && tts != null) tts.setLanguage(Locale.US);
@@ -97,7 +120,7 @@ public class MapboxNavPlugin extends Plugin {
   private void stopInternal() {
     active=false;
     if(nav!=null) {
-      try {nav.unregisterVoiceInstructionsObserver(voice);nav.unregisterRouteProgressObserver(progress);
+      try {nav.unregisterVoiceInstructionsObserver(voice);nav.unregisterRouteProgressObserver(progress);nav.unregisterRoutesObserver(routes);
         nav.stopTripSession();nav.setNavigationRoutes(java.util.Collections.emptyList());}
       catch(Exception ignored) { }
       MapboxNavigationProvider.destroy();nav=null;
