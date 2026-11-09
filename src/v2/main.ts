@@ -1,5 +1,7 @@
 import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
-import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate } from '../navigation/mapboxPreview';
+import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate, type Destination } from '../navigation/mapboxPreview';
+import { NavigationPlaces, samePlace } from '../navigation/places';
+import { routeRemaining, remainingSeconds, speedMph, arrivalTime, distanceToNextTurn } from '../navigation/tripDisplay';
 import { Guidance } from '../navigation/guidance';
 import './v2.css';
 import { createScanner, match, pickDefaultBackend, isBluefy, classify, type Scanner, type BackendKind, type Match } from '../ble';
@@ -31,187 +33,269 @@ import { mountUpdates } from './updatesUi';
 import { mountLegend } from '../map/legend';
 import { type HeatFilter, type StopHeatIndex, heatPaint } from '../map/stopHeatLayer';
 
-// Shared v2 app/map instance: choosing a mode never rebuilds the map or scanner.
+// A single map and BLE scanning session serve Patrol and Navigation.
+// The destination picker is a separate full-screen view; a chosen route launches the driving HUD.
 type MapExperience = 'patrol' | 'navigation';
 const welcome = document.getElementById('mode-welcome')!;
 const navigationPanel = document.getElementById('navigation-panel')!;
 const changeMode = document.getElementById('change-mode') as HTMLButtonElement;
 const navDestination = document.getElementById('navigation-destination') as HTMLInputElement;
-function chooseExperience(mode: MapExperience) {
-  welcome.hidden = true;
-  navigationPanel.hidden = mode !== 'navigation';
-  changeMode.hidden = mode === 'navigation';
-  document.body.dataset.experience = mode;
-  // Selecting either experience explicitly starts the native receiver if it is not running.
-  // Keep the same scanner instance across mode changes; Android permission prompts remain OS-controlled.
-  if (nativeAppPresent() && !scanner) void start();
-  if (mode === 'navigation') {
-    navDestination.focus();
-  }
-  // Do not restart the Bluetooth scanner or reinitialize the 3D map.
-  window.dispatchEvent(new Event('resize'));
-}
-(document.getElementById('choose-navigation') as HTMLButtonElement).onclick = () => chooseExperience('navigation');
-(document.getElementById('choose-patrol') as HTMLButtonElement).onclick = () => chooseExperience('patrol');
-function showModeChoices() {
-  navigationRequest?.abort();
-  document.body.dataset.experience = '';
-  navigationPanel.hidden = true;
-  welcome.hidden = false;
-  changeMode.hidden = true;
-}
-changeMode.onclick = showModeChoices;
-(document.getElementById('navigation-back') as HTMLButtonElement).onclick = showModeChoices;
-
+const navSearchScreen = document.getElementById('navigation-search-screen')!;
+const navSearchStatus = document.getElementById('navigation-search-status')!;
+const navSearchResults = document.getElementById('navigation-search-results')!;
 const previewStatus = document.getElementById('navigation-provider-status')!;
 const previewResults = document.getElementById('navigation-results')!;
 const routeButton = document.getElementById('navigation-search') as HTMLButtonElement;
+const navSearchOpen = document.getElementById('navigation-open-search') as HTMLButtonElement;
+const navSearchClose = document.getElementById('navigation-search-close') as HTMLButtonElement;
+const navDriving = document.getElementById('navigation-driving')!;
+const navDrivingStatus = document.getElementById('navigation-driving-status')!;
+const navInstruction = document.getElementById('navigation-instruction')!;
+const navDistance = document.getElementById('navigation-distance')!;
+const navSpeed = document.getElementById('navigation-speed')!;
+const navEta = document.getElementById('navigation-eta')!;
+const navTimeLeft = document.getElementById('navigation-time-remaining')!;
+const navTripDistance = document.getElementById('navigation-trip-distance')!;
+const navStop = document.getElementById('navigation-stop') as HTMLButtonElement;
 const mapboxPublicToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN?.trim() ?? '';
 let navigationRequest: AbortController | undefined;
 let activeGuidance: Guidance | undefined;
-const nativeNavigation = (globalThis as any).Capacitor?.isNativePlatform?.() ? ((globalThis as any).Capacitor?.Plugins?.MapboxNav ?? (globalThis as any).Capacitor?.registerPlugin?.('MapboxNav')) : undefined;
-let nativeGuidanceActive = false;
-if (nativeNavigation) {
-  void nativeNavigation.addListener('progress', (data: {distanceRemaining?: number;durationRemaining?: number}) => {
-    if (!nativeGuidanceActive || !activeDestination) return;
-    const miles = Number(data.distanceRemaining) / 1609.344;
-    const minutes = Number(data.durationRemaining) / 60;
-    if (Number.isFinite(miles) && Number.isFinite(minutes)) navDistance.textContent = miles.toFixed(1) + ' mi remaining · ' + Math.round(minutes) + ' min';
-  });
-  void nativeNavigation.addListener('route', (data: {geometry?: [number,number][]}) => {
-    if (!nativeGuidanceActive || !Array.isArray(data.geometry) || data.geometry.length < 2 || data.geometry.length > 6000) return;
-    const valid = data.geometry.every(p=>Array.isArray(p) && p.length === 2 && p.every(n=>typeof n==='number' && Number.isFinite(n)));
-    if(valid) map.setNavigationRoute(data.geometry);
-  });
-  void nativeNavigation.addListener('voice', (data: {instruction?: string}) => {
-    if (nativeGuidanceActive && data.instruction) navInstruction.textContent = data.instruction;
-  });
-}
-let activeDestination: Coordinate | undefined;
+let activeDestination: Destination | undefined;
+let currentRoute: PreviewRoute | undefined;
 let lastRerouteAt = 0;
-const navInstruction = document.getElementById('navigation-instruction')!;
-const navDistance = document.getElementById('navigation-distance')!;
-const navGuidancePanel = document.getElementById('navigation-guidance')!;
-const navStop = document.getElementById('navigation-stop') as HTMLButtonElement;
-function stopGuidance() {
-  if (nativeGuidanceActive && nativeNavigation) void nativeNavigation.stop().catch(() => {});
-  nativeGuidanceActive = false;
-  activeGuidance = undefined; activeDestination = undefined;
-  navGuidancePanel.hidden = true; navStop.hidden = true;
-  window.speechSynthesis?.cancel();
-  map.setNavigationRoute([]);
+let tripGeneration = 0;
+let nativeRemaining: {distance: number;seconds: number} | undefined;
+const nativeNavigation = (globalThis as any).Capacitor?.isNativePlatform?.() ?
+  ((globalThis as any).Capacitor?.Plugins?.MapboxNav ?? (globalThis as any).Capacitor?.registerPlugin?.('MapboxNav')) : undefined;
+let nativeGuidanceActive = false;
+
+function renderTripSummary(metresRemaining: number, secondsRemaining: number) {
+  if(!Number.isFinite(metresRemaining) || !Number.isFinite(secondsRemaining))return;
+  navEta.textContent=arrivalTime(secondsRemaining);
+  navTimeLeft.textContent=Math.ceil(Math.max(0,secondsRemaining)/60)+' min remaining';
+  navTripDistance.textContent=(Math.max(0,metresRemaining)/1609.344).toFixed(1)+' mi left';
 }
-navStop.onclick = () => { stopGuidance(); previewStatus.textContent = 'Trip ended.'; };
-async function startGuidance(route: PreviewRoute, destination: Coordinate) {
-  if (!route.steps.length) { previewStatus.textContent = 'No maneuvers provided for this route.'; return; }
-  activeGuidance = new Guidance(route, destination); activeDestination = destination;
-  navGuidancePanel.hidden = false; navStop.hidden = false;
-  navInstruction.textContent = route.steps[0].instruction;
-  navDistance.textContent = 'GPS guidance started';
-  previewStatus.textContent = 'GPS guidance active while app is open. Follow road signs.';
-  map.setNavigationRoute(route.geometry, route.congestion);
-  if (nativeNavigation && here) {
-    try {
-      await nativeNavigation.start({
-        originLat: here.lat, originLng: here.lng,
-        destinationLat: destination.lat, destinationLng: destination.lng
-      });
-      if (activeDestination?.lat === destination.lat && activeDestination.lng === destination.lng) {
-        nativeGuidanceActive = true;
-        navDistance.textContent = 'Mapbox native guidance active';
-      } else {
-        void nativeNavigation.stop().catch(() => {});
-      }
-    } catch {
-      nativeGuidanceActive = false;
-      previewStatus.textContent = 'Native guidance unavailable. Keeping on-screen GPS guidance active while the app is open.';
+if(nativeNavigation){
+  void nativeNavigation.addListener('progress',(data:{distanceRemaining?:number;durationRemaining?:number})=>{
+    if(!nativeGuidanceActive || !activeDestination)return;
+    const distance=Number(data.distanceRemaining),seconds=Number(data.durationRemaining);
+    if(Number.isFinite(distance) && distance>=0 && Number.isFinite(seconds) && seconds>=0){
+      nativeRemaining={distance,seconds};
+      renderTripSummary(distance,seconds);
     }
-  }
-}
-async function rerouteFrom(fix: Coordinate) {
-  if (!activeDestination || navigationRequest) return;
-  const dest = { ...activeDestination }, request = new AbortController();
-  navigationRequest = request; lastRerouteAt = Date.now();
-  navDistance.textContent = 'Recalculating…';
-  try {
-    const routes = await drivingRoutes(fix, dest, mapboxPublicToken, request.signal);
-    if (routes.length && activeDestination?.lat === dest.lat && activeDestination.lng === dest.lng) startGuidance(routes[0], dest);
-  } catch {
-    if (!request.signal.aborted) navDistance.textContent = 'Rerouting unavailable. Follow road signs.';
-  } finally { if (navigationRequest === request) navigationRequest = undefined; }
-}
-function updateActiveGuidance(fix: Coordinate, accuracy: number) {
-  if (!activeGuidance || nativeGuidanceActive) return;
-  const progress = activeGuidance.update(fix, accuracy, Date.now());
-  navInstruction.textContent = progress.instruction;
-  navDistance.textContent = progress.arrived ? 'Arrived' : Math.round(progress.metresToTurn) + ' m to next instruction';
-  if (progress.announce && 'speechSynthesis' in window) {
-    try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(progress.announce)); }
-    catch { /* speech unavailable on some Android WebViews */ }
-  }
-  if (progress.arrived) { stopGuidance(); previewStatus.textContent = 'Arrived at destination.'; return; }
-  if (progress.reroute && Date.now() - lastRerouteAt > 60000) void rerouteFrom(fix);
+  });
+  void nativeNavigation.addListener('route',(data:{geometry?:[number,number][]})=>{
+    if(!nativeGuidanceActive || !Array.isArray(data.geometry) || data.geometry.length<2 || data.geometry.length>6000)return;
+    if(data.geometry.every(p=>Array.isArray(p) && p.length===2 && p.every(n=>typeof n==='number' && Number.isFinite(n))))map.setNavigationRoute(data.geometry);
+  });
+  void nativeNavigation.addListener('voice',(data:{instruction?:string})=>{
+    if(nativeGuidanceActive && data.instruction)navInstruction.textContent=data.instruction;
+  });
 }
 
-routeButton.onclick = async () => {
-  if (!mapboxPublicToken.startsWith('pk.')) {
-    previewStatus.textContent = 'Mapbox public token not configured. Add VITE_MAPBOX_PUBLIC_TOKEN to GitHub Actions Variables.';
-    return;
-  }
-  const query = navDestination.value.trim();
-  if (!query || query.length > 256) { previewStatus.textContent = 'Enter a valid destination.'; return; }
-  if (!here) { previewStatus.textContent = 'Waiting for your GPS location. Enable location access to plan a route.'; return; }
-  navigationRequest?.abort();
-  const request = new AbortController();
-  navigationRequest = request;
-  routeButton.disabled = true;
-  previewResults.replaceChildren();
-  previewStatus.textContent = 'Finding destination and traffic-aware routes…';
-  try {
-    const places = await findDestination(query, mapboxPublicToken, { ...here }, request.signal);
-    if (!places.length) { previewStatus.textContent = 'No matching destination found. Try a fuller address.'; return; }
-    const origin = { ...here };
-    const candidates = places.slice(0, 3);
-    previewStatus.textContent = 'Select the correct destination to preview its route:';
-    for (const place of candidates) {
-      const button = document.createElement('button');
-      button.className = 'navigation-result';
-      button.type = 'button';
-      button.textContent = place.label;
-      button.onclick = async () => {
-        navigationRequest?.abort();
-        const routeRequest = new AbortController();
-        navigationRequest = routeRequest;
-        previewStatus.textContent = 'Calculating traffic-aware routes…';
-        routeButton.disabled = true;
-        try {
-          const routes = await drivingRoutes(origin, place, mapboxPublicToken, routeRequest.signal);
-          renderRoutes(routes, place.label, place);
-        } catch (error) {
-          if (!routeRequest.signal.aborted) previewStatus.textContent = error instanceof Error ? error.message : 'Route could not be calculated.';
-        } finally { if (navigationRequest === routeRequest) { navigationRequest = undefined; routeButton.disabled = false; } }
-      };
-      previewResults.append(button);
-    }
-  } catch (error) {
-    if (!request.signal.aborted) previewStatus.textContent = error instanceof Error ? error.message : 'Destination search unavailable.';
-  } finally {
-    if (navigationRequest === request) { navigationRequest = undefined; routeButton.disabled = false; }
-  }
+function refreshPlaces() {
+  const recents=NavigationPlaces.recents(),saved=NavigationPlaces.saved();
+  const render=(id:string,places:Destination[],empty:string)=>{
+    const host=document.getElementById(id)!;host.replaceChildren();
+    if(!places.length){const p=document.createElement('p');p.className='navigation-list-empty';p.textContent=empty;host.append(p);return;}
+    for(const place of places)host.append(placeRow(place));
+  };
+  const placeRow=(place:Destination):HTMLElement=>{
+    const pinned=saved.some(p=>samePlace(p,place));
+    const row=document.createElement('div');row.className='navigation-place-row'+(pinned?' is-saved':'');
+    const main=document.createElement('button');main.type='button';main.className='navigation-place-main';
+    const marker=document.createElement('span');marker.className='navigation-place-dot';marker.setAttribute('aria-hidden','true');
+    const dot=document.createElement('span');dot.textContent='●';marker.append(dot);
+    const label=document.createElement('span');label.textContent=place.label;main.append(marker,label);
+    main.onclick=()=>void choosePlace(place);
+    const save=document.createElement('button');save.type='button';save.className='navigation-save-place';save.textContent=pinned?'★':'☆';
+    save.setAttribute('aria-label',(pinned?'Remove saved place: ':'Save place: ')+place.label);
+    save.setAttribute('aria-pressed',String(pinned));
+    save.onclick=()=>{NavigationPlaces.toggleSaved(place);refreshPlaces();};
+    row.append(main,save);return row;
+  };
+  render('navigation-recent-list',recents,'No recent drives yet.');
+  render('navigation-saved-list',saved,'Pin destinations here for quick access.');
+  // Draw saved pins on the map, keeping coordinate storage on the device only.
+  map.setNavigationPlaces(saved);
+}
+function openSearch() {
+  if(document.body.dataset.experience!=='navigation' || activeGuidance)return;
+  navSearchScreen.hidden=false;refreshPlaces();navDestination.focus();
+}
+function closeSearch() {
+  navigationRequest?.abort();navigationRequest=undefined;
+  routeButton.disabled=false;navSearchScreen.hidden=true;
+  navSearchOpen.focus();
+}
+navSearchOpen.onclick=openSearch;
+navSearchClose.onclick=closeSearch;
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape' && !navSearchScreen.hidden){event.preventDefault();closeSearch();}
+});
+(document.getElementById('navigation-clear-recents') as HTMLButtonElement).onclick=()=>{
+  NavigationPlaces.clearRecents();refreshPlaces();
 };
-function renderRoutes(routes: PreviewRoute[], destination: string, coordinate: Coordinate) {
+
+function chooseExperience(mode: MapExperience) {
+  welcome.hidden=true;
+  navigationPanel.hidden=mode!=='navigation' || !!activeGuidance;
+  changeMode.hidden=mode==='navigation';
+  document.body.dataset.experience=mode;
+  if(nativeAppPresent() && !scanner)void start();
+  if(mode==='navigation')refreshPlaces();
+  window.dispatchEvent(new Event('resize'));
+}
+(document.getElementById('choose-navigation') as HTMLButtonElement).onclick=()=>chooseExperience('navigation');
+(document.getElementById('choose-patrol') as HTMLButtonElement).onclick=()=>chooseExperience('patrol');
+function showModeChoices() {
+  navigationRequest?.abort();
+  if(!navSearchScreen.hidden)closeSearch();
+  document.body.dataset.experience='';
+  navigationPanel.hidden=true;welcome.hidden=false;changeMode.hidden=true;
+}
+changeMode.onclick=showModeChoices;
+(document.getElementById('navigation-back') as HTMLButtonElement).onclick=showModeChoices;
+
+function stopGuidance() {
+  ++tripGeneration;
+  if(nativeGuidanceActive && nativeNavigation)void nativeNavigation.stop().catch(()=>{});
+  nativeGuidanceActive=false;nativeRemaining=undefined;
+  activeGuidance=undefined;activeDestination=undefined;currentRoute=undefined;
+  navDriving.hidden=true;document.body.dataset.navigationDriving='false';
+  navigationPanel.hidden=document.body.dataset.experience!=='navigation';
+  window.speechSynthesis?.cancel();
+  map.setDrivingMode(false);map.setNavigationRoute([]);
+}
+navStop.onclick=()=>{stopGuidance();previewResults.replaceChildren();previewStatus.textContent='Trip ended. Search for another destination.';};
+(document.getElementById('navigation-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
+
+async function startGuidance(route:PreviewRoute,destination:Destination){
+  if(!route.steps.length){previewStatus.textContent='The route has no turn instructions.';return;}
+  stopGuidance();
+  const generation=tripGeneration;
+  activeGuidance=new Guidance(route,destination);activeDestination=destination;currentRoute=route;
+  NavigationPlaces.remember(destination);
+  navDriving.hidden=false;document.body.dataset.navigationDriving='true';navigationPanel.hidden=true;
+  navInstruction.textContent=route.steps[0].instruction;
+  navDistance.textContent='Waiting for GPS…';
+  navSpeed.textContent='—';renderTripSummary(route.distanceMeters,route.durationSeconds);
+  navDrivingStatus.textContent='Guidance active while the app is open. Follow road signs.';
+  navSearchScreen.hidden=true;
+  map.setDrivingMode(true);map.setNavigationRoute(route.geometry,route.congestion);
+  map.recenter();
+  if(nativeNavigation && here){
+    try {
+      await nativeNavigation.start({originLat:here.lat,originLng:here.lng,destinationLat:destination.lat,destinationLng:destination.lng});
+      if(generation===tripGeneration && activeDestination){
+        nativeGuidanceActive=true;
+        navDrivingStatus.textContent='Mapbox GPS guidance active';
+      }else void nativeNavigation.stop().catch(()=>{});
+    } catch {
+      if(generation===tripGeneration)navDrivingStatus.textContent='Native guidance unavailable — on-screen GPS guidance active while the app is open.';
+    }
+  }
+}
+async function rerouteFrom(fix:Coordinate){
+  if(!activeDestination || navigationRequest || nativeGuidanceActive)return;
+  const dest={...activeDestination},request=new AbortController();
+  navigationRequest=request;lastRerouteAt=Date.now();
+  navDrivingStatus.textContent='Recalculating route…';
+  try{
+    const routes=await drivingRoutes(fix,dest,mapboxPublicToken,request.signal);
+    if(routes.length && activeDestination && samePlace(activeDestination,dest)){
+      activeGuidance=new Guidance(routes[0],dest);currentRoute=routes[0];
+      map.setNavigationRoute(routes[0].geometry,routes[0].congestion);
+      navDrivingStatus.textContent='Route updated';
+    }
+  }catch{
+    if(!request.signal.aborted)navDrivingStatus.textContent='Rerouting unavailable. Follow road signs.';
+  }finally{if(navigationRequest===request)navigationRequest=undefined;}
+}
+function updateActiveGuidance(fix:Coordinate,accuracy:number,speed?:number|null){
+  if(!activeGuidance || !currentRoute || !activeDestination)return;
+  navSpeed.textContent=speedMph(speed);
+  if(!Number.isFinite(accuracy) || accuracy>80){navDrivingStatus.textContent='GPS signal weak. Guidance may be delayed.';return;}
+  const progress=activeGuidance.update(fix,accuracy,Date.now());
+  // Maneuver data comes from real Mapbox Directions steps; don't pretend this is lane guidance.
+  if(!nativeGuidanceActive)navInstruction.textContent=progress.instruction;
+  navDistance.textContent=distanceToNextTurn(progress.metresToTurn)+' to next turn';
+  const left=routeRemaining(currentRoute,fix);
+  if(nativeGuidanceActive && nativeRemaining)renderTripSummary(nativeRemaining.distance,nativeRemaining.seconds);
+  else renderTripSummary(left,remainingSeconds(currentRoute,left));
+  if(!nativeGuidanceActive && progress.announce && 'speechSynthesis' in window){
+    try{window.speechSynthesis.cancel();window.speechSynthesis.speak(new SpeechSynthesisUtterance(progress.announce));}
+    catch{/* speech synthesis may be unavailable */}
+  }
+  if(progress.arrived){
+    stopGuidance();previewStatus.textContent='You have arrived at your destination.';return;
+  }
+  if(!nativeGuidanceActive && progress.reroute && Date.now()-lastRerouteAt>60000)void rerouteFrom(fix);
+}
+
+function displaySearchResults(places:Destination[]){
+  navSearchResults.replaceChildren();
+  if(!places.length){navSearchStatus.textContent='No matching destinations. Try a full street address.';return;}
+  navSearchStatus.textContent='Choose the correct destination to see routes.';
+  const saved=NavigationPlaces.saved();
+  for(const place of places){
+    const row=document.createElement('div');row.className='navigation-place-row'+(saved.some(p=>samePlace(p,place))?' is-saved':'');
+    const main=document.createElement('button');main.type='button';main.className='navigation-place-main';
+    const pin=document.createElement('span');pin.className='navigation-place-dot';pin.setAttribute('aria-hidden','true');pin.textContent='●';
+    const title=document.createElement('span');title.textContent=place.label;main.append(pin,title);main.onclick=()=>void choosePlace(place);
+    const star=document.createElement('button');star.type='button';star.className='navigation-save-place';
+    star.textContent=saved.some(p=>samePlace(p,place))?'★':'☆';
+    star.setAttribute('aria-label','Toggle saved place: '+place.label);
+    star.setAttribute('aria-pressed',String(saved.some(p=>samePlace(p,place))));
+    star.onclick=()=>{NavigationPlaces.toggleSaved(place);refreshPlaces();displaySearchResults(places);};
+    row.append(main,star);navSearchResults.append(row);
+  }
+}
+(document.getElementById('navigation-search-form') as HTMLFormElement).onsubmit=event=>{
+  event.preventDefault();void searchDestinations();
+};
+async function searchDestinations(){
+  if(!mapboxPublicToken.startsWith('pk.')){navSearchStatus.textContent='Mapbox public token is not configured.';return;}
+  const query=navDestination.value.trim();
+  if(!query || query.length>256){navSearchStatus.textContent='Enter an address or destination.';return;}
+  if(!here){navSearchStatus.textContent='Waiting for your GPS location. Enable location to plan a drive.';return;}
+  navigationRequest?.abort();
+  const request=new AbortController();navigationRequest=request;routeButton.disabled=true;
+  navSearchResults.replaceChildren();navSearchStatus.textContent='Searching destinations…';
+  try{
+    const places=await findDestination(query,mapboxPublicToken,{...here},request.signal);
+    if(!request.signal.aborted)displaySearchResults(places);
+  }catch(error){
+    if(!request.signal.aborted)navSearchStatus.textContent=error instanceof Error?error.message:'Search unavailable.';
+  }finally{if(navigationRequest===request){navigationRequest=undefined;routeButton.disabled=false;}}
+}
+async function choosePlace(place:Destination){
+  if(!here){navSearchStatus.textContent='Your GPS location is needed to plan a route.';return;}
+  if(!mapboxPublicToken.startsWith('pk.')){navSearchStatus.textContent='Mapbox is not configured.';return;}
+  navigationRequest?.abort();const request=new AbortController();navigationRequest=request;
+  navSearchStatus.textContent='Finding traffic-aware routes…';
+  try{
+    const routes=await drivingRoutes({...here},place,mapboxPublicToken,request.signal);
+    if(!request.signal.aborted){
+      renderRoutes(routes,place);
+      navSearchScreen.hidden=true;
+      navSearchOpen.focus();
+    }
+  }catch(error){
+    if(!request.signal.aborted)navSearchStatus.textContent=error instanceof Error?error.message:'Could not calculate the drive.';
+  }finally{if(navigationRequest===request)navigationRequest=undefined;}
+}
+function renderRoutes(routes:PreviewRoute[],destination:Destination){
   previewResults.replaceChildren();
-  if (!routes.length) { previewStatus.textContent = 'No drivable route found.'; return; }
-  previewStatus.textContent = 'Choose a route to begin on-screen GPS guidance.';
-  routes.forEach((route, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'navigation-result';
-    button.textContent = `${index === 0 ? 'Recommended' : 'Alternative'} · ${Math.round(route.durationSeconds / 60)} min · ${(route.distanceMeters / 1609.344).toFixed(1)} mi — ${destination}`;
-    button.onclick = () => startGuidance(route, coordinate);
+  if(!routes.length){previewStatus.textContent='No drivable route found. Try a different destination.';return;}
+  previewStatus.textContent='Choose a route to start driving.';
+  for(const [index,route] of routes.entries()){
+    const button=document.createElement('button');button.type='button';button.className='navigation-result';
+    button.textContent=(index===0?'Recommended':'Alternative')+' · '+Math.round(route.durationSeconds/60)+' min · '+(route.distanceMeters/1609.344).toFixed(1)+' mi — '+destination.label;
+    button.onclick=()=>void startGuidance(route,destination);
     previewResults.append(button);
-  });
-  map.setNavigationRoute(routes[0].geometry, routes[0].congestion);
+  }
+  map.setNavigationRoute(routes[0].geometry,routes[0].congestion);
 }
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -303,7 +387,7 @@ function startGeo() {
   geoWatch = navigator.geolocation.watchPosition(p => {
     map.setUserLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading, p.timestamp);
     here = { lat: p.coords.latitude, lng: p.coords.longitude }; drawLive();
-    updateActiveGuidance(here, p.coords.accuracy);
+    updateActiveGuidance(here, p.coords.accuracy, p.coords.speed);
     void checkTrafficCams({ lat: p.coords.latitude, lng: p.coords.longitude, speed: p.coords.speed, heading: p.coords.heading, t: p.timestamp });
     recorder.fix(p.coords.accuracy, here);
     pos = coarsen(p.coords.latitude, p.coords.longitude);
