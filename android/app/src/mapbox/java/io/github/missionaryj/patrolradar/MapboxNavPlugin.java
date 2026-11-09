@@ -39,7 +39,7 @@ public class MapboxNavPlugin extends Plugin {
     notifyListeners("progress", state);
   };
   private final VoiceInstructionsObserver voice = instructions -> {
-    String announcement = instructions.getAnnouncement();
+    String announcement = instructions.announcement();
     if (announcement == null || announcement.isEmpty()) return;
     JSObject data = new JSObject();
     data.put("instruction", announcement);
