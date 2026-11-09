@@ -75,6 +75,11 @@ if (nativeNavigation) {
     const minutes = Number(data.durationRemaining) / 60;
     if (Number.isFinite(miles) && Number.isFinite(minutes)) navDistance.textContent = miles.toFixed(1) + ' mi remaining · ' + Math.round(minutes) + ' min';
   });
+  void nativeNavigation.addListener('route', (data: {geometry?: [number,number][]}) => {
+    if (!nativeGuidanceActive || !Array.isArray(data.geometry) || data.geometry.length < 2 || data.geometry.length > 6000) return;
+    const valid = data.geometry.every(p=>Array.isArray(p) && p.length === 2 && p.every(n=>typeof n==='number' && Number.isFinite(n)));
+    if(valid) map.setNavigationRoute(data.geometry);
+  });
   void nativeNavigation.addListener('voice', (data: {instruction?: string}) => {
     if (nativeGuidanceActive && data.instruction) navInstruction.textContent = data.instruction;
   });
