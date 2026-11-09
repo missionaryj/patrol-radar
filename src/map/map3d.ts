@@ -43,7 +43,7 @@ export class Map3D {
     // MapLibre needs a laid-out container, but must not obscure the 2D map until it is ready.
     this.el.style.visibility = 'hidden';
     let map: import('maplibre-gl').Map;
-    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: Math.max(zoom, 16), pitch: PITCH_3D, maxPitch: MAX_PITCH,
+    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom, pitch: PITCH_3D, maxPitch: MAX_PITCH,
       attributionControl: { compact: true }, antialias: false, fadeDuration: 0, pixelRatio: Math.min(2, window.devicePixelRatio || 1) } as any);
     } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
@@ -82,7 +82,7 @@ export class Map3D {
   }
   close() { ++this.generation; this.cancelOpen?.(); this.map?.remove(); this.map = undefined; this.ready = false; this.el.hidden = true; this.el.style.visibility = ''; }
   /** Follow-me: keep pitch/bearing the user chose, move the centre only. */
-  follow(lat: number, lng: number) { this.map?.jumpTo({ center: [lng, lat] }); }
+  follow(lat: number, lng: number, zoom?: number) { this.map?.jumpTo({ center: [lng, lat], ...(zoom === undefined ? {} : { zoom }) }); }
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }
   setPitch(p: number) { this.map?.easeTo({ pitch: p, duration: 300 }); }
   get pitch() { return this.map?.getPitch() ?? 0; }

@@ -1,3 +1,4 @@
+import { InitialMapView } from './startup';
 import { Localizer, type Estimate } from '../fusion/localize';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -18,9 +19,17 @@ import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOO
 
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
 export const MAX_LIVE_DOTS = 150;
-export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; }
+export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; waitForLocation?: boolean; }
 export class MapView {
   private map: L.Map;
+  private startup?: InitialMapView;
+  private waitingForLocation = false;
+  private viewReady: Promise<void> = Promise.resolve();
+  private resolveView?: () => void;
+  private view3dRequest = 0;
+  get ready() { return this.viewReady; }
+  /** Release the location wait on denial/unavailability; a later fix can still recenter. */
+  locationUnavailable() { this.startup?.fallback(); }
   private m3: Map3D; private lastMirror = 0;
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
@@ -42,7 +51,10 @@ export class MapView {
   /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
   private liveRenderer = L.canvas({ padding: 0.3 });
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
-    this.map = L.map(el, { zoomControl: opts.zoomControl ?? true }).setView(center, 15);
+    this.map = L.map(el, { zoomControl: opts.zoomControl ?? true });
+    this.waitingForLocation = !!opts.waitForLocation;
+    if (this.waitingForLocation) this.viewReady = new Promise(resolve => { this.resolveView = resolve; });
+    else this.map.setView(center, 15);
     // Cool-slate basemap (OSM tiles + CSS filter, no API key); .tiles-slate adds a slight blue-grey tint.
     L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' }).addTo(this.map);
     const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
@@ -67,6 +79,11 @@ export class MapView {
       if (this.heatOn && this.heatTimer === undefined) this.heatTimer = window.setTimeout(() => { this.heatTimer = undefined; void this.drawHeat(); }, 400); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.kick(); });
     if (opts.layersControl ?? true) L.control.layers(undefined, { 'Flock camera (mapped)': this.flockLayer, 'Traffic cameras': this.tcLayer, 'Stop history': this.heatLayer, 'BLE detections': this.layer, 'Live devices (estimate)': this.liveLayer, 'Crowd (shared, delayed)': this.crowdLayer }).addTo(this.map);
+    if (opts.waitForLocation) this.startup = new InitialMapView((lat, lng, zoom) => {
+      this.waitingForLocation = false;
+      this.map.setView([lat, lng], zoom, { animate: false });
+      this.resolveView?.();
+    });
   }
   invalidate() { this.map.invalidateSize(); this.m3.resize(); }
   showCrowd(on: boolean) { if (on) this.crowdLayer.addTo(this.map); else this.crowdLayer.remove(); }
@@ -100,13 +117,14 @@ export class MapView {
   private smooth = new SmoothLocation(); private raf?: number; private lastFrame = 0; private flockTimer?: number;
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
   setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
+    this.startup?.locate(lat, lng);
     const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
     this.loc.fix({ t, lat, lng, acc: accuracy, speed }); // in-memory track for closest-approach pins (never stored)
     if (!this.me) {
       this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
       this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
     }
-    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16), { animate: false }); }
+    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16), { animate: false }); this.m3.follow(lat, lng, this.map.getZoom()); }
     this.kick();
   }
   /** Start the frame loop if it isn't running. It stops itself once the dot settles (or the page is hidden) to save battery. */
@@ -129,8 +147,15 @@ export class MapView {
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }
   async set3D(on: boolean) {
+    const request = ++this.view3dRequest;
     if (!on) { const v = this.m3.view(); this.m3.close(); if (this.flockOn) this.scheduleFlock(); if (v && !this.follow.following) this.map.setView([v.lat, v.lng], Math.round(v.zoom)); return; }
-    const c = this.smooth.disp ?? this.map.getCenter(); await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom()); this.mirror3d(); if (this.flockOn) await this.drawFlock(); this.kick();
+    await this.viewReady;
+    if (request !== this.view3dRequest) return;
+    const c = this.smooth.disp ?? this.map.getCenter(); await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom());
+    // GPS may have arrived while the 3D module/style was loading.
+    const latest = this.smooth.disp;
+    if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.map.getZoom());
+    this.mirror3d(); if (this.flockOn) await this.drawFlock(); this.kick();
   }
   /** Tilt between flat and 3D while the 3D view is open. */
   togglePitch() { if (this.m3.active) this.m3.setPitch(this.m3.pitch > 5 ? 0 : PITCH_3D); }
@@ -160,6 +185,7 @@ export class MapView {
   async showFlock(on: boolean, baseUrl: string) {
     this.flockOn = on;
     if (!on) { ++this.flockDraw; this.flockLayer.clearLayers(); this.flockLayer.remove(); this.map.attributionControl.removeAttribution(FLOCK_ATTRIBUTION); if (this.m3.active) this.mirror3d(); return; }
+    await this.viewReady; if (!this.flockOn) return;
     this.flockLayer.addTo(this.map); this.map.attributionControl.addAttribution(FLOCK_ATTRIBUTION);
     this.flockBase = baseUrl;
     this.flockLoading ??= fetch(`${baseUrl}index.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(i => { this.flockIdx = i; });
@@ -169,6 +195,7 @@ export class MapView {
   async showTrafficCams(on: boolean, baseUrl: string) {
     this.tcOn = on;
     if (!on) { this.tcLayer.remove(); this.map.attributionControl.removeAttribution(TC_ATTRIBUTION); if (this.m3.active) this.mirror3d(); return; }
+    await this.viewReady; if (!this.tcOn) return;
     this.tcLayer.addTo(this.map); this.map.attributionControl.addAttribution(TC_ATTRIBUTION);
     await this.loadTcIndex(baseUrl); await this.drawTc();
   }
@@ -189,6 +216,7 @@ export class MapView {
   }
   get trafficCamInfo() { return this.tcIdx; }
   private async drawTc() {
+    if (this.waitingForLocation) return;
     const gen = ++this.tcDraw;
     if (!this.tcIdx || !this.tcOn || this.map.getZoom() < TC_MIN_ZOOM) { this.tcLayer.clearLayers(); if (this.m3.active) this.mirror3d(); return; }
     const b = this.map.getBounds().pad(0.2), bb = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
@@ -206,6 +234,7 @@ export class MapView {
   async showStopHeat(on: boolean, baseUrl: string) {
     this.heatOn = on;
     if (!on) { ++this.heatDraw; this.heatLayer.clearLayers(); this.heatLayer.remove(); this.m3.setHeat({ type: 'FeatureCollection', features: [] }); this.map.attributionControl.removeAttribution(STOP_HEAT_ATTRIBUTION); return; }
+    await this.viewReady; if (!this.heatOn) return;
     this.heatLayer.addTo(this.map); this.keepHeatUnderMarkers(); this.map.attributionControl.addAttribution(STOP_HEAT_ATTRIBUTION);
     await this.loadHeat(baseUrl); if (this.heatOn) await this.drawHeat();
   }
@@ -230,6 +259,7 @@ export class MapView {
     return p;
   }
   private async drawHeat() {
+    if (this.waitingForLocation) return;
     const gen = ++this.heatDraw; const idx = this.heatIdx;
     if (!idx || !this.heatOn) { this.heatLayer.clearLayers(); return; }
     const f = this.heatFilter;
@@ -299,6 +329,7 @@ export class MapView {
     this.flockTimer = window.setTimeout(() => { this.flockTimer = undefined; void this.drawFlock(); }, 400);
   }
   private async drawFlock() {
+    if (this.waitingForLocation) return;
     const gen = ++this.flockDraw;
     if (!this.flockOn || !this.flockIdx || (this.m3.view()?.zoom ?? this.map.getZoom()) < FLOCK_MIN_ZOOM) { this.flockLayer.clearLayers(); if (this.m3.active) this.mirror3d(); return; }
     const bounds = this.m3.bounds();
