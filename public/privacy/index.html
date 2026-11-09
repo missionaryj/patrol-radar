@@ -2,7 +2,7 @@
 <title>Patrol Radar – Privacy Policy</title>
 <style>body{font:16px/1.55 system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#e8e8e8;background:#111}a{color:#7cc4ff}h2{margin-top:1.8rem}</style></head><body>
 <h1>Patrol Radar – Privacy Policy</h1>
-<p><em>Effective October 30, 2026. Applies to the Patrol Radar Android app (io.github.missionaryj.patrolradar) and the web app at missionaryj.github.io/patrol-radar.</em></p>
+<p><em>Updated November 9, 2026. Applies to the Patrol Radar Android app (io.github.missionaryj.patrolradar) and the web app at missionaryj.github.io/patrol-radar.</em></p>
 <p>Patrol Radar is a public-awareness tool. It listens passively for Bluetooth Low Energy (BLE) advertisements that nearby equipment already broadcasts in public and shows likely public-safety equipment on a coarse map. There are no accounts (except the optional anonymous chat account described below), no ads, no analytics, and no tracking SDKs.</p>
 
 <h2>Bluetooth</h2>
@@ -14,7 +14,7 @@
 
 <h2>Location</h2>
 <ul>
-<li>Your precise location is used only to draw your position on screen. It is never saved or sent anywhere.</li>
+<li>In Patrol Mode, your precise location is used to draw your position on screen and stays on your device, except when you explicitly enable optional network-dependent features described below. Choosing Navigation Mode and requesting a route sends the starting coordinates and destination coordinates to Mapbox to calculate directions, traffic estimates, and navigation. Active native navigation may also exchange location information with Mapbox for routing and map matching. Route requests are user-initiated; exact GPS coordinates are not added to Patrol Radar's crowd map.</li>
 <li>Detections are snapped to a coarse grid of about 150–250 m before they are stored or shared.</li>
 <li>On Android, a foreground service with a visible notification keeps scanning while the screen is off. It runs only after you tap Start and stops when you tap Stop. The app does not request background (“all the time”) location.</li>
 </ul>
@@ -45,6 +45,9 @@
 <li>Chat is hosted on Supabase (supabase.com) and sent over HTTPS. Supabase processes the data on our behalf and, like any web service, sees your IP address when you connect.</li>
 <li>We may share chat information with authorities when the law requires it or when someone’s safety is at risk. Because chat is anonymous, this is limited to the message, its time, the city room and the random account ID.</li>
 </ul>
+<h2>Navigation and Mapbox (optional)</h2>
+<p>Navigation Mode uses Mapbox APIs for address/destination search, directions, traffic-aware routing and guided navigation. When you search for an address or request navigation, Mapbox receives the destination query, relevant coordinates, and network information (such as IP address), and may process location during an active trip. These requests use HTTPS. The app does not use destination searches to upload nearby Bluetooth or Wi-Fi scan observations. For Mapbox's own data practices, see the <a href="https://www.mapbox.com/legal/privacy">Mapbox Privacy Policy</a>.</p>
+<p>Navigation is optional: choosing Patrol Mode alone does not send route-search or destination data to Mapbox. If you end the trip, the active Mapbox guidance session stops. App-level recent destinations are not currently retained by Patrol Radar.</p>
 <h2>Third-party services</h2>
 <ul>
 <li>Map tiles are loaded from OpenStreetMap (tile.openstreetmap.org), which receives your IP address and the map area being viewed, as with any web map. See the <a href="https://osmfoundation.org/wiki/Privacy_Policy">OSMF privacy policy</a>.</li>

@@ -28,6 +28,35 @@ export function toGeoJSON(m: Mirror) {
 export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
   private generation = 0; private cancelOpen?: () => void;
+  private navigationCoords: [number,number][] = [];
+  private navigationCongestion: string[] = [];
+  setNavigationRoute(coords: [number,number][], congestion: string[] = []) {
+    this.navigationCoords = coords; this.navigationCongestion = congestion; this.applyNavigationRoute();
+  }
+  private applyNavigationRoute() {
+    if (!this.map || !this.ready) return;
+    const features: {type:'Feature';properties:{color:string};geometry:{type:'LineString';coordinates:[number,number][]}}[] = [];
+    const coords = this.navigationCoords, traffic = this.navigationCongestion;
+    const colors: Record<string,string> = {low:'#21bd6b',moderate:'#eabf30',heavy:'#fb8541',severe:'#ed4047'};
+    if(coords.length >= 2) {
+      if(traffic.length === coords.length - 1) {
+        let start=0;
+        for(let i=1;i<=traffic.length;i++) {
+          if(i===traffic.length || traffic[i]!==traffic[start]) {
+            features.push({type:'Feature',properties:{color:colors[traffic[start]] || '#347CFF'},geometry:{type:'LineString',coordinates:coords.slice(start,i+1)}});
+            start=i;
+          }
+        }
+      } else features.push({type:'Feature',properties:{color:'#347CFF'},geometry:{type:'LineString',coordinates:coords}});
+    }
+    const data = {type:'FeatureCollection' as const, features};
+    const src = this.map.getSource('navigation-route') as import('maplibre-gl').GeoJSONSource | undefined;
+    if(src) src.setData(data); else {
+      this.map.addSource('navigation-route', {type:'geojson',data});
+      this.map.addLayer({id:'navigation-route-line',type:'line',source:'navigation-route',
+        paint:{'line-color':['get','color'],'line-width':7,'line-opacity':.95}}, this.map.getLayer('pts') ? 'pts' : undefined);
+    }
+  }
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
   constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void, private onFailure: () => void = () => {}) {}
   onMoveEnd?: () => void;
@@ -74,7 +103,7 @@ export class Map3D {
       // Own location: drawn last so it stays on top of buildings and pins.
       map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat();
+      this.ready = true; if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
       this.el.style.visibility = ''; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });

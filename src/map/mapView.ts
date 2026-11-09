@@ -50,6 +50,32 @@ export class MapView {
   private m3: Map3D; private lastMirror = 0;
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
+  private navigationLine?: L.Polyline;
+  private trafficLines = L.layerGroup();
+  /** Display-only route preview; active turn guidance belongs to the native SDK. */
+  setNavigationRoute(coords: [number, number][], congestion: string[] = []) {
+    this.navigationLine?.remove();
+    this.trafficLines.clearLayers();
+    if (coords.length < 2) { this.m3.setNavigationRoute([]); return; }
+    this.navigationLine = L.polyline(coords.map(([lng,lat]) => [lat,lng] as [number,number]), { color: '#357FFF', weight: 7, opacity: 0.9, interactive: false }).addTo(this.map);
+    if (congestion.length === coords.length - 1) {
+      const colors: Record<string,string> = { low:'#21bd6b',moderate:'#eabf30',heavy:'#fb8541',severe:'#ed4047' };
+      // Merge adjacent segments of equal congestion to prevent thousands of Leaflet layers.
+      let start=0;
+      for(let i=1;i<=congestion.length;i++) {
+        if(i===congestion.length || congestion[i]!==congestion[start]) {
+          const color=colors[congestion[start]];
+          if(color) L.polyline(coords.slice(start,i+1).map(([lng,lat])=>[lat,lng] as [number,number]),{
+            color,weight:8,opacity:.9,interactive:false
+          }).addTo(this.trafficLines);
+          start=i;
+        }
+      }
+      this.trafficLines.addTo(this.map);
+    }
+    this.m3.setNavigationRoute(coords,congestion);
+    this.map.fitBounds(this.navigationLine.getBounds(), { padding: [45,45] });
+  }
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
   readonly tcLayer = L.layerGroup();

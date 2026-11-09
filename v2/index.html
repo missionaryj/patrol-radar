@@ -4,6 +4,28 @@
 <style>html,body{margin:0;background:#07080a;color:#eee}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style></head>
 <body>
 <div id="map"></div>
+<section id="mode-welcome" class="mode-welcome" aria-labelledby="mode-welcome-title">
+  <div class="mode-welcome-inner">
+    <div class="mode-brand"><span class="mode-brand-dot"></span>PATROL RADAR</div>
+    <p class="mode-eyebrow">YOUR DRIVE, YOUR CHOICE</p>
+    <h1 id="mode-welcome-title">What would you like to do today?</h1>
+    <div class="mode-choices">
+      <button id="choose-navigation" type="button" class="mode-choice nav-choice"><span class="mode-choice-icon">↗</span><span><strong>Start Navigation</strong><small>Where to? Plan a drive and get directions.</small></span><span aria-hidden="true">›</span></button>
+      <button id="choose-patrol" type="button" class="mode-choice patrol-choice"><span class="mode-choice-icon">◎</span><span><strong>See what's around you</strong><small>Start Patrol Radar and view nearby activity.</small></span><span aria-hidden="true">›</span></button>
+    </div>
+  </div>
+</section>
+<button id="change-mode" type="button" class="mode-return" hidden aria-label="Change map mode">⇄ Mode</button>
+<section id="navigation-panel" class="navigation-panel" hidden aria-label="Navigation destination">
+  <div class="navigation-panel-head"><strong>Navigation</strong><button id="navigation-back" type="button" aria-label="Back to mode choices">Change mode</button></div>
+  <label for="navigation-destination">Where to?</label>
+  <input id="navigation-destination" type="search" autocomplete="street-address" placeholder="Search a destination" />
+  <button id="navigation-search" type="button" class="navigation-search">Find route</button>
+  <div id="navigation-results" class="navigation-results" aria-live="polite"></div>
+  <div id="navigation-guidance" class="navigation-guidance" hidden><strong id="navigation-instruction"></strong><span id="navigation-distance"></span></div>
+  <button id="navigation-stop" class="navigation-stop" type="button" hidden>End navigation</button>
+  <p id="navigation-provider-status" role="status">Enter a destination to preview a traffic-aware route. Turn-by-turn guidance is coming next.</p>
+</section>
 <div id="map-startup" role="status">Finding your location…</div>
 
 <div class="top">

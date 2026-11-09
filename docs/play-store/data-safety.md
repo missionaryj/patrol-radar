@@ -6,7 +6,7 @@
 | Data type | Collected | Shared | Ephemeral | Required/optional | Purpose |
 |---|---|---|---|---|---|
 | Location → Approximate location | Yes | No (sent only to our own API, a service provider) | No (kept ~2 h) | **Optional** (crowd map opt-in) | App functionality |
-| Location → Precise location | **No** (used on-device only, never leaves the device → not "collected" under Play definitions) | No | – | – | – |
+| Location → Precise location | **Yes when Navigation Mode is used** (starting location / active navigation to Mapbox) | Potentially processed by Mapbox as a service provider; confirm Play's data-sharing classification against contractual terms | Navigation requests may be ephemeral; verify provider retention and Play disclosure rules | **Optional** (navigation only) | App functionality (routing, traffic, guidance) |
 | Device or other IDs | No (rotating random session token is not tied to the device; declare "No"; if a reviewer objects, declare Device or other IDs, optional, app functionality) | No | – | – | – |
 | App activity / App info & performance / Personal info / Financial / Messages / Photos / Audio / Contacts / Calendar / Health / Web history | No | No | – | – | – |
 
@@ -28,3 +28,10 @@ Overview answers stay **Yes / Yes (encrypted in transit) / Yes (deletion)**. Add
 - Users can request deletion: **Yes** – Delete button on their own messages, automatic 24 h deletion, and account deletion on request via percolatorbiz@gmail.com or GitHub issues. Link: https://missionaryj.github.io/patrol-radar/privacy/
 - Messages are "linked" to the user only through the anonymous account ID; in the Play form, answer the data as collected and note it is not linked to identity (no sign-up, no personal info).
 - Also complete **App content → User-generated content**: users can report messages and users and block users, terms must be accepted before posting, reports are acted on by a moderator.
+
+## Mapbox navigation data-safety update (pending Play Console review)
+- Optional Navigation Mode sends precise start location, destination coordinates, and destination search queries to Mapbox for directions and traffic. Mapbox's SDK may process active GPS data while a trip is in progress.
+- Update the Play Console Data Safety form to reflect **Precise location collected/processed for navigation**. Evaluate the collected/shared and ephemeral classifications against the current Google Play definitions and Mapbox's applicable terms before publishing.
+- No BLE hardware addresses or raw Wi-Fi observations are attached to Mapbox requests by this application.
+- The prior claim that precise location never leaves the device is no longer true for navigation sessions. Preserve that distinction between Patrol Mode and Navigation Mode in all store listing/help copy.
+- Review Android permission disclosures and the updated public privacy policy as a release gate.
