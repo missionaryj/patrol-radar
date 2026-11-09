@@ -11,6 +11,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.mapbox.api.directions.v5.models.RouteOptions;
+import com.mapbox.api.directions.v5.models.BannerInstructions;
 import com.mapbox.geojson.Point;
 import com.mapbox.navigation.base.options.NavigationOptions;
 import com.mapbox.navigation.base.route.NavigationRoute;
@@ -58,6 +59,15 @@ public class MapboxNavPlugin extends Plugin {
     JSObject state = new JSObject();
     state.put("distanceRemaining", routeProgress.getDistanceRemaining());
     state.put("durationRemaining", routeProgress.getDurationRemaining());
+    // The native SDK's map-matched step and banner are authoritative for visual guidance.
+    if (routeProgress.getCurrentLegProgress() != null &&
+        routeProgress.getCurrentLegProgress().getCurrentStepProgress() != null) {
+      state.put("distanceToTurn", routeProgress.getCurrentLegProgress().getCurrentStepProgress().getDistanceRemaining());
+    }
+    BannerInstructions banner = routeProgress.getBannerInstructions();
+    if (banner != null && banner.primary() != null && banner.primary().text() != null) {
+      state.put("instruction", banner.primary().text());
+    }
     notifyListeners("progress", state);
   };
   private final VoiceInstructionsObserver voice = instructions -> {
