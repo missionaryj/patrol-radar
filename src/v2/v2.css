@@ -503,3 +503,5 @@ body[data-navigation-driving="true"] .navigation-panel,body[data-navigation-driv
 .navigation-stop{border:1px solid #e66066;background:#41232e;color:white;border-radius:13px;padding:12px 10px;font:inherit;font-size:13px;font-weight:750}
 .navigation-driving-status{position:absolute;bottom:calc(128px + env(safe-area-inset-bottom));left:14px;max-width:72%;background:#112d42dd;padding:6px 10px;border-radius:10px;font-size:11px;line-height:1.35;color:#c4dbeb}
 @media(max-width:360px){.navigation-driving-dashboard{gap:7px;padding:10px}.navigation-speed{min-width:51px;padding-right:7px}.navigation-speed strong{font-size:29px}.navigation-trip-stats strong{font-size:19px}.navigation-stop{padding:10px 8px}}
+
+.navigation-search-screen .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
