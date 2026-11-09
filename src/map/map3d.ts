@@ -29,14 +29,32 @@ export class Map3D {
   private ml?: ML; private map?: import('maplibre-gl').Map; private ready = false; private pending?: Mirror;
   private generation = 0; private cancelOpen?: () => void;
   private navigationCoords: [number,number][] = [];
-  setNavigationRoute(coords: [number,number][]) { this.navigationCoords = coords; this.applyNavigationRoute(); }
+  private navigationCongestion: string[] = [];
+  setNavigationRoute(coords: [number,number][], congestion: string[] = []) {
+    this.navigationCoords = coords; this.navigationCongestion = congestion; this.applyNavigationRoute();
+  }
   private applyNavigationRoute() {
     if (!this.map || !this.ready) return;
-    const data = { type: 'FeatureCollection' as const, features: this.navigationCoords.length < 2 ? [] : [{ type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: this.navigationCoords } }] };
+    const features: {type:'Feature';properties:{color:string};geometry:{type:'LineString';coordinates:[number,number][]}}[] = [];
+    const coords = this.navigationCoords, traffic = this.navigationCongestion;
+    const colors: Record<string,string> = {low:'#21bd6b',moderate:'#eabf30',heavy:'#fb8541',severe:'#ed4047'};
+    if(coords.length >= 2) {
+      if(traffic.length === coords.length - 1) {
+        let start=0;
+        for(let i=1;i<=traffic.length;i++) {
+          if(i===traffic.length || traffic[i]!==traffic[start]) {
+            features.push({type:'Feature',properties:{color:colors[traffic[start]] || '#347CFF'},geometry:{type:'LineString',coordinates:coords.slice(start,i+1)}});
+            start=i;
+          }
+        }
+      } else features.push({type:'Feature',properties:{color:'#347CFF'},geometry:{type:'LineString',coordinates:coords}});
+    }
+    const data = {type:'FeatureCollection' as const, features};
     const src = this.map.getSource('navigation-route') as import('maplibre-gl').GeoJSONSource | undefined;
-    if (src) src.setData(data); else {
-      this.map.addSource('navigation-route', { type: 'geojson', data });
-      this.map.addLayer({ id: 'navigation-route-line', type: 'line', source: 'navigation-route', paint: { 'line-color': '#347CFF', 'line-width': 7, 'line-opacity': 0.95 } });
+    if(src) src.setData(data); else {
+      this.map.addSource('navigation-route', {type:'geojson',data});
+      this.map.addLayer({id:'navigation-route-line',type:'line',source:'navigation-route',
+        paint:{'line-color':['get','color'],'line-width':7,'line-opacity':.95}}, this.map.getLayer('pts') ? 'pts' : undefined);
     }
   }
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
