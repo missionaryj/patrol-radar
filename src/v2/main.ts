@@ -193,7 +193,8 @@ async function startGuidance(route:PreviewRoute,destination:Destination){
   map.recenter();
   if(nativeNavigation && here){
     try {
-      await nativeNavigation.start({originLat:here.lat,originLng:here.lng,destinationLat:destination.lat,destinationLng:destination.lng});
+      await nativeNavigation.start({originLat:here.lat,originLng:here.lng,destinationLat:destination.lat,destinationLng:destination.lng,
+        preferredDistanceMeters:route.distanceMeters,preferredDurationSeconds:route.durationSeconds});
       if(generation===tripGeneration && activeDestination){
         nativeGuidanceActive=true;
         navDrivingStatus.textContent='Mapbox GPS guidance active';
