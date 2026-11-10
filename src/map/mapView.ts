@@ -57,6 +57,8 @@ export class MapView {
   private navigationPlaces = L.layerGroup();
   private driving = false;
   private drivingHeading?: number;
+  private navigationMoving = false;
+  private get drivingCamera() { return this.driving || (document.body.dataset.experience === 'navigation' && this.navigationMoving); }
   /** Pins for places explicitly saved on this device. */
   setNavigationPlaces(places: Array<{lat:number;lng:number;label:string}>) {
     this.navigationPlaces.clearLayers();
@@ -72,8 +74,8 @@ export class MapView {
   /** The route is already selected: follow at driving zoom without refitting the whole trip every update. */
   setDrivingMode(on:boolean) {
     this.driving=on;
-    this.m3.setDrivingMode(on);
-    if(on){this.recenter();this.map.setZoom(Math.max(this.map.getZoom(),17));const c=this.smooth.disp;if(c)this.m3.follow(c.lat,c.lng,Math.max(this.map.getZoom(),17),this.drivingHeading);}
+    this.m3.setDrivingMode(this.drivingCamera);
+    if(on){this.recenter();this.map.setZoom(Math.max(this.map.getZoom(),17));}
   }
   private trafficLines = L.layerGroup();
   /** Display-only route preview; active turn guidance belongs to the native SDK. */
@@ -189,7 +191,6 @@ export class MapView {
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
   setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
     this.startup?.locate(lat, lng);
-    if (this.driving && accuracy <= 35 && heading != null && Number.isFinite(heading) && heading >= 0 && (speed ?? 0) > 1.5) this.drivingHeading = heading;
     const moving = document.body.dataset.experience === 'patrol' && this.patrolMotion.update(speed, accuracy, t);
     if (moving !== this.patrolMoving) {
       this.patrolMoving = moving;
@@ -204,12 +205,21 @@ export class MapView {
     if (moving && accuracy <= 35 && speed != null && speed >= 4.5)
       this.patrolHeading = headingStep(this.patrolHeading, heading);
     const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
+    const vel = this.smooth.vel, motion = speed ?? (vel ? Math.hypot(vel.vn, vel.ve) : 0);
+    if (document.body.dataset.experience !== 'navigation') this.navigationMoving = false;
+    else if (accuracy <= 35 && motion >= 4.5) this.navigationMoving = true;
+    if (this.drivingCamera && accuracy <= 35 && motion > 1.5) {
+      const course = heading != null && Number.isFinite(heading) && heading >= 0 && heading < 360 ? heading :
+        vel ? (Math.atan2(vel.ve, vel.vn) * 180 / Math.PI + 360) % 360 : undefined;
+      this.drivingHeading = headingStep(this.drivingHeading, course, 0.45);
+    }
+    this.m3.setDrivingMode(this.drivingCamera);
     this.loc.fix({ t, lat, lng, acc: accuracy, speed }); // in-memory track for closest-approach pins (never stored)
     if (!this.me) {
       this.meAcc = L.circle([lat, lng], { radius: accuracy, color: '#2a7fff', weight: 1, fillOpacity: 0.12, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
       this.me = L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2a7fff', fillOpacity: 1, interactive: false, pane: 'mePane', renderer: this.meRenderer }).addTo(this.map);
     }
-    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 16), { animate: false }); this.m3.follow(lat, lng, this.map.getZoom(), this.patrolHeading); }
+    if (first || !this.centered) { this.centered = true; this.map.setView([lat, lng], this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 16), { animate: false }); this.m3.follow(lat, lng, this.map.getZoom(), this.drivingCamera ? this.drivingHeading : this.patrolHeading); }
     this.kick();
   }
   /** Start the frame loop if it isn't running. It stops itself once the dot settles (or the page is hidden) to save battery. */
@@ -228,7 +238,7 @@ export class MapView {
       // 3D camera jumps on every 60 Hz frame can churn tiles and outpace the dot redraw on slower Android phones.
       if (ts - this.last3DFollow >= (this.patrolMoving ? 80 : 35)) {
         this.last3DFollow = ts;
-        this.m3.follow(d.lat, d.lng, this.driving ? Math.max(17, this.map.getZoom()) : undefined, this.driving ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
+        this.m3.follow(d.lat, d.lng, this.drivingCamera ? Math.max(17, this.map.getZoom()) : undefined, this.drivingCamera ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
       }
     }
     if (this.m3.active && ts - this.lastMirror > 200) this.mirror3d();
@@ -236,9 +246,9 @@ export class MapView {
   };
   /** Recenter and resume follow-me. */
   recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng();
-    const zoom = this.driving ? Math.max(17, this.map.getZoom()) : this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 15);
+    const zoom = this.drivingCamera ? Math.max(17, this.map.getZoom()) : this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 15);
     this.map.setView(c, zoom);
-    this.m3.follow(c.lat, c.lng, this.driving || this.patrolMoving ? zoom : undefined, this.driving ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
+    this.m3.follow(c.lat, c.lng, this.drivingCamera || this.patrolMoving ? zoom : undefined, this.drivingCamera ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
     this.kick(); return true; }
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }
@@ -262,7 +272,7 @@ export class MapView {
       await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom());
       if (request !== this.view3dRequest) return;
       const latest = this.smooth.disp;
-      if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.map.getZoom());
+      if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.map.getZoom(), this.drivingCamera ? this.drivingHeading : this.patrolHeading);
       this.mirror3d(); this.kick();
       this.onPresentationChange?.('ready');
     } catch {
