@@ -476,9 +476,6 @@ body[data-navigation-driving="true"] .navigation-panel,body[data-navigation-driv
 .navigation-place-row{display:flex;align-items:center;gap:8px;min-height:57px;border-radius:14px;border:1px solid #2a405b;background:#182b43}
 .navigation-place-main{flex:1;min-width:0;display:flex;align-items:center;gap:11px;border:0;background:none;color:#f5f8ff;padding:12px;text-align:left;font:inherit;font-size:14px}
 .navigation-place-main span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.navigation-place-main .navigation-place-result-info{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0;white-space:normal}
-.navigation-place-main .navigation-place-result-label{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.navigation-place-main .navigation-place-result-detail{font-size:11px;line-height:1.4;color:#9cb9d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .navigation-place-dot{display:inline-grid;place-items:center;flex:none;width:26px;height:26px;color:#6ba8ff;border:2px solid currentColor;border-radius:50%;font-size:14px}
 .navigation-place-row.is-saved .navigation-place-dot{color:#fb5c65;border-radius:55% 55% 55% 10%;transform:rotate(-45deg)}
 .navigation-place-row.is-saved .navigation-place-dot span{transform:rotate(45deg)}
