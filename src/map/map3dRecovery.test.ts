@@ -4,7 +4,10 @@ const fake = vi.hoisted(() => ({ instances: [] as any[] }));
 vi.mock('maplibre-gl', () => ({ default: { Map: class {
   handlers: Record<string, Function> = {};
   removed = false;
-  constructor() { fake.instances.push(this); }
+  options: any; jumps: any[] = [];
+  constructor(options: any) { this.options = options; fake.instances.push(this); }
+  jumpTo(options: any) { this.jumps.push(options); }
+  getZoom() { return 17; } getPitch() { return 62; } setPaintProperty() {}
   on(event: string, ...args: any[]) { this.handlers[event] = args[args.length - 1]; }
   emit(event: string) { this.handlers[event]?.({}); }
   remove() { this.removed = true; }
@@ -49,5 +52,27 @@ describe('3D map recovery', () => {
     fake.instances[0].emit('load'); await opening;
     fake.instances[0].emit('webglcontextlost');
     expect(el.hidden).toBe(true); expect(map.active).toBe(false); expect(onFailure).toHaveBeenCalledOnce();
+  });
+});
+
+
+describe('navigation and patrol camera integration', () => {
+  it('keeps navigation heading follow while preserving patrol zoom limits', async () => {
+    vi.stubGlobal('window', { devicePixelRatio: 1 });
+    const { map } = setup();
+    map.setDrivingMode(true);
+    const opening = map.open({ lat: 1, lng: 2 }, 17);
+    await flushImports(); const instance = fake.instances[0];
+    instance.emit('load'); await opening;
+    expect(instance.options.pitch).toBe(62);
+    map.follow(1, 2, 17, 90);
+    expect(instance.jumps.at(-1)).toMatchObject({zoom:17, bearing:90});
+    map.setDrivingMode(false); map.setPatrolMoving(true);
+    map.follow(1, 2, 21, 180);
+    expect(instance.jumps.at(-1).zoom).toBeLessThan(19);
+    expect(instance.jumps.at(-1).bearing).toBe(180);
+    map.setDrivingMode(true); map.follow(1, 2, 17, 270);
+    expect(instance.jumps.at(-1)).toMatchObject({zoom:17, bearing:270});
+    map.close();
   });
 });
