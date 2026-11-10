@@ -18,7 +18,7 @@ import { Map3D } from './map3d';
 
 async function flushImports() { for (let i = 0; i < 20 && !fake.instances.length; i++) await new Promise(r => setTimeout(r, 0)); }
 function setup() {
-  const el = { hidden: true, style: { visibility: '' } } as unknown as HTMLElement;
+  const el = { hidden: true, clientHeight: 1000, style: { visibility: '' } } as unknown as HTMLElement;
   return { el, map: new Map3D(el, 'dark', () => {}) };
 }
 afterEach(() => { fake.instances.length = 0; vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -64,10 +64,12 @@ describe('navigation and patrol camera integration', () => {
     const opening = map.open({ lat: 1, lng: 2 }, 17);
     await flushImports(); const instance = fake.instances[0];
     instance.emit('load'); await opening;
-    expect(instance.options.pitch).toBe(62);
+    expect(instance.options.pitch).toBe(60);
     map.follow(1, 2, 17, 90);
-    expect(instance.jumps.at(-1)).toMatchObject({zoom:17, bearing:90});
-    map.setDrivingMode(false); map.setPatrolMoving(true);
+    expect(instance.jumps.at(-1)).toMatchObject({zoom:17, bearing:90, padding:{top:400,bottom:0}});
+    map.setDrivingMode(false); 
+    expect(instance.jumps.at(-1).padding).toEqual({top:0,bottom:0,left:0,right:0});
+    map.setPatrolMoving(true);
     map.follow(1, 2, 21, 180);
     expect(instance.jumps.at(-1).zoom).toBeLessThan(19);
     expect(instance.jumps.at(-1).bearing).toBe(180);
