@@ -58,7 +58,7 @@ export class MapView {
   private driving = false;
   private drivingHeading?: number;
   private navigationMoving = false;
-  private get drivingCamera() { return this.driving || (document.body.dataset.experience === 'navigation' && this.navigationMoving); }
+  private get drivingCamera() { return this.driving || (typeof document !== 'undefined' && document.body?.dataset.experience === 'navigation' && this.navigationMoving); }
   /** Pins for places explicitly saved on this device. */
   setNavigationPlaces(places: Array<{lat:number;lng:number;label:string}>) {
     this.navigationPlaces.clearLayers();
