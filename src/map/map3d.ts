@@ -33,7 +33,13 @@ export class Map3D {
   private navigationCoords: [number,number][] = [];
   private navigationPlaces: {lat:number;lng:number;label:string}[] = [];
   private driving = false;
-  setDrivingMode(on:boolean) { this.driving=on;if(on)this.setPatrolMoving(false);this.map?.jumpTo({pitch:on?62:PITCH_3D,zoom:on?Math.max(17,this.map.getZoom()):this.map.getZoom()}); }
+  setDrivingMode(on:boolean) {
+    if(this.driving===on)return;
+    this.driving=on;
+    if(on)this.setPatrolMoving(false);
+    this.map?.jumpTo({pitch:on?MAX_PITCH:PITCH_3D,zoom:on?Math.max(17,this.map.getZoom()):this.map.getZoom(),
+      padding:{top:0,bottom:0,left:0,right:0}});
+  }
   setNavigationPlaces(places:{lat:number;lng:number;label:string}[]) { this.navigationPlaces=places.slice(0,16);this.applyNavigationPlaces(); }
   private applyNavigationPlaces(){
     if(!this.map || !this.ready)return;
@@ -97,7 +103,7 @@ export class Map3D {
     // Keep the first visible map frame fully initialized; MapView suppresses 2D while loading.
     this.el.style.visibility = 'hidden';
     let map: import('maplibre-gl').Map;
-    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: patrolZoom(zoom, this.patrolMoving), maxZoom: MAX_PATROL_ZOOM, pitch: this.driving ? 62 : this.patrolMoving ? 48 : PITCH_3D, maxPitch: MAX_PITCH,
+    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: patrolZoom(zoom, this.patrolMoving), maxZoom: MAX_PATROL_ZOOM, pitch: this.driving ? MAX_PITCH : this.patrolMoving ? 48 : PITCH_3D, maxPitch: MAX_PITCH,
       attributionControl: { compact: true }, antialias: false, fadeDuration: 0, pixelRatio: Math.min(2, window.devicePixelRatio || 1) } as any);
     } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
@@ -147,6 +153,8 @@ export class Map3D {
       center: [lng, lat],
       ...(zoom === undefined ? {} : { zoom: patrolZoom(zoom, this.patrolMoving) }),
       ...(bearing === undefined ? {} : { bearing }),
+      // Higher top inset anchors the vehicle around 70% down the screen, leaving the road ahead visible.
+      ...(this.driving ? { padding:{top:Math.round((this.el.clientHeight || 0) * 0.4),bottom:0,left:0,right:0} } : {}),
     });
   }
   view() { const m = this.map; if (!m) return undefined; const c = m.getCenter(); return { lat: c.lat, lng: c.lng, zoom: m.getZoom() }; }

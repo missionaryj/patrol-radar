@@ -19,7 +19,6 @@
 <section id="navigation-panel" class="navigation-panel" hidden aria-label="Navigation destination">
   <div class="navigation-panel-head"><strong>Navigation</strong><button id="navigation-back" type="button">Change mode</button></div>
   <button id="navigation-open-search" type="button" class="navigation-open-search" aria-haspopup="dialog"><span aria-hidden="true">⌕</span><span>Where to?</span><span aria-hidden="true">›</span></button>
-  <div id="navigation-results" class="navigation-results" aria-live="polite"></div>
   <p id="navigation-provider-status" role="status">Search for a destination to see traffic-aware driving routes.</p>
 </section>
 <section id="navigation-search-screen" class="navigation-search-screen" role="dialog" aria-modal="true" aria-labelledby="navigation-search-title" hidden>
@@ -45,8 +44,8 @@
   <button type="button" id="navigation-recenter" class="navigation-recenter" aria-label="Recenter driving map">◎</button>
   <div class="navigation-driving-dashboard">
     <div class="navigation-speed"><strong id="navigation-speed">—</strong><span>MPH</span></div>
-    <div class="navigation-trip-stats"><strong id="navigation-eta">—</strong><span id="navigation-time-remaining">— min remaining</span><span id="navigation-trip-distance">— mi left</span></div>
-    <button id="navigation-stop" class="navigation-stop" type="button">End</button>
+    <div class="navigation-trip-stats"><span class="navigation-arrival-label">ARRIVAL TIME</span><strong id="navigation-eta">—</strong><span id="navigation-time-remaining">— min remaining</span><span id="navigation-trip-distance">— mi left</span></div>
+    <button id="navigation-stop" class="navigation-stop" type="button">End Route</button>
   </div>
   <p id="navigation-driving-status" class="navigation-driving-status" role="status">GPS guidance starting…</p>
 </section>
