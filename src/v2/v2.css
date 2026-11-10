@@ -467,6 +467,7 @@ body[data-navigation-driving="true"] .navigation-panel,body[data-navigation-driv
 .navigation-search{border:0;background:#377cff;border-radius:14px;color:white;font:inherit;font-weight:750;padding:0 16px}
 .navigation-search:disabled{opacity:.55;cursor:wait}
 #navigation-search-status{font-size:13px;line-height:1.5;color:#afc5df;margin:14px 2px 24px}
+.navigation-place-credit{display:block;color:#93a9c2;font-size:11px;margin:-15px 2px 22px}
 .navigation-place-section{margin-bottom:22px}
 .navigation-place-section h3{font-size:14px;letter-spacing:.02em;color:#b4c8e1;margin:0 0 12px}
 .navigation-list-heading{display:flex;justify-content:space-between;align-items:center}
