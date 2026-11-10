@@ -26,7 +26,7 @@ export async function findDestination(query: string, token: string, origin: Coor
   for (const [key, value] of Object.entries({q:query.trim().slice(0,256), access_token:token, limit:'10', proximity:origin.lng+','+origin.lat}))
     url.searchParams.set(key, value);
   const json = await getJSON(url, signal, request);
-  const results = (Array.isArray(json.features) ? json.features : []).flatMap((f: any) => {
+  const results: {type:string;place:Destination}[] = (Array.isArray(json.features) ? json.features : []).flatMap((f: any) => {
     const [lng, lat] = f?.geometry?.coordinates ?? [];
     if (![lng, lat].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
     const p = f.properties ?? {}, name = String(p.name_preferred || p.name || 'Destination');
