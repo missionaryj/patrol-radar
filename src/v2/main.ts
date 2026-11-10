@@ -243,20 +243,14 @@ function updateActiveGuidance(fix:Coordinate,accuracy:number,speed?:number|null)
 
 function displaySearchResults(places:Destination[]){
   navSearchResults.replaceChildren();
-  if(!places.length){navSearchStatus.textContent='No matching destinations. Try another place or a full street address.';return;}
-  navSearchStatus.textContent='Nearby businesses first. Choose a destination to see routes.';
+  if(!places.length){navSearchStatus.textContent='No matching destinations. Try a full street address.';return;}
+  navSearchStatus.textContent='Choose the correct destination to see routes.';
   const saved=NavigationPlaces.saved();
   for(const place of places){
     const row=document.createElement('div');row.className='navigation-place-row'+(saved.some(p=>samePlace(p,place))?' is-saved':'');
     const main=document.createElement('button');main.type='button';main.className='navigation-place-main';
     const pin=document.createElement('span');pin.className='navigation-place-dot';pin.setAttribute('aria-hidden','true');pin.textContent='●';
-    const info=document.createElement('span');info.className='navigation-place-result-info';
-    const title=document.createElement('span');title.className='navigation-place-result-label';title.textContent=place.name||place.label;info.append(title);
-    const miles=Number.isFinite(place.distanceMeters) ? place.distanceMeters!/1609.344 : undefined;
-    const approx=miles===undefined?'':(miles<0.1?'<0.1':miles<10?miles.toFixed(1):String(Math.round(miles)))+' mi straight-line';
-    const detail=[approx,place.address].filter(Boolean).join(' · ');
-    if(detail){const sub=document.createElement('small');sub.className='navigation-place-result-detail';sub.textContent=detail;info.append(sub);}
-    main.append(pin,info);main.onclick=()=>void choosePlace(place);
+    const title=document.createElement('span');title.textContent=place.label;main.append(pin,title);main.onclick=()=>void choosePlace(place);
     const star=document.createElement('button');star.type='button';star.className='navigation-save-place';
     star.textContent=saved.some(p=>samePlace(p,place))?'★':'☆';
     star.setAttribute('aria-label','Toggle saved place: '+place.label);
