@@ -148,7 +148,7 @@ function chooseExperience(mode: MapExperience) {
   navigationPanel.hidden=mode!=='navigation' || !!activeGuidance;
   changeMode.hidden=mode==='navigation';
   document.body.dataset.experience=mode;
-  if(scanner)stop(); // Entering either mode never starts (or leaves running) a scan.
+  if(scanner)stop(); else ++scanGeneration; // Entering a mode cancels any pending scan start.
   if(mode==='navigation')refreshPlaces();else map.setNavigationPlaces([]);
   window.dispatchEvent(new Event('resize'));
 }
@@ -156,7 +156,7 @@ function chooseExperience(mode: MapExperience) {
 (document.getElementById('choose-patrol') as HTMLButtonElement).onclick=()=>chooseExperience('patrol');
 function showModeChoices() {
   navigationRequest?.abort();
-  if(scanner)stop();
+  if(scanner)stop(); else ++scanGeneration;
   if(!navSearchScreen.hidden)closeSearch();
   document.body.dataset.experience='';
   navigationPanel.hidden=true;welcome.hidden=false;changeMode.hidden=true;map.setNavigationPlaces([]);
@@ -342,6 +342,8 @@ const picker = $<HTMLSelectElement>('picker');
 // In the Android app the native scanner is the only sensible choice (background + Wi-Fi), so lock it and hide the picker.
 // On the web, the Android-only scan-mode setting does nothing, so hide that instead.
 const isNativeApp = nativeAppPresent();
+// On app relaunch, stop a previous background service before accepting a new manual Scan.
+const bootScanStop = Promise.resolve(nativePlugin()?.stop?.()).catch(()=>{});
 sel.value = isNativeApp ? 'native' : new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
 applyPlatformSettings(document, isNativeApp);
 { const sm = document.getElementById('scanmode') as HTMLSelectElement | null; const v = localStorage.getItem('pr.scanmode'); if (sm && v) sm.value = v; }
@@ -480,6 +482,8 @@ function setScanning(on: boolean) {
 }
 async function start() {
   const generation=++scanGeneration;
+  await bootScanStop;
+  if(generation!==scanGeneration)return;
   scanStartedAt = Date.now();
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
