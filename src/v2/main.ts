@@ -177,6 +177,7 @@ navStop.onclick=()=>{stopGuidance();previewStatus.textContent='Trip ended. Searc
 (document.getElementById('navigation-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
 
 async function startGuidance(route:PreviewRoute,destination:Destination){
+  if(!route.steps.length){navSearchStatus.textContent='Turn-by-turn directions unavailable for this route. Try another destination.';return;}
   stopGuidance();
   const generation=tripGeneration;
   activeGuidance=new Guidance(route,destination);activeDestination=destination;currentRoute=route;
