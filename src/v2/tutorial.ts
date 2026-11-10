@@ -15,7 +15,7 @@ export const STEPS: TutorialStep[] = [
 
 export const tutorialDone = (s: Store) => s.getItem(TUTORIAL_KEY) === '1';
 export const markTutorialDone = (s: Store) => s.setItem(TUTORIAL_KEY, '1');
-export const shouldAutoShow = (s: Store, search = '') => !tutorialDone(s) && !/[?&](autostart|notour)=/.test(search);
+export const shouldAutoShow = (s: Store, search = '') => !tutorialDone(s) && !/[?&]notour=/.test(search);
 
 /** Pure step state machine (tested without a DOM). */
 export class TutorialState {

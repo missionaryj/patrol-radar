@@ -43,11 +43,11 @@ Docs: https://docs.mapbox.com/android/navigation/guides/install/ and https://doc
 - No public access token has been configured; routing, geocoding and guidance are unimplemented. Do not enable the flag in the release pipeline until the native integration and its tests are ready.
 
 ## Route preview milestone (implemented in draft PR)
-- `src/navigation/mapboxPreview.ts`: Mapbox Geocoding v6 (explicit user search; temporary results only) and Directions v5 driving-traffic route alternatives.
+- `src/navigation/mapboxPreview.ts`: OpenStreetMap-based Photon POI/address search, biased toward live GPS; Mapbox Directions v5 driving-traffic for routing. Search requests are made only after pressing Search. Public Photon is fair-use and can throttle; monitor usage and migrate to a hosted or self-hosted provider before broad rollout.
 - `src/map/mapView.ts` and `src/map/map3d.ts`: route preview line in 2D and 3D.
-- `src/v2/main.ts`: choose a destination and route; no background geocoding on every keystroke.
+- `src/v2/main.ts`: choose a destination to immediately start a valid recommended route with ETA, speed and End Route; manually tap Scan to enable BLE. No automatic BLE scan when selecting a mode.
 - `src/navigation/mapboxPreview.test.ts`: request shape and missing-token tests.
 - Runtime setup: GitHub repository **Settings → Secrets and variables → Actions → Variables → New repository variable**, name `VITE_MAPBOX_PUBLIC_TOKEN`, value the account's `pk.` token. This is intentionally a **public** token and will be visible in built browser JavaScript; restrict its scopes and monitor usage. Do not store any `sk.` token in this variable.
 - CI web app builds receive `VITE_MAPBOX_PUBLIC_TOKEN`. Without it, the UI reports that navigation search is unconfigured. The separate `MAPBOX_DOWNLOADS_TOKEN` secret only grants Maven downloads and does NOT configure the runtime web requests.
 - Route-preview Directions calls can be separately billable. Add Mapbox usage monitoring and validate the project's actual billing plans before alpha rollout.
-- **Not yet done:** native Mapbox Navigation activity/Capacitor bridge, active trip sessions, voice, rerouting, user-supplied route alternatives when driving, Search Box POI discovery, and driving/device QA.
+- **Alpha gate:** on-device route/camera/scan validation and Google Play Alpha submission. Search uses Photon/OSM (attribution required; low-volume public server is not a guaranteed production SLA).

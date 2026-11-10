@@ -21,7 +21,7 @@ describe('tutorial', () => {
   it('shows once until skipped or done', () => {
     const s = mem(); expect(shouldAutoShow(s)).toBe(true); expect(tutorialDone(s)).toBe(false);
     markTutorialDone(s); expect(s.getItem(TUTORIAL_KEY)).toBe('1'); expect(shouldAutoShow(s)).toBe(false);
-    expect(shouldAutoShow(mem(), '?autostart=1')).toBe(false);
+    expect(shouldAutoShow(mem(), '?autostart=1')).toBe(true);
   });
   it('puts the card opposite the highlighted control', () => {
     expect(cardSide(undefined, 800)).toBe('below');
