@@ -7,9 +7,9 @@ export interface PreviewRoute { distanceMeters: number; durationSeconds: number;
 async function getJSON(url: URL, signal: AbortSignal, request: typeof fetch): Promise<any> {
   const response = await request(url.toString(), { signal });
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) throw new Error('Mapbox rejected the public token.');
-    if (response.status === 429) throw new Error('Mapbox rate limit reached.');
-    throw new Error('Mapbox request failed (' + response.status + ').');
+    if (response.status === 401 || response.status === 403) throw new Error('Place search or Mapbox access denied.');
+    if (response.status === 429) throw new Error('Search or routing rate limit reached.');
+    throw new Error('Search or routing request failed (' + response.status + ').');
   }
   return response.json();
 }
