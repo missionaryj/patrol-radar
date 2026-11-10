@@ -31,6 +31,19 @@ export class Map3D {
   private generation = 0; private cancelOpen?: () => void;
   private patrolMoving = false; private patrolBearing?: number;
   private navigationCoords: [number,number][] = [];
+  private navigationPlaces: {lat:number;lng:number;label:string}[] = [];
+  private driving = false;
+  setDrivingMode(on:boolean) { this.driving=on;if(on)this.setPatrolMoving(false);this.map?.jumpTo({pitch:on?62:PITCH_3D,zoom:on?Math.max(17,this.map.getZoom()):this.map.getZoom()}); }
+  setNavigationPlaces(places:{lat:number;lng:number;label:string}[]) { this.navigationPlaces=places.slice(0,16);this.applyNavigationPlaces(); }
+  private applyNavigationPlaces(){
+    if(!this.map || !this.ready)return;
+    const data={type:'FeatureCollection' as const,features:this.navigationPlaces.map(p=>({type:'Feature' as const,properties:{},geometry:{type:'Point' as const,coordinates:[p.lng,p.lat]}}))};
+    const source=this.map.getSource('saved-navigation-places') as import('maplibre-gl').GeoJSONSource|undefined;
+    if(source)source.setData(data);else{
+      this.map.addSource('saved-navigation-places',{type:'geojson',data});
+      this.map.addLayer({id:'saved-navigation-dots',type:'circle',source:'saved-navigation-places',paint:{'circle-color':'#f34b5d','circle-radius':7,'circle-stroke-color':'#fff','circle-stroke-width':2}});
+    }
+  }
   private navigationCongestion: string[] = [];
   setNavigationRoute(coords: [number,number][], congestion: string[] = []) {
     this.navigationCoords = coords; this.navigationCongestion = congestion; this.applyNavigationRoute();
@@ -84,7 +97,7 @@ export class Map3D {
     // Keep the first visible map frame fully initialized; MapView suppresses 2D while loading.
     this.el.style.visibility = 'hidden';
     let map: import('maplibre-gl').Map;
-    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: patrolZoom(zoom, this.patrolMoving), maxZoom: MAX_PATROL_ZOOM, pitch: this.patrolMoving ? 48 : PITCH_3D, maxPitch: MAX_PITCH,
+    try { map = new this.ml.Map({ container: this.el, style: style3d(this.theme), center: [center.lng, center.lat], zoom: patrolZoom(zoom, this.patrolMoving), maxZoom: MAX_PATROL_ZOOM, pitch: this.driving ? 62 : this.patrolMoving ? 48 : PITCH_3D, maxPitch: MAX_PITCH,
       attributionControl: { compact: true }, antialias: false, fadeDuration: 0, pixelRatio: Math.min(2, window.devicePixelRatio || 1) } as any);
     } catch (e) { this.el.hidden = true; this.el.style.visibility = ''; throw e; }
     this.map = map;
@@ -118,7 +131,7 @@ export class Map3D {
       this.ready = true;
       // GPS may start while 3D is loading; apply the moving camera once the style exists.
       if (this.patrolMoving) map.jumpTo({ zoom: patrolZoom(map.getZoom(), true), pitch: Math.min(map.getPitch(), 48) });
-      if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute();
+      if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute(); this.applyNavigationPlaces();
       this.el.style.visibility = ''; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });
@@ -129,7 +142,7 @@ export class Map3D {
   follow(lat: number, lng: number, zoom?: number, heading?: number) {
     if (!this.map) return;
     if (this.patrolMoving) this.patrolBearing = headingStep(this.patrolBearing, heading);
-    const bearing = this.patrolMoving ? this.patrolBearing : undefined;
+    const bearing = this.driving ? heading : this.patrolMoving ? this.patrolBearing : undefined;
     this.map.jumpTo({
       center: [lng, lat],
       ...(zoom === undefined ? {} : { zoom: patrolZoom(zoom, this.patrolMoving) }),

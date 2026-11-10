@@ -54,6 +54,27 @@ export class MapView {
   private layer = L.layerGroup();
   readonly liveLayer = L.layerGroup();
   private navigationLine?: L.Polyline;
+  private navigationPlaces = L.layerGroup();
+  private driving = false;
+  private drivingHeading?: number;
+  /** Pins for places explicitly saved on this device. */
+  setNavigationPlaces(places: Array<{lat:number;lng:number;label:string}>) {
+    this.navigationPlaces.clearLayers();
+    for (const place of places.slice(0,16)) {
+      if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) continue;
+      const text=document.createElement('span');
+      text.textContent=place.label; // Never inject geocoding labels as tooltip HTML.
+      L.circleMarker([place.lat,place.lng],{radius:6,color:'#f87179',weight:2,fillColor:'#f34b5d',fillOpacity:0.95})
+        .bindTooltip(text,{direction:'top'}).addTo(this.navigationPlaces);
+    }
+    this.m3.setNavigationPlaces(places);
+  }
+  /** The route is already selected: follow at driving zoom without refitting the whole trip every update. */
+  setDrivingMode(on:boolean) {
+    this.driving=on;
+    this.m3.setDrivingMode(on);
+    if(on){this.recenter();this.map.setZoom(Math.max(this.map.getZoom(),17));const c=this.smooth.disp;if(c)this.m3.follow(c.lat,c.lng,Math.max(this.map.getZoom(),17),this.drivingHeading);}
+  }
   private trafficLines = L.layerGroup();
   /** Display-only route preview; active turn guidance belongs to the native SDK. */
   setNavigationRoute(coords: [number, number][], congestion: string[] = []) {
@@ -77,7 +98,7 @@ export class MapView {
       this.trafficLines.addTo(this.map);
     }
     this.m3.setNavigationRoute(coords,congestion);
-    this.map.fitBounds(this.navigationLine.getBounds(), { padding: [45,45] });
+    if (!this.driving) this.map.fitBounds(this.navigationLine.getBounds(), { padding: [45,45] });
   }
   readonly crowdLayer = L.layerGroup();
   readonly flockLayer = L.layerGroup();
@@ -117,7 +138,7 @@ export class MapView {
     // Visual-only shading: never intercept pointer events intended for markers or the map.
     this.heatRenderer = L.svg({ pane: 'heatPane' });
     const mp = this.map.createPane('mePane'); mp.style.zIndex = '640'; mp.style.pointerEvents = 'none';
-    this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map);
+    this.layer.addTo(this.map); this.liveLayer.addTo(this.map); this.crowdLayer.addTo(this.map); this.navigationPlaces.addTo(this.map);
     if (opts.legend ?? true) this.addLegend();
     this.follow = new FollowController(true, f => this.onFollowChange?.(f));
     this.map.on('dragstart', () => this.follow.userPanned());
@@ -168,6 +189,7 @@ export class MapView {
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
   setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
     this.startup?.locate(lat, lng);
+    if (this.driving && accuracy <= 35 && heading != null && Number.isFinite(heading) && heading >= 0 && (speed ?? 0) > 1.5) this.drivingHeading = heading;
     const moving = document.body.dataset.experience === 'patrol' && this.patrolMotion.update(speed, accuracy, t);
     if (moving !== this.patrolMoving) {
       this.patrolMoving = moving;
@@ -206,7 +228,7 @@ export class MapView {
       // 3D camera jumps on every 60 Hz frame can churn tiles and outpace the dot redraw on slower Android phones.
       if (ts - this.last3DFollow >= (this.patrolMoving ? 80 : 35)) {
         this.last3DFollow = ts;
-        this.m3.follow(d.lat, d.lng, undefined, this.patrolMoving ? this.patrolHeading : undefined);
+        this.m3.follow(d.lat, d.lng, this.driving ? Math.max(17, this.map.getZoom()) : undefined, this.driving ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
       }
     }
     if (this.m3.active && ts - this.lastMirror > 200) this.mirror3d();
@@ -214,9 +236,9 @@ export class MapView {
   };
   /** Recenter and resume follow-me. */
   recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng();
-    const zoom = this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 15);
+    const zoom = this.driving ? Math.max(17, this.map.getZoom()) : this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 15);
     this.map.setView(c, zoom);
-    this.m3.follow(c.lat, c.lng, this.patrolMoving ? zoom : undefined, this.patrolMoving ? this.patrolHeading : undefined);
+    this.m3.follow(c.lat, c.lng, this.driving || this.patrolMoving ? zoom : undefined, this.driving ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
     this.kick(); return true; }
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }
