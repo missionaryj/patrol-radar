@@ -505,7 +505,7 @@ async function start() {
     scanner.filtered = picker.value !== 'all';
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
-    scanner.onError = msg => { recorder.event('error', kind, `native: ${msg}`); scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
+    scanner.onError = msg => { if(scanner!==candidate)return; recorder.event('error', kind, `native: ${msg}`); ++scanGeneration; scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
     scanner.onHealth = h => { recorder.setNativeHealth(h); setScanQuiet(h.quiet); };
     scanner.onSupervisor = (k, detail) => {
       if (k === 'quiet') { recorder.event('scanner-quiet', kind, detail); setScanQuiet(true); }
