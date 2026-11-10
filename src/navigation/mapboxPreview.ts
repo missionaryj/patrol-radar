@@ -27,7 +27,7 @@ export async function findDestination(query: string, token: string, origin: Coor
     url.searchParams.set(key, value);
   const json = await getJSON(url, signal, request);
   const results: {type:string;place:Destination}[] = (Array.isArray(json.features) ? json.features : []).flatMap((f: any) => {
-    const [lng, lat] = f?.geometry?.coordinates ?? [];
+    const [lng, lat] = Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates : [];
     if (![lng, lat].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
     const p = f.properties ?? {}, name = String(p.name_preferred || p.name || 'Destination');
     const address = String(p.full_address || p.place_formatted || '');
