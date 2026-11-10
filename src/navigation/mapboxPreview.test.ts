@@ -27,7 +27,7 @@ describe('Mapbox preview', () => {
       .toEqual(['Dallas, TX','Chicago, IL']);
   });
   it('rejects invalid coordinates and caps labels for saved places', async () => {
-    const mock = mockSearch([feature('Invalid',999,41.88),feature('A'.repeat(200),-87.62,41.88)]);
+    const mock = mockSearch([feature('Invalid',999,41.88),{geometry:{coordinates:42}},feature('A'.repeat(200),-87.62,41.88)]);
     const places = await findDestination('McDonald\'s','pk.test',origin,signal,mock);
     expect(places).toHaveLength(1);
     expect(places[0].label.length).toBe(180);
