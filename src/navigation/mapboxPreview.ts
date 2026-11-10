@@ -1,6 +1,6 @@
-/** Mapbox destination search and route preview. Provider search results are temporary; check Mapbox's storage terms before persisting them. */
+/** Real Mapbox route PREVIEW, not active turn-by-turn guidance. Search results are temporary; check storage terms before saving them. */
 export interface Coordinate { lat: number; lng: number }
-export interface Destination extends Coordinate { label: string; name?: string; address?: string; distanceMeters?: number }
+export interface Destination extends Coordinate { label: string }
 export interface RouteStep { instruction: string; location: [number,number]; distanceMeters: number }
 export type Congestion = 'low' | 'moderate' | 'heavy' | 'severe' | 'unknown';
 export interface PreviewRoute { distanceMeters: number; durationSeconds: number; geometry: [number,number][]; steps: RouteStep[]; congestion: Congestion[] }
@@ -13,51 +13,30 @@ async function getJSON(url: URL, signal: AbortSignal, request: typeof fetch): Pr
   }
   return response.json();
 }
-/** Straight-line proximity is for ordering search matches, not an estimate of driving distance. */
-function distanceMetersBetween(origin: Coordinate, destination: Coordinate): number {
-  const radians = Math.PI / 180;
-  const a = origin.lat * radians, b = destination.lat * radians;
-  const deltaLat = (destination.lat - origin.lat) * radians;
-  const deltaLng = (destination.lng - origin.lng) * radians;
-  const haversine = Math.sin(deltaLat / 2) ** 2 + Math.cos(a) * Math.cos(b) * Math.sin(deltaLng / 2) ** 2;
-  return 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(haversine)));
+// Haversine distance score: preserves distance order without converting to meters.
+function distanceScore(a: Coordinate, b: Coordinate): number {
+  const r = Math.PI / 180, lat = (b.lat - a.lat) * r, lng = (b.lng - a.lng) * r;
+  return Math.sin(lat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(lng / 2) ** 2;
 }
 export async function findDestination(query: string, token: string, origin: Coordinate, signal: AbortSignal, request: typeof fetch = fetch): Promise<Destination[]> {
   if (!query.trim() || !token.startsWith('pk.')) throw new Error('Destination search is not configured.');
-  if (!Number.isFinite(origin.lat) || !Number.isFinite(origin.lng) || Math.abs(origin.lat) > 90 || Math.abs(origin.lng) > 180)
+  if (![origin.lat, origin.lng].every(Number.isFinite) || Math.abs(origin.lat) > 90 || Math.abs(origin.lng) > 180)
     throw new Error('Your GPS location is unavailable.');
-  // Search Box supports POIs (restaurants, shops, landmarks) and addresses; Geocoding v6 does not support POIs.
-  // Use a one-off request only when Search is pressed; no keystroke billing or background queries.
   const url = new URL('https://api.mapbox.com/search/searchbox/v1/forward');
-  url.searchParams.set('q', query.trim().slice(0, 256));
-  url.searchParams.set('access_token', token);
-  url.searchParams.set('limit', '10');
-  url.searchParams.set('proximity', origin.lng + ',' + origin.lat);
+  for (const [key, value] of Object.entries({q:query.trim().slice(0,256), access_token:token, limit:'10', proximity:origin.lng+','+origin.lat}))
+    url.searchParams.set(key, value);
   const json = await getJSON(url, signal, request);
-  const features: any[] = Array.isArray(json.features) ? json.features : [];
-  const results: { destination: Destination; type: string }[] = features.flatMap((feature: any) => {
-    const p = feature?.geometry?.coordinates;
-    if (!Array.isArray(p) || p.length < 2 || !p.slice(0, 2).every((n: unknown) => typeof n === 'number' && Number.isFinite(n))) return [];
-    if (Math.abs(p[0]) > 180 || Math.abs(p[1]) > 90) return [];
-    const properties = feature?.properties ?? {};
-    const type = String(properties.feature_type ?? '');
-    const name = String(properties.name_preferred || properties.name || '').trim();
-    const fullAddress = String(properties.full_address || '').trim();
-    const place = String(properties.place_formatted || '').trim();
-    const address = fullAddress || place || String(properties.address || '').trim();
-    const label = (type === 'address' ? fullAddress || [name, place].filter(Boolean).join(', ') :
-      [name, address].filter(Boolean).join(', ')) || 'Destination';
-    const destination: Destination = { lng: p[0], lat: p[1], label: label.slice(0, 180),
-      name: name || undefined, address: address || undefined,
-      distanceMeters: distanceMetersBetween(origin, { lng: p[0], lat: p[1] }) };
-    return [{ destination, type }];
+  const results = (Array.isArray(json.features) ? json.features : []).flatMap((f: any) => {
+    const [lng, lat] = f?.geometry?.coordinates ?? [];
+    if (![lng, lat].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
+    const p = f.properties ?? {}, name = String(p.name_preferred || p.name || 'Destination');
+    const address = String(p.full_address || p.place_formatted || '');
+    const label = p.feature_type === 'address' ? address || name : [name, address].filter(Boolean).join(', ');
+    return [{type:p.feature_type, place:{lng, lat, label:label.slice(0,180)} as Destination}];
   });
-  // Preserve Mapbox's relevance ordering for addresses and cities. For businesses/POIs,
-  // sort the POI slots by proximity so a nearby McDonald's precedes one across the country.
-  const nearbyPois = results.filter(result => result.type === 'poi')
-    .sort((a, b) => a.destination.distanceMeters! - b.destination.distanceMeters!);
-  let poiIndex = 0;
-  return results.map(result => (result.type === 'poi' ? nearbyPois[poiIndex++] : result).destination);
+  // Sort businesses closest-first without breaking relevance order for specific address searches.
+  const pois = results.filter(r => r.type === 'poi').sort((a, b) => distanceScore(origin,a.place) - distanceScore(origin,b.place));
+  return results.map(r => (r.type === 'poi' ? pois.shift()! : r).place);
 }
 export async function drivingRoutes(origin: Coordinate, destination: Coordinate, token: string, signal: AbortSignal, request: typeof fetch = fetch): Promise<PreviewRoute[]> {
   if (!token.startsWith('pk.')) throw new Error('Mapbox public token not configured.');
