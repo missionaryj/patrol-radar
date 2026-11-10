@@ -148,7 +148,7 @@ function chooseExperience(mode: MapExperience) {
   navigationPanel.hidden=mode!=='navigation' || !!activeGuidance;
   changeMode.hidden=mode==='navigation';
   document.body.dataset.experience=mode;
-  if(nativeAppPresent() && !scanner)void start();
+  if(scanner)stop(); // Entering either mode never starts (or leaves running) a scan.
   if(mode==='navigation')refreshPlaces();else map.setNavigationPlaces([]);
   window.dispatchEvent(new Event('resize'));
 }
@@ -156,6 +156,7 @@ function chooseExperience(mode: MapExperience) {
 (document.getElementById('choose-patrol') as HTMLButtonElement).onclick=()=>chooseExperience('patrol');
 function showModeChoices() {
   navigationRequest?.abort();
+  if(scanner)stop();
   if(!navSearchScreen.hidden)closeSearch();
   document.body.dataset.experience='';
   navigationPanel.hidden=true;welcome.hidden=false;changeMode.hidden=true;map.setNavigationPlaces([]);
@@ -470,6 +471,7 @@ function onVehicle(v: Vehicle | undefined) {
 }
 
 // ---- scan ----
+let scanGeneration = 0;
 function logLine(text: string, color: string) { const li = document.createElement('li'); li.style.borderColor = color; li.textContent = text; $('log').prepend(li); }
 function setScanning(on: boolean) {
   $('settings-scan-status').textContent = on ? 'Scanning active' : 'Scan is stopped';
@@ -477,14 +479,18 @@ function setScanning(on: boolean) {
   syncSetupScanner(document, on);
 }
 async function start() {
+  const generation=++scanGeneration;
   scanStartedAt = Date.now();
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
   if (kind !== 'native') recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
-  if (!(await scanner.isSupported())) {
+  const candidate=scanner;
+  if (!(await candidate.isSupported())) {
+    if(generation!==scanGeneration)return;
     scanner = undefined;
     status(kind === 'mock' ? 'Mock unavailable?' : 'No Web Bluetooth in this browser. On iPhone use Bluefy; on Android use Chrome. Or pick Mock in Settings.', 'err'); return;
   }
+  if(generation!==scanGeneration){void candidate.stop();return;}
   status(kind === 'bluefy' ? 'Pick a device to watch in the Bluefy list. Use ＋ to watch more (iOS has no all-devices scan).' : 'Starting…', '', 'Starting');
   if (scanner instanceof BluefyScanner) {
     scanner.pickerMode = picker.value as 'police' | 'all'; scanner.notice = msg => status(msg);
@@ -524,7 +530,8 @@ async function start() {
       map.render(store.list());
       firePing(m, loc);
     });
-    void supervisor.started(kind, scanner, advCb);
+    if(generation!==scanGeneration){void candidate.stop();return;}
+    void supervisor.started(kind, candidate, advCb);
     map.follow.resume();
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
@@ -534,14 +541,14 @@ async function start() {
       if (kind === 'native' && picker.value !== 'all') status('No police gear heard in 20 s. "Police gear only" ignores phones, earbuds and cars, so 0 is normal with no police nearby. To test that scanning works, set Devices to "All devices" in Settings.', '');
       else status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err');
     }, 20_000);
-  } catch (e) { scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
+  } catch (e) { if(generation!==scanGeneration)return; scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
 }
 let quietDismissed = false;
 function setScanQuiet(on: boolean) { $('scan-quiet').hidden = !on || quietDismissed; if (!on) quietDismissed = false; }
 $('sq-dismiss').onclick = () => { quietDismissed = true; $('scan-quiet').hidden = true; };
 $('sq-restart').onclick = () => { $('scan-quiet').hidden = true; quietDismissed = false; if (scanner) { recorder.event('restart', sel.value, 'user restart from scanner-quiet warning'); stop(); } void start(); };
 (globalThis as any).__prQuiet = setScanQuiet; // preview/debug hook
-function stop() { setScanQuiet(false); supervisor.stopped(); fusion.clear(); announced.clear(); recorder.discardWifiSession(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
+function stop() { ++scanGeneration; setScanQuiet(false); supervisor.stopped(); fusion.clear(); announced.clear(); recorder.discardWifiSession(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
 // Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
 for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {
@@ -556,7 +563,6 @@ $('add').onclick = async () => {
 setInterval(() => map.render(store.list()), 10_000);
 map.render(store.list());
 
-if (new URLSearchParams(location.search).get('autostart') === '1') setTimeout(start, 0);
 
 const recorder = new SessionRecorder();
 const recHost = document.createElement('div'); document.querySelector('.sheet-head')!.after(recHost);
