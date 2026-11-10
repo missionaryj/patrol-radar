@@ -44,7 +44,6 @@ const navSearchScreen = document.getElementById('navigation-search-screen')!;
 const navSearchStatus = document.getElementById('navigation-search-status')!;
 const navSearchResults = document.getElementById('navigation-search-results')!;
 const previewStatus = document.getElementById('navigation-provider-status')!;
-const previewResults = document.getElementById('navigation-results')!;
 const routeButton = document.getElementById('navigation-search') as HTMLButtonElement;
 const navSearchOpen = document.getElementById('navigation-open-search') as HTMLButtonElement;
 const navSearchClose = document.getElementById('navigation-search-close') as HTMLButtonElement;
@@ -174,21 +173,20 @@ function stopGuidance() {
   window.speechSynthesis?.cancel();
   map.setDrivingMode(false);map.setNavigationRoute([]);
 }
-navStop.onclick=()=>{stopGuidance();previewResults.replaceChildren();previewStatus.textContent='Trip ended. Search for another destination.';};
+navStop.onclick=()=>{stopGuidance();previewStatus.textContent='Trip ended. Search for another destination.';navSearchOpen.focus();};
 (document.getElementById('navigation-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
 
 async function startGuidance(route:PreviewRoute,destination:Destination){
-  if(!route.steps.length){previewStatus.textContent='The route has no turn instructions.';return;}
   stopGuidance();
   const generation=tripGeneration;
   activeGuidance=new Guidance(route,destination);activeDestination=destination;currentRoute=route;
   NavigationPlaces.remember(destination);
   navDriving.hidden=false;document.body.dataset.navigationDriving='true';navigationPanel.hidden=true;
-  navInstruction.textContent=route.steps[0].instruction;
+  navInstruction.textContent=route.steps[0]?.instruction ?? 'Continue to destination';
   navDistance.textContent='Waiting for GPS…';
   navSpeed.textContent='—';renderTripSummary(route.distanceMeters,route.durationSeconds);
-  navDrivingStatus.textContent='Guidance active while the app is open. Follow road signs.';
-  navSearchScreen.hidden=true;
+  navDrivingStatus.textContent=route.steps.length?'Guidance active while the app is open. Follow road signs.':'Route active; turn instructions unavailable. Follow road signs.';
+  navSearchScreen.hidden=true;navStop.focus();
   map.setDrivingMode(true);map.setNavigationRoute(route.geometry,route.congestion);
   map.recenter();
   if(nativeNavigation && here){
@@ -285,25 +283,12 @@ async function choosePlace(place:Destination){
   try{
     const routes=await drivingRoutes({...here},place,mapboxPublicToken,request.signal);
     if(!request.signal.aborted){
-      renderRoutes(routes,place);
-      navSearchScreen.hidden=true;
-      navSearchOpen.focus();
+      if(routes.length)await startGuidance(routes[0],place);
+      else navSearchStatus.textContent='No drivable route found. Try a different destination.';
     }
   }catch(error){
     if(!request.signal.aborted)navSearchStatus.textContent=error instanceof Error?error.message:'Could not calculate the drive.';
   }finally{if(navigationRequest===request)navigationRequest=undefined;}
-}
-function renderRoutes(routes:PreviewRoute[],destination:Destination){
-  previewResults.replaceChildren();
-  if(!routes.length){previewStatus.textContent='No drivable route found. Try a different destination.';return;}
-  previewStatus.textContent='Choose a route to start driving.';
-  for(const [index,route] of routes.entries()){
-    const button=document.createElement('button');button.type='button';button.className='navigation-result';
-    button.textContent=(index===0?'Recommended':'Alternative')+' · '+Math.round(route.durationSeconds/60)+' min · '+(route.distanceMeters/1609.344).toFixed(1)+' mi — '+destination.label;
-    button.onclick=()=>void startGuidance(route,destination);
-    previewResults.append(button);
-  }
-  map.setNavigationRoute(routes[0].geometry,routes[0].congestion);
 }
 const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
