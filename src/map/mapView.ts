@@ -272,7 +272,7 @@ export class MapView {
       await this.m3.open({ lat: c.lat, lng: c.lng }, this.map.getZoom());
       if (request !== this.view3dRequest) return;
       const latest = this.smooth.disp;
-      if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.map.getZoom(), this.drivingCamera ? this.drivingHeading : this.patrolHeading);
+      if (latest && this.follow.following) this.m3.follow(latest.lat, latest.lng, this.drivingCamera ? Math.max(17, this.map.getZoom()) : this.map.getZoom(), this.drivingCamera ? this.drivingHeading : this.patrolHeading);
       this.mirror3d(); this.kick();
       this.onPresentationChange?.('ready');
     } catch {
