@@ -1,4 +1,4 @@
-/** Optional first-run walkthrough (v2). Skippable on every step; a saved flag stops it re-appearing. */
+/** Optional first-run walkthrough (v2). Shown on the first Patrol Radar entry, not the mode picker. Skippable; a saved flag stops it re-appearing. */
 export interface TutorialStep { id: string; title: string; body: string; target?: string }
 type Store = Pick<Storage, 'getItem' | 'setItem'>;
 export const TUTORIAL_KEY = 'pr.tutorial.done';
@@ -36,7 +36,8 @@ export function cardSide(rect: { top: number; bottom: number } | undefined, vh: 
 export function mountTutorial(o: { store?: Store; steps?: TutorialStep[]; onStep?: (s: TutorialStep) => void } = {}) {
   const store = o.store ?? localStorage, steps = o.steps ?? STEPS;
   let root: HTMLElement | undefined, st: TutorialState, onResize: (() => void) | undefined;
-  const close = () => { markTutorialDone(store); root?.remove(); root = undefined; if (onResize) removeEventListener('resize', onResize); };
+  const detach = () => { root?.remove(); root = undefined; if (onResize) { removeEventListener('resize', onResize); onResize = undefined; } };
+  const close = () => { markTutorialDone(store); detach(); };
   const render = () => {
     if (!root) return;
     const s = steps[st.i]; o.onStep?.(s);
@@ -70,5 +71,5 @@ export function mountTutorial(o: { store?: Store; steps?: TutorialStep[]; onStep
     addEventListener('resize', onResize = render);
     render();
   };
-  return { open, close, get step() { return root ? st.i : -1; } };
+  return { open, close, hide: detach, get step() { return root ? st.i : -1; } };
 }

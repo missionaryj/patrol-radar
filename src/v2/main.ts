@@ -145,6 +145,8 @@ document.addEventListener('keydown',event=>{
   NavigationPlaces.clearRecents();refreshPlaces();
 };
 
+let showPatrolTour = () => {};
+let hidePatrolTour = () => {};
 function chooseExperience(mode: MapExperience) {
   welcome.hidden=true;
   navigationPanel.hidden=mode!=='navigation' || !!activeGuidance;
@@ -156,10 +158,12 @@ function chooseExperience(mode: MapExperience) {
   if(deferredMapLayers.length) void map.ready.then(() => requestAnimationFrame(() => {
     for(const load of deferredMapLayers.splice(0)) load();
   }));
+  if(mode==='patrol') showPatrolTour();
 }
 (document.getElementById('choose-navigation') as HTMLButtonElement).onclick=()=>chooseExperience('navigation');
 (document.getElementById('choose-patrol') as HTMLButtonElement).onclick=()=>chooseExperience('patrol');
 function showModeChoices() {
+  hidePatrolTour();
   navigationRequest?.abort();
   if(activeGuidance || nativeGuidanceActive)stopGuidance();
   if(scanner)stop(); else ++scanGeneration;
@@ -780,7 +784,9 @@ mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is ju
 import { mountTutorial, shouldAutoShow } from './tutorial';
 { const tour = mountTutorial({ onStep: s => { if (s.id !== 'sheet') sheet.classList.add('collapsed'); } });
   $('replay-tour').onclick = () => { setSettings(false); tour.open(); };
-  if (shouldAutoShow(localStorage, location.search) && !location.hash) setTimeout(tour.open, 600); }
+  // First Patrol Radar entry only. The mode picker stays a plain choice; Skip/Done sets pr.tutorial.done.
+  showPatrolTour = () => { if (shouldAutoShow(localStorage, location.search) && !location.hash) tour.open(); };
+  hidePatrolTour = () => tour.hide(); }
 
 // Settings summaries reflect the controls rather than storing a second copy of their state.
 function updateSettingsSummaries() {

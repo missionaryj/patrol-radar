@@ -22,6 +22,19 @@ describe('tutorial', () => {
     const s = mem(); expect(shouldAutoShow(s)).toBe(true); expect(tutorialDone(s)).toBe(false);
     markTutorialDone(s); expect(s.getItem(TUTORIAL_KEY)).toBe('1'); expect(shouldAutoShow(s)).toBe(false);
     expect(shouldAutoShow(mem(), '?autostart=1')).toBe(true);
+    expect(shouldAutoShow(s, '')).toBe(false); // same flag still blocks a later app launch
+  });
+  it('auto-opens on the first Patrol Radar entry, not on the mode picker', () => {
+    const main = readFileSync('src/v2/main.ts', 'utf8');
+    expect(main).not.toContain('setTimeout(tour.open');
+    const choose = main.split('function chooseExperience(')[1].split('\n}')[0];
+    expect(choose).toContain("if(mode==='patrol') showPatrolTour()");
+    expect(choose).not.toContain('tour.open');
+    const back = main.split('function showModeChoices()')[1].split('\n}')[0];
+    expect(back).toContain('hidePatrolTour()');
+    expect(main).toContain("$('replay-tour').onclick = () => { setSettings(false); tour.open(); }");
+    expect(main).toContain('if (shouldAutoShow(localStorage, location.search) && !location.hash) tour.open()');
+    expect(main).toContain('hidePatrolTour = () => tour.hide()');
   });
   it('puts the card opposite the highlighted control', () => {
     expect(cardSide(undefined, 800)).toBe('below');
