@@ -1,0 +1,8 @@
+{
+  "montgomery": {
+    "url": "https://data.montgomerycountymd.gov/terms-of-use",
+    "retrieved": "2026-11-12",
+    "sha256": "839f41460a3ebe7f39b0ea48601a7f6f59380a9d132b6066732693e55cc98f27",
+    "text": "The data made available here has been modified for use from its original source, which is Montgomery County, Maryland (\"the County\"). THE COUNTY MAKES NO REPRESENTATIONS OR WARRANTIES AS TO THE COMPLETENESS, ACCURACY, OR TIMELINESS OF ANY DATA. THE COUNTY EXPRESSLY DISCLAIMS ALL WARRANTIES, WHETHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. THE COUNTY MAKES NO REPRESENTATION OR WARRANTY AS TO THE WEBISTE OR APPLICATION USING DATA DRAWN FROM DATA.MONTGOMERYCOUNTYMD.GOV OR FOR THE USEFULNESS OR INTEGRITY OF THE WEB SITE OR APPLICATION. The data is subject to change and possible deletion, temporarily or permanently. It is understood that the information contained in the web feed is being used at one's own risk."
+  }
+}

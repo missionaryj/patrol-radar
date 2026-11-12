@@ -184,6 +184,18 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
 const HEAT_URL = `${import.meta.env.BASE_URL}data/stop-heat/`;
 { const hb = document.getElementById('stopheat') as HTMLInputElement | null; const hs = document.getElementById('stopheat-status');
   const setHeat = (on: boolean) => { localStorage.setItem('pr.stopheat', on ? '1' : '0');
-    map.showStopHeat(on, HEAT_URL).then(() => { const i = map.stopHeatInfo; if (hs && i) hs.textContent = `${i.totals.mapped.toLocaleString()} historical stops mapped · coverage is uneven`; })
+    map.showStopHeat(on, HEAT_URL).then(() => {
+      const i = map.stopHeatInfo;
+      if (hs && i) hs.textContent = `${i.totals.mapped.toLocaleString()} historical source records mapped · regional coverage · encounter uniqueness varies by source`;
+      const terms = document.getElementById('stopheat-terms');
+      if (terms && i) {
+        terms.replaceChildren();
+        const caveat = document.createElement('p'); caveat.textContent = i.disclaimer; terms.append(caveat);
+        for (const s of i.sources) {
+          const p = document.createElement('p'); p.textContent = `${s.name} · ${s.license}. ${s.note ?? ''} ${s.disclaimer ?? ''}`; terms.append(p);
+          const link = document.createElement('a'); link.href = s.license_url ?? s.url; link.textContent = 'Publisher source and terms'; link.target = '_blank'; link.rel = 'noopener'; terms.append(link);
+        }
+      }
+    })
       .catch(e => { if (hs) hs.textContent = `Stop history unavailable (${(e as Error).message})`; }); };
   const on = localStorage.getItem('pr.stopheat') !== '0'; if (hb) { hb.checked = on; hb.onchange = () => setHeat(hb.checked); } setHeat(on); }

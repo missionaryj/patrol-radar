@@ -1,10 +1,25 @@
 {
- "generated": "2026-11-06T07:14:02.368Z",
+ "generated": "2026-11-12T07:53:37.958Z",
  "gridM": 150,
  "tileDeg": 0.25,
  "yearBase": 1990,
  "years": [
+  1990,
+  1992,
+  1994,
+  1998,
+  1999,
+  2000,
+  2001,
+  2002,
+  2004,
+  2005,
+  2006,
   2007,
+  2008,
+  2009,
+  2010,
+  2011,
   2012,
   2013,
   2014,
@@ -78,186 +93,1507 @@
   "investigatory",
   "other"
  ],
- "disclaimer": "Official stop records can be months or years behind. A shaded area is a police beat or a 150 m cell, never one stop. Many places publish no mappable location, so coverage is uneven.",
- "attribution": "Stanford Open Policing Project (Open Data Commons Attribution License); City of Urbana open data; NYPD Vehicle Stop Reports (NYC Open Data); Montgomery County electronic traffic violations (dataMontgomery); Champaign, IL police-beat polygons (City of Champaign open data).",
+ "disclaimer": "Historical records only; coverage is uneven and regional. Coordinates are publisher supplied, sometimes anonymized. Counts use event IDs where available; OPP encounter uniqueness is unverified. Shading is visual only, not current police activity or a prediction.",
+ "attribution": "Stanford Open Policing Project (ODC-BY); Cincinnati Police open data; NYPD Vehicle Stop Reports; dataMontgomery; U.S. Census Bureau 2020 geography and population.",
  "sources": [
   {
-   "id": "opp_chicago",
-   "name": "Stanford Open Policing Project — Chicago",
-   "url": "https://openpolicing.stanford.edu/data/",
+   "id": "opp_mt",
+   "name": "Montana Highway Patrol (Stanford OPP)",
+   "url": "https://stacks.stanford.edu/file/druid:wb225bk3255/wb225bk3255_mt_statewide_2023_01_26.csv.zip",
    "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
-   "last_updated": "2023-02-01",
-   "fetched": "2026-11-06",
-   "stops": 2108098,
-   "mapped": 2005974,
-   "unmapped": 102124,
-   "note": "Standardized stops, roughly 2012–2016 and 2018–2020. Beat outlines are the project shapefile (ODC-BY). A row with no beat code is placed in the beat polygon that contains its published coordinate, or on the 150 m grid if it falls outside."
+   "last_updated": null,
+   "fetched": "2026-11-12",
+   "stops": 920370,
+   "mapped": 920370,
+   "unmapped": 858,
+   "note": "Historical state patrol records, not every Montana police agency. Publisher row identity only; no independent encounter identifier. Published coordinates, accuracy unverified.",
+   "precision": "publisher coordinates; accuracy unverified",
+   "identity": "publisher row; encounter uniqueness not independently verified",
+   "audit": {
+    "seen": 921228,
+    "accepted": 920370,
+    "duplicate_rows": 0,
+    "rejected": 858,
+    "rejection_reasons": {
+     "missing_or_invalid_coordinates": 587,
+     "outside_jurisdiction": 259,
+     "invalid_date": 12
+    },
+    "time_range": [
+     "2009-01-01",
+     "2017-12-31"
+    ]
+   },
+   "download": {
+    "url": "https://stacks.stanford.edu/file/druid:wb225bk3255/wb225bk3255_mt_statewide_2023_01_26.csv.zip",
+    "sha256": "3cb0fe96d3e4be3ddbce89adab08cebf6ab6cebf0865c5aa11d5a90b65fc2b0e",
+    "snapshot": "pinned archive"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/80/query?where=GEOID%3D%2730%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "5a095eb6bc36bd5bd169094239f5a44bc9002a399ae4c4773e5de35578994f0c"
+   }
   },
   {
-   "id": "urbana",
-   "name": "City of Urbana IDOT stop sheets",
-   "url": "https://data.illinois.gov/Local-Government/City-Of-Urbana-IDOT-Stop-Sheet-Police-Data-/vnxf-tjw4",
-   "license": "City of Urbana open data, via data.illinois.gov",
-   "last_updated": "2025-09-11",
-   "fetched": "2026-11-06",
-   "stops": 5446,
-   "mapped": 4739,
-   "unmapped": 707,
-   "note": "Stop-sheet rows with a published map point. Points are snapped to the 150 m grid unless they fall inside a Champaign beat polygon. Street addresses are not stored. Geo codes that are not Champaign beat names are not drawn as beats."
+   "id": "opp_vt",
+   "name": "Vermont State Police (Stanford OPP)",
+   "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_vt_statewide_2020_04_01.csv.zip",
+   "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
+   "last_updated": null,
+   "fetched": "2026-11-12",
+   "stops": 261621,
+   "mapped": 261621,
+   "unmapped": 21664,
+   "note": "Historical state police records, not every Vermont agency. Publisher row identity only; no independent encounter identifier. Published coordinates, accuracy unverified.",
+   "precision": "publisher coordinates; accuracy unverified",
+   "identity": "publisher row; encounter uniqueness not independently verified",
+   "audit": {
+    "seen": 283285,
+    "accepted": 261621,
+    "duplicate_rows": 0,
+    "rejected": 21664,
+    "rejection_reasons": {
+     "missing_or_invalid_coordinates": 20923,
+     "outside_jurisdiction": 741
+    },
+    "time_range": [
+     "2010-07-01",
+     "2015-12-31"
+    ]
+   },
+   "download": {
+    "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_vt_statewide_2020_04_01.csv.zip",
+    "sha256": "9e8c64ec7f7fc090b730b700f25ea9603ef01dc4afedb1dca854eac68c7df916",
+    "snapshot": "pinned archive"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/80/query?where=GEOID%3D%2750%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "6c69ffa2900fe2b299b53a9e4548f4149cc27fce9ce7360821017a22e0e6dd3f"
+   }
+  },
+  {
+   "id": "opp_sf",
+   "name": "San Francisco Police (Stanford OPP)",
+   "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_ca_san_francisco_2020_04_01.csv.zip",
+   "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
+   "last_updated": null,
+   "fetched": "2026-11-12",
+   "stops": 898737,
+   "mapped": 898737,
+   "unmapped": 6333,
+   "note": "Historical vehicle stops. OPP deduplicated raw fields; publisher row identity only here. Do not combine overlapping RIPA/municipal records. Published coordinates, accuracy unverified.",
+   "precision": "publisher coordinates; accuracy unverified",
+   "identity": "publisher row; encounter uniqueness not independently verified",
+   "audit": {
+    "seen": 905070,
+    "accepted": 898737,
+    "duplicate_rows": 0,
+    "rejected": 6333,
+    "rejection_reasons": {
+     "outside_jurisdiction": 4636,
+     "missing_or_invalid_coordinates": 1697
+    },
+    "time_range": [
+     "2007-01-01",
+     "2016-06-30"
+    ]
+   },
+   "download": {
+    "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_ca_san_francisco_2020_04_01.csv.zip",
+    "sha256": "e6a2bd70cdfd249b091b82db04020f3d793523589bd8c5fd667fcd4981df759a",
+    "snapshot": "pinned archive"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%270667000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "d8e339260bb0f2b9a530f1e9b054cca392b66435cfa4f2787b51f39ddf5d1ca0"
+   }
+  },
+  {
+   "id": "cincinnati",
+   "name": "Cincinnati Police Contact Cards — drivers",
+   "url": "https://data.cincinnati-oh.gov/d/unm9-wj3w",
+   "license": "Public Domain (publisher metadata)",
+   "last_updated": "2026-11-11",
+   "fetched": "2026-11-12",
+   "stops": 355120,
+   "mapped": 355120,
+   "unmapped": 394770,
+   "note": "Only explicit driver roles; passengers, pedestrians, owners without a driver role and unknown roles excluded. Report number deduplication; no personal or officer fields retained. Coordinates supplied by publisher.",
+   "precision": "publisher coordinates; accuracy unverified",
+   "identity": "publisher event identifier",
+   "audit": {
+    "seen": 750258,
+    "accepted": 355120,
+    "duplicate_rows": 368,
+    "rejected": 394770,
+    "rejection_reasons": {
+     "not_vehicle": 305167,
+     "missing_or_invalid_coordinates": 83427,
+     "outside_jurisdiction": 6126,
+     "invalid_date": 50
+    },
+    "time_range": [
+     "1990-09-21",
+     "2026-11-11"
+    ]
+   },
+   "download": {
+    "url": "https://data.cincinnati-oh.gov/resource/unm9-wj3w.json",
+    "rowsUpdatedAt": 1794401776,
+    "expected_rows": 750258,
+    "fetched": "2026-11-12T07:30:20.550Z",
+    "pages": [
+     {
+      "offset": 0,
+      "sha256": "bd82abf1c076b2c87c0dfd30b3c3a4df108b77bdeda6d20a7c00989f465d7e84"
+     },
+     {
+      "offset": 50000,
+      "sha256": "5c7b2114cd6b795521c615d711d8f37df490ec37f5902b7fa67662671963cfbf"
+     },
+     {
+      "offset": 100000,
+      "sha256": "4c6348beb8c51990b381c3e703550eed4ff081854ef7dd0818fcb672999833d6"
+     },
+     {
+      "offset": 150000,
+      "sha256": "bac7be7e8a5af38b573617112c2f657f2353997e80263f75bccf7dec7982d2c5"
+     },
+     {
+      "offset": 200000,
+      "sha256": "5bcde0b853fdda3af220c5d9ff25b36ef2aa856dcc50fb446d89c9977eadf007"
+     },
+     {
+      "offset": 250000,
+      "sha256": "c8feff446474a6ccfd61d7f5b0fe910b1124f0682dfe9fcfcba408f0795b2899"
+     },
+     {
+      "offset": 300000,
+      "sha256": "e0307735af9fb0efb283ae7eb82859d2b479bc02215eba878b2662e1858a0be5"
+     },
+     {
+      "offset": 350000,
+      "sha256": "946d849c70d3c3de1c86f991fdb5b7356de31adeef30eafeea0a45a9f984a8e6"
+     },
+     {
+      "offset": 400000,
+      "sha256": "9d7e8d03adb74655b3884f15e8c36e36fc9ead4da76d2b556d2a2fbf81dbd14e"
+     },
+     {
+      "offset": 450000,
+      "sha256": "0045a497ffaaaf122e13df3e7b03c7ba9419b2561c281115c4cdc071e7bf4a33"
+     },
+     {
+      "offset": 500000,
+      "sha256": "df26f5a83ecdc60193339edd16b5518e47863782362d14ba2cc8c14c9d49319a"
+     },
+     {
+      "offset": 550000,
+      "sha256": "b292acf142cf9fff0651f5eb33d93f6fa5d1d1b109c983c37dd70c554497c4eb"
+     },
+     {
+      "offset": 600000,
+      "sha256": "060e0aacf7dd8ade02cf8d14979cbef7befad08c87ddb5a4b0e797001616fd11"
+     },
+     {
+      "offset": 650000,
+      "sha256": "483c6039a8d960b307abc1102cebd2e3f9374761c41dde73f70815d5450389ec"
+     },
+     {
+      "offset": 700000,
+      "sha256": "cdddb4c7f24d4dfb02e9fda0994676ea63af582b0c9d9c8d0fd9efbb1fa0ed25"
+     },
+     {
+      "offset": 750000,
+      "sha256": "b8df618368ddedd875063b1dd7b7677c868cb46ccee8137c428be1cfa5cb8e8a"
+     }
+    ],
+    "license": {
+     "name": "Public Domain"
+    },
+    "selection": "reportnumber,eventdate,subjectrole,lat_x,lon_x,reasonsforstop,primaryactiontaken",
+    "sha256": "63fb4012ff8e112f9e4a9894b658fb33afeb33a64610196459793e1e05426aae"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%273915000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "783ec406959a10d4fa83d5c742d81f41727f584b82b9f359e1786f7c0a198615"
+   }
   },
   {
    "id": "nypd",
    "name": "NYPD Vehicle Stop Reports",
    "url": "https://data.cityofnewyork.us/d/hn9i-dwpr",
-   "license": "NYC Open Data (City of New York)",
+   "license": "NYC Open Data terms of use",
    "last_updated": "2026-07-27",
-   "fetched": "2026-11-06",
-   "stops": 2971075,
-   "mapped": 2961099,
-   "unmapped": 9976,
-   "note": "Vehicle stops joined to NYPD precinct polygons on the published command code. The coordinate is not stored."
+   "fetched": "2026-11-12",
+   "stops": 2309224,
+   "mapped": 2309224,
+   "unmapped": 661851,
+   "note": "Event-key deduplication. Publisher anonymized coordinates; 150 m cells do not imply 150 m source accuracy. Command code is officer assignment and is never used as stop location.",
+   "precision": "publisher anonymized coordinates",
+   "identity": "publisher event identifier",
+   "audit": {
+    "seen": 2971075,
+    "accepted": 2309224,
+    "duplicate_rows": 0,
+    "rejected": 661851,
+    "rejection_reasons": {
+     "missing_or_invalid_coordinates": 660600,
+     "outside_jurisdiction": 1251
+    },
+    "time_range": [
+     "2023-01-01",
+     "2026-06-30"
+    ]
+   },
+   "download": {
+    "url": "https://data.cityofnewyork.us/resource/hn9i-dwpr.json",
+    "rowsUpdatedAt": 1785166949,
+    "expected_rows": 2971075,
+    "fetched": "2026-11-12T07:34:03.563Z",
+    "pages": [
+     {
+      "offset": 0,
+      "sha256": "8bf785ade06fbb36c4b2dad44cc0d7afb6ee4045a8b75cf28b2ee6873d0d8c1c"
+     },
+     {
+      "offset": 50000,
+      "sha256": "43bbeba68a2094c5843a252010286abccb4ac6163c7dbc1d86a1f6df07266426"
+     },
+     {
+      "offset": 100000,
+      "sha256": "09ec4f01dc20598f22b4c2e013ff1db15931b5e5745ee254e5eb82b3b4876603"
+     },
+     {
+      "offset": 150000,
+      "sha256": "e0e4c81613475063e13b03a236f24a37c401f54817fb2ed1484a5b75c450ae9d"
+     },
+     {
+      "offset": 200000,
+      "sha256": "c1cb7bd1c72593667a500038657e8182890ff57b9b57a7944cb1bf7f2bbc1b25"
+     },
+     {
+      "offset": 250000,
+      "sha256": "77d3673d2af2c834643507f92e10a96112823ca02defebaa943075d9c1d4dc66"
+     },
+     {
+      "offset": 300000,
+      "sha256": "083fc19ff0b720d54237c632481983bda5f63eec1c090ca52ee6135381ebb00d"
+     },
+     {
+      "offset": 350000,
+      "sha256": "5620299886975e5b0fe45a9a09d88badbe09c141a1589004717fd0a3233f533c"
+     },
+     {
+      "offset": 400000,
+      "sha256": "5419cf98d543ec6ee59b44756b15abf8e4790abbbffe22495486cfc0358c6c82"
+     },
+     {
+      "offset": 450000,
+      "sha256": "e51dcecfb3f7f243dedf406ac22802218331b9a9ea1ffd3f53c54555778c0061"
+     },
+     {
+      "offset": 500000,
+      "sha256": "0523414bb33926a1ab7b4a05c455ec265c90744634995a9546d94f8b184e5180"
+     },
+     {
+      "offset": 550000,
+      "sha256": "b65e1b5924037110713abcee2a4e5c6d245a1d802d730ea38f766c5e76f9918a"
+     },
+     {
+      "offset": 600000,
+      "sha256": "a6439d8038c072b6d2b9a66f773780c14d5cd66a31024118a52b70403d912556"
+     },
+     {
+      "offset": 650000,
+      "sha256": "049565001171b931de4382df8cfa9e41ce01f387c76a98c263455e2d8bdb8f5a"
+     },
+     {
+      "offset": 700000,
+      "sha256": "d937b47e884a023586a0433efa4936bcd17015186c507f58c50407c4e733bcb8"
+     },
+     {
+      "offset": 750000,
+      "sha256": "681783237d199d877ca761ec406a3fbdb318cf77efda3f201d74d34b6016164b"
+     },
+     {
+      "offset": 800000,
+      "sha256": "206b7673e07b1b599df5cab9c666812c3ca96e412e72cf8cf7be8d37dd968698"
+     },
+     {
+      "offset": 850000,
+      "sha256": "75477cf61acdc9216ea392912f70edc4a741f9998515a3eeb1b296a02404015c"
+     },
+     {
+      "offset": 900000,
+      "sha256": "0ce0ff9e7c115fb383cf257215f205edf19bc975fbf8c097c5c5ac7c6fd267b8"
+     },
+     {
+      "offset": 950000,
+      "sha256": "83203b7b12b04399aa71b0e7adbe3ed35f0656f223d62c8801019dbcb08b378a"
+     },
+     {
+      "offset": 1000000,
+      "sha256": "425e4540cee747df6acc424a9b47c617d015cbfbb58781d20c919fa3bc9ed9e1"
+     },
+     {
+      "offset": 1050000,
+      "sha256": "1f8b6b99658825f8021ad8b0474865f18df9820c7841c9cae39c8c05f4f1b79f"
+     },
+     {
+      "offset": 1100000,
+      "sha256": "b58f5749f41c5a0f563b283f27ec3c792679c46626160b3cb3d65b0e1f1e1598"
+     },
+     {
+      "offset": 1150000,
+      "sha256": "99adee418e5514aff0116015127993fd311c29569953fd2785696b233b8c7df9"
+     },
+     {
+      "offset": 1200000,
+      "sha256": "ae81325c857a47b3623cb31e5f41976c0c08c7b1abcfc7f0eb2bc7d8fb63b41e"
+     },
+     {
+      "offset": 1250000,
+      "sha256": "2dc2d995e1a9531a2676d6db2d4cc80be83ab45fe2d6390b23e434c4992b6860"
+     },
+     {
+      "offset": 1300000,
+      "sha256": "705f3137838a6a3418806756f3198c6dbaa19fe7e090fa8bf6ed5f8325dec498"
+     },
+     {
+      "offset": 1350000,
+      "sha256": "85a4bf2f0dcd17996a436730d12525fca8e752a924a2316cd9c3017b249e6499"
+     },
+     {
+      "offset": 1400000,
+      "sha256": "794749e8f35b47f359961f2937ad62208a054e77eb6fd0f995ec96408af8cb4e"
+     },
+     {
+      "offset": 1450000,
+      "sha256": "68d54f660dae6068fd3c7b570e81baadf77d49c4b9f81715669300b95b39684c"
+     },
+     {
+      "offset": 1500000,
+      "sha256": "1b330fe32a0ba411679f7bdab843dec2449fd06b26c99676d96825002c8dcb1f"
+     },
+     {
+      "offset": 1550000,
+      "sha256": "734fdbf228ca0ef9a14d71cb07463e2e10fb7a94d998a2a307d5ad0cd696febb"
+     },
+     {
+      "offset": 1600000,
+      "sha256": "05b4d2fe8d5cb9a52a75147670dd8a1d0efc9eac81d5ae7055a5949f5c10f7f6"
+     },
+     {
+      "offset": 1650000,
+      "sha256": "196b98590dd48985de4ff0abb8ac7fa0b7d40438ea5bd8d30867037f7df75dbb"
+     },
+     {
+      "offset": 1700000,
+      "sha256": "7429be61a0cd58617e1d1fa67bf3b066c2d1e3dfb8f2361eeb0e10fb62e7253a"
+     },
+     {
+      "offset": 1750000,
+      "sha256": "90f3f897b25e6b156bce42e10b52ffb38e8216e5ad177ab1b2c2e5002bdc5634"
+     },
+     {
+      "offset": 1800000,
+      "sha256": "fa243b26b6f8288808907690f930c8bc0769219dca442defad2fea9b72458254"
+     },
+     {
+      "offset": 1850000,
+      "sha256": "35ce5e97d5bdbade58f909d541c05333cdb4ed76c7392ce452e9ca73d8d14dae"
+     },
+     {
+      "offset": 1900000,
+      "sha256": "cbd958889c915a66db5484938199348b766903c0736c8607c127efc9c6c1873f"
+     },
+     {
+      "offset": 1950000,
+      "sha256": "396294b19916466a90c07cf495d5e5858a9f291ae9ebe734e4f244eca283160d"
+     },
+     {
+      "offset": 2000000,
+      "sha256": "2fadadd963f7d357b458f4061e92ba194b7b7e322ce3ae1ea17096f16ab4a4d3"
+     },
+     {
+      "offset": 2050000,
+      "sha256": "bffdd9f71a752f2106c44e4a820b78f4f39a83aa6e077f19287b0687c8b46833"
+     },
+     {
+      "offset": 2100000,
+      "sha256": "b0c72de60400a1611769afef391aa58dd9a25a85bbe025e13e8e9cd9679b5c22"
+     },
+     {
+      "offset": 2150000,
+      "sha256": "53c79459ed42011fba031607329f924bfebf819457f3b9e80d09d3bac865b541"
+     },
+     {
+      "offset": 2200000,
+      "sha256": "2fcccf6d686518910088cf10d2a61fcb2e6872625e11127e1054a84a58ddc020"
+     },
+     {
+      "offset": 2250000,
+      "sha256": "fa4a090e8dce9947cbf44fabd93485c753746c3a1cc1512de8af332349155a27"
+     },
+     {
+      "offset": 2300000,
+      "sha256": "f15ef5808bafc46bf1ccc22ca67c478eff1da269f410056cc273d2e447aea6d7"
+     },
+     {
+      "offset": 2350000,
+      "sha256": "714ff4111cd5dbe02d8daf4e165bf5d9b1329ae367e6f48e6f0bcbffb3b083f2"
+     },
+     {
+      "offset": 2400000,
+      "sha256": "ca6a83095e443c44b64f77fc818be403964474edde360acf6f0832ee0e533499"
+     },
+     {
+      "offset": 2450000,
+      "sha256": "462512b8ce7319f96e3517c8d2e6113390c3b9b175aa7e609d014c0310b203bf"
+     },
+     {
+      "offset": 2500000,
+      "sha256": "12c1567dd67d032e431872c5154e1ded2b1985740ecb5f6d5b9781c6ff455ed2"
+     },
+     {
+      "offset": 2550000,
+      "sha256": "086291a60d82f9913cb31cec36f4e1ba28d899628f275254822593c25eba02b1"
+     },
+     {
+      "offset": 2600000,
+      "sha256": "7e5cab7b8e6b38bd11534e6555c0d0ac5fb5e25d66e498e5866cbc0f5eac150a"
+     },
+     {
+      "offset": 2650000,
+      "sha256": "6b717b6b65358caf4dc304363b84ff9150d74899e967bf361b2e8a195d79d15b"
+     },
+     {
+      "offset": 2700000,
+      "sha256": "8d9df2ea68be402b034a27d1443e32a29f9e8e266356146f5f061806b79227d6"
+     },
+     {
+      "offset": 2750000,
+      "sha256": "8ba231190d59680eac3502a0291edaa87760cc5380eb0a072a8cb35f4e2e7037"
+     },
+     {
+      "offset": 2800000,
+      "sha256": "516dbf0f29161cceda80d1cb4361c6c667e1cc8408845371be326ebda66df59c"
+     },
+     {
+      "offset": 2850000,
+      "sha256": "29e8f6b39657e822c49d09e71bb1eca37abdd2412a7422c48d2124f3348aa261"
+     },
+     {
+      "offset": 2900000,
+      "sha256": "e3d395cd3128050602ad29be0f8f59fec3c3db9e6be2fa2223fa79a8ae394e6d"
+     },
+     {
+      "offset": 2950000,
+      "sha256": "f32c4b68da3ab464c941c7f309bb93f62a0b7849014d5376e73c4050d9eaf04d"
+     }
+    ],
+    "license": null,
+    "selection": "evnt_key,occur_dt,occur_tm,summon_issued_flg,arrest_made_flg,latitude,longitude",
+    "sha256": "99ed090ae1b0f2438cc1682a4f631c04cfafa7438ec356cbf60ed4f79b583468"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%273651000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "6df01e94200544a75d8a95c4e02d2d764f1368b94750a53d89f74329ca1427da"
+   }
   },
   {
    "id": "montgomery",
-   "name": "Montgomery County, MD electronic traffic violations",
-   "url": "https://data.montgomerycountymd.gov/Public-Safety/Traffic-Violations/4mse-ku6q",
-   "license": "dataMontgomery open data (Montgomery County, MD)",
-   "last_updated": "2026-11-05",
-   "fetched": "2026-11-06",
-   "stops": 2168176,
-   "mapped": 1996780,
-   "unmapped": 171396,
-   "note": "Geocoded electronic violations, snapped to the 150 m grid. Person and vehicle fields are not requested and not stored."
+   "name": "Montgomery County MD traffic violations — stop IDs",
+   "url": "https://data.montgomerycountymd.gov/d/4mse-ku6q",
+   "license": "dataMontgomery terms of use (verify reuse before commercialization)",
+   "last_updated": "2026-11-11",
+   "fetched": "2026-11-12",
+   "stops": 1115157,
+   "mapped": 1115157,
+   "unmapped": 222889,
+   "note": "Only known motor-vehicle categories 01–27; other/unknown and electric bicycle categories excluded. Violation rows collapse by publisher stop ID with outcomes merged. Conflicting valid locations/dates quarantine the entire event.",
+   "precision": "publisher coordinates; accuracy unverified",
+   "identity": "publisher event identifier",
+   "audit": {
+    "seen": 2169987,
+    "accepted": 1115157,
+    "duplicate_rows": 831941,
+    "rejected": 222889,
+    "rejection_reasons": {
+     "missing_or_invalid_coordinates": 169207,
+     "not_vehicle": 47068,
+     "outside_jurisdiction": 6614
+    },
+    "time_range": [
+     "2012-01-01",
+     "2026-11-10"
+    ]
+   },
+   "download": {
+    "url": "https://data.montgomerycountymd.gov/resource/4mse-ku6q.json",
+    "selection": "seq_id,date_of_stop,time_of_stop,latitude,longitude,vehicle_type,violation_type,description",
+    "rowsUpdatedAt": 1794391819,
+    "expected_rows": 2169987,
+    "fetched": "2026-11-12T07:47:35.297Z",
+    "pages": [
+     {
+      "offset": 0,
+      "sha256": "94c36fe81eb57d7a2e8f4609eb483c2a38b29d68d2229b51da2dbb8967071282"
+     },
+     {
+      "offset": 50000,
+      "sha256": "01f9901075c0b1231f50371330713b49a29e52216670d7a8d056ca7febb19414"
+     },
+     {
+      "offset": 100000,
+      "sha256": "82170d8ce7a9642c183b5b88c2ebace60c7c7ea2fe19aaa3c44ed4b3e8cf695a"
+     },
+     {
+      "offset": 150000,
+      "sha256": "9d02dca5e805b4de61e60f8005acc33775aefaddcbbda7c757c63ef960cc85a3"
+     },
+     {
+      "offset": 200000,
+      "sha256": "a3481e2a72a1d1803d46b33705fbb842df38f5da767f4df8a5797ec18025c207"
+     },
+     {
+      "offset": 250000,
+      "sha256": "886acbb6c46b22de7b1da7ab76f5b25b0b1985938b054046dffce81b2fd7096b"
+     },
+     {
+      "offset": 300000,
+      "sha256": "b943a987e2160e6c22269189f0a99c164b37d2755ef1537bd6fce4434e2fbab7"
+     },
+     {
+      "offset": 350000,
+      "sha256": "ff755b083351cee183363d54ef8ea831c34b537de73a6d9192356eb8989ade43"
+     },
+     {
+      "offset": 400000,
+      "sha256": "970e6918a6e7a3a96fe9e9e2af45842df34efe97cb7db44e277df952a4df60a3"
+     },
+     {
+      "offset": 450000,
+      "sha256": "64ee35bdebd63f040b88bb1bf938d12996eda4e3a32e6a855dd90540a54ab8f9"
+     },
+     {
+      "offset": 500000,
+      "sha256": "2a5e9c539db6e7dc7fbcd32b2e22c53131a82be658ad3ef1a99c0f0d428b27c3"
+     },
+     {
+      "offset": 550000,
+      "sha256": "cc7b68d8d0bda0e33633afa8f852817e04a05cb47b9a60c5b76e70eb0a7afa20"
+     },
+     {
+      "offset": 600000,
+      "sha256": "d02a397e1196bc849dff65491ef0808f67c1d706bb9e83431e110e8b1baa4e63"
+     },
+     {
+      "offset": 650000,
+      "sha256": "66efdb819bc865145a3b36130684df7f1a039bd529c15bbcd8bc6b228f62f050"
+     },
+     {
+      "offset": 700000,
+      "sha256": "7366168cd37f77da6b4981b0c46e12744d6a92424e8508860f8593ac148a1659"
+     },
+     {
+      "offset": 750000,
+      "sha256": "04fa9931adc5efabfe0e93533d92122ce5693309b9630e82d71a49dcb772ef91"
+     },
+     {
+      "offset": 800000,
+      "sha256": "331846725c332a9020bde7c431e903893e489a963b19007bae0cb5e92b7f88a9"
+     },
+     {
+      "offset": 850000,
+      "sha256": "b120dd4e55e12e27c1bc1b18c561a27f746862e780a4dbc04e440a27c25d35e0"
+     },
+     {
+      "offset": 900000,
+      "sha256": "f857d7c4020998924584c6bd582328b8133f0e30690a01ee76179872b7e50a8f"
+     },
+     {
+      "offset": 950000,
+      "sha256": "a7fc1e3e5b382193d774ed48b1846c2308ab25a09b9ec9467b93891494ac4afa"
+     },
+     {
+      "offset": 1000000,
+      "sha256": "b78bd198e5296052f178b0373448bd6c961a97e9596a30e32117c7c236b2cb21"
+     },
+     {
+      "offset": 1050000,
+      "sha256": "c0fe8d64c5275faaa3c59cd753d897bb81284a31db60ee5c1ce42b055f79d930"
+     },
+     {
+      "offset": 1100000,
+      "sha256": "9113b1950c5ebb443cb5893d75809ceaa5b96324e8f4cdf6f0f8ae4db5020af7"
+     },
+     {
+      "offset": 1150000,
+      "sha256": "b46560de1557c13c1502a024c8102c20345b6c46454dea930e6070fad539cdd0"
+     },
+     {
+      "offset": 1200000,
+      "sha256": "1d7aa77b4c28e1ddb6a65184cc254e69a829f177780126a1f58385239d0c7d8e"
+     },
+     {
+      "offset": 1250000,
+      "sha256": "0b36d0e404ff9dea0a1edb130075da56107738657d3bd7e89bf587736eea2a97"
+     },
+     {
+      "offset": 1300000,
+      "sha256": "9c69a5dffe2aaea8ba79bb0af087576be09225325cb23300cf6fd7c72f4952ad"
+     },
+     {
+      "offset": 1350000,
+      "sha256": "b1ab3593dd6e4a7fefb75e63464cf316152f8587146aa4d97c63bc44c0bcbd09"
+     },
+     {
+      "offset": 1400000,
+      "sha256": "63ee909bb53e99af3b99da7d12bec681efb0070ba8ce7b0491c0aef3cb84b902"
+     },
+     {
+      "offset": 1450000,
+      "sha256": "edf5a4fc60ba720f1110de946d6d73b53153620d15ae7ccf9468004ef36bcdf3"
+     },
+     {
+      "offset": 1500000,
+      "sha256": "c40a56eb5ef22fc00b1164e0bf50b5f59b759167e6c8fb5d9e426eefbe6521c1"
+     },
+     {
+      "offset": 1550000,
+      "sha256": "be93b1ddce6b8ad80084a264983fe65d50b047b0092e64031c503dded30a197b"
+     },
+     {
+      "offset": 1600000,
+      "sha256": "babccef7dac7a532556597e3013cc08d9ad64b3d2123da5bd2b967d16583c314"
+     },
+     {
+      "offset": 1650000,
+      "sha256": "2cc75028a21c6fc1fabb3eccd9424bc6bd61f27fc9a364e8a3b9b7f0f31e0757"
+     },
+     {
+      "offset": 1700000,
+      "sha256": "09a6908b0faa4615be1355bb2cf785df1a657e8f5a658c17e76d5b5b443f28d3"
+     },
+     {
+      "offset": 1750000,
+      "sha256": "235af9b71e7777d053703db351745d9c7f070971ac7bc2dbda6d6b4e7dd18e99"
+     },
+     {
+      "offset": 1800000,
+      "sha256": "ab461c8e92277369093c399cb133e75436c74b760d989fb0cca318129d11820e"
+     },
+     {
+      "offset": 1850000,
+      "sha256": "6fdb3e5df2c61aab16563018e55ffcf96cfbae7d95a4992f333bd76c99e608c4"
+     },
+     {
+      "offset": 1900000,
+      "sha256": "92cf9467b5957713f988432176f60e534073ff75ecbd00d21032335cedc104df"
+     },
+     {
+      "offset": 1950000,
+      "sha256": "ff11abb260ea0005d8c6e6cb162c680740c791bed09e1eb1dacdac2a46683b25"
+     },
+     {
+      "offset": 2000000,
+      "sha256": "543722acbc3afd9986e1d8afb0fffdb291acc161773d8a75693259af5962a36f"
+     },
+     {
+      "offset": 2050000,
+      "sha256": "294e910b4b2d7cb1f3354ba83c7ecd1b981b57c0112b43664d9b8ae1a22ebb4e"
+     },
+     {
+      "offset": 2100000,
+      "sha256": "d2e3a440db868479e995f7bde6f5800c7b1fed2281ad92a96cdbc9a982f7e336"
+     },
+     {
+      "offset": 2150000,
+      "sha256": "a19fe593e0cf63acb6a400bb565b548be36e571c63e4cdae21a1e3cd13c79748"
+     }
+    ],
+    "license": null,
+    "sha256": "3fa04b1659c7d2b0c91f5d83a77790c067cb29969f8914777875a01542baeb84"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/82/query?where=GEOID%3D%2724031%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "1b3dde736cfd646c857de502e903b23ad47ced82ca5b9bb38ff88adc98fb1200"
+   },
+   "disclaimer": "The data made available here has been modified for use from its original source, which is Montgomery County, Maryland (\"the County\"). THE COUNTY MAKES NO REPRESENTATIONS OR WARRANTIES AS TO THE COMPLETENESS, ACCURACY, OR TIMELINESS OF ANY DATA. THE COUNTY EXPRESSLY DISCLAIMS ALL WARRANTIES, WHETHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. THE COUNTY MAKES NO REPRESENTATION OR WARRANTY AS TO THE WEBISTE OR APPLICATION USING DATA DRAWN FROM DATA.MONTGOMERYCOUNTYMD.GOV OR FOR THE USEFULNESS OR INTEGRITY OF THE WEB SITE OR APPLICATION. The data is subject to change and possible deletion, temporarily or permanently. It is understood that the information contained in the web feed is being used at one's own risk.",
+   "license_url": "https://data.montgomerycountymd.gov/terms-of-use",
+   "license_notice_sha256": "839f41460a3ebe7f39b0ea48601a7f6f59380a9d132b6066732693e55cc98f27"
   }
  ],
  "notMapped": [
   {
-   "id": "opp_il_statewide",
-   "name": "Stanford Open Policing Project — Illinois statewide",
-   "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_il_statewide_2020_04_01.csv.zip",
-   "why": "About 12 million IDOT-style rows, mostly beat codes without coordinates. No statewide beat polygons are bundled here, so it is not drawn. Pass a beat GeoJSON into a future run if you have one; do not commit the raw file."
+   "id": "opp_chicago",
+   "name": "Chicago OPP",
+   "url": "https://github.com/stanford-policylab/opp/blob/master/data_readme.md",
+   "why": "OPP documents unresolved duplicates and hourly time resolution. The previous 2,108,098 rows cannot be claimed as unique encounters; withheld pending a defensible encounter rule."
+  },
+  {
+   "id": "urbana",
+   "name": "Urbana IDOT stop sheets",
+   "url": "https://data.illinois.gov/d/vnxf-tjw4",
+   "why": "Prior build joined Urbana codes to Champaign beats. Withheld pending source event-key and correct Urbana geography validation."
   },
   {
    "id": "ct_stops",
-   "name": "Connecticut traffic stops (data.ct.gov)",
+   "name": "Connecticut traffic stops",
    "url": "https://data.ct.gov/d/nahi-zqrt",
-   "why": "Published rows have a town and an intersection string, not coordinates. Intersections are not geocoded (that would invent precise points). Town-wide shapes are not drawn."
-  },
-  {
-   "id": "sd_opp",
-   "name": "Stanford Open Policing Project — San Diego",
-   "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_ca_san_diego_2020_04_01.csv.zip",
-   "why": "The standardized file has a service-area code and no coordinates. The project shapefile is nine police divisions and does not use those codes, so it is not drawn."
-  },
-  {
-   "id": "sd_ripa",
-   "name": "San Diego RIPA stops",
-   "url": "https://data.sandiego.gov/datasets/police-ripa-stops/",
-   "why": "Quarterly files include a beat name and a street block, not latitude/longitude. Block addresses are not geocoded and are not stored."
+   "why": "Town/intersection locations require a separately validated coarse geography adapter; no fabricated street points."
   }
  ],
+ "coverage": {
+  "states_with_records": [
+   "CA",
+   "MD",
+   "MT",
+   "NY",
+   "OH",
+   "VT"
+  ],
+  "state_count": 6,
+  "state_denominator": 51,
+  "jurisdictions": [
+   {
+    "geoid": "30",
+    "name": "Montana",
+    "state": "MT",
+    "population_2020": 1084225,
+    "land_m2": 376973673895,
+    "water_m2": 3866689601,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/80/query?where=GEOID%3D%2730%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "5a095eb6bc36bd5bd169094239f5a44bc9002a399ae4c4773e5de35578994f0c"
+    }
+   },
+   {
+    "geoid": "50",
+    "name": "Vermont",
+    "state": "VT",
+    "population_2020": 643077,
+    "land_m2": 23873081385,
+    "water_m2": 1030243281,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/80/query?where=GEOID%3D%2750%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "6c69ffa2900fe2b299b53a9e4548f4149cc27fce9ce7360821017a22e0e6dd3f"
+    }
+   },
+   {
+    "geoid": "0667000",
+    "name": "San Francisco city",
+    "state": "CA",
+    "population_2020": 873965,
+    "land_m2": 121507089,
+    "water_m2": 479146790,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%270667000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "d8e339260bb0f2b9a530f1e9b054cca392b66435cfa4f2787b51f39ddf5d1ca0"
+    }
+   },
+   {
+    "geoid": "3915000",
+    "name": "Cincinnati city",
+    "state": "OH",
+    "population_2020": 309317,
+    "land_m2": 201594254,
+    "water_m2": 4434805,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%273915000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "783ec406959a10d4fa83d5c742d81f41727f584b82b9f359e1786f7c0a198615"
+    }
+   },
+   {
+    "geoid": "3651000",
+    "name": "New York city",
+    "state": "NY",
+    "population_2020": 8804190,
+    "land_m2": 778165283,
+    "water_m2": 445421632,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%273651000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "6df01e94200544a75d8a95c4e02d2d764f1368b94750a53d89f74329ca1427da"
+    }
+   },
+   {
+    "geoid": "24031",
+    "name": "Montgomery County",
+    "state": "MD",
+    "population_2020": 1062061,
+    "land_m2": 1277148686,
+    "water_m2": 35731155,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/82/query?where=GEOID%3D%2724031%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "1b3dde736cfd646c857de502e903b23ad47ced82ca5b9bb38ff88adc98fb1200"
+    }
+   }
+  ],
+  "population_of_jurisdictions": 12776835,
+  "us_population_2020": 331449281,
+  "occupied_grid_cells": 163060,
+  "occupied_cell_footprint_m2": 3654242110.767179,
+  "us_total_area_m2": 9849259423576,
+  "occupied_cell_us_area_percent": 0.03710169418443872,
+  "point_area_m2": 0,
+  "denominator": {
+   "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/80/query?where=1%3D1&outFields=GEOID,NAME,POP100,AREALAND,AREAWATER&returnGeometry=false&f=json",
+   "sha256": "769fc713c2d9d86b811ddae88766f43a49bc84ea786ef6e530fa5af4159db8f9"
+  },
+  "note": "Jurisdiction population is agency footprint context, not residents covered by stop observations. Occupied 150 m cells clipped to 2020 Census jurisdiction polygons measure a coarse observation footprint (including water), not road coverage or complete state coverage. Points themselves have zero area. Source positional accuracy is not independently verified. No 75% coverage claim."
+ },
  "tiles": {
-  "18_-120.5": 1,
-  "35.75_-78": 1,
-  "35.75_-79.25": 1,
-  "35_-77.75": 1,
-  "37.25_-76": 1,
-  "37.5_-77.5": 1,
-  "37_-76.5": 1,
-  "37_-77.5": 1,
-  "37_-78.5": 1,
-  "37_-89.25": 1,
-  "38.25_-75.25": 1,
-  "38.25_-77": 1,
-  "38.25_-79.5": 1,
-  "38.5_-75.75": 1,
-  "38.5_-76.5": 1,
-  "38.5_-76.75": 1,
-  "38.5_-77.25": 3,
-  "38.5_-77": 2,
-  "38.5_-78": 1,
-  "38.75_-76.25": 2,
-  "38.75_-76.5": 1,
-  "38.75_-76.75": 6,
-  "38.75_-77.25": 1825,
-  "38.75_-77": 165,
-  "38.75_-77.5": 5,
-  "38.75_-77.75": 3,
-  "38.75_-79.75": 1,
-  "38.75_-94.75": 1,
-  "38_-77": 1,
-  "38_-81.25": 1,
-  "39.25_-76.75": 11,
-  "39.25_-76": 1,
-  "39.25_-77.25": 842,
-  "39.25_-77.5": 398,
-  "39.25_-77.75": 7,
-  "39.25_-77": 17,
-  "39.25_-78.25": 1,
-  "39.25_-88.5": 1,
-  "39.25_-89.25": 3,
-  "39.5_-77.25": 6,
-  "39.5_-77.5": 7,
-  "39.5_-77.75": 9,
-  "39.5_-77": 2,
-  "39.5_-78": 2,
-  "39.5_-79.5": 1,
-  "39.75_-75.5": 1,
-  "39.75_-77": 1,
-  "39_-75": 1,
-  "39_-76.5": 1,
-  "39_-76.75": 9,
-  "39_-77.25": 12171,
-  "39_-77": 1917,
-  "39_-77.5": 2782,
-  "39_-77.75": 5,
-  "39_-78": 1,
+  "47.5_-112": 294,
+  "46.75_-114.25": 2163,
+  "46.5_-114.25": 830,
+  "45.75_-108.5": 1667,
+  "45.25_-111.25": 165,
+  "46_-112.75": 466,
+  "47.25_-111.5": 773,
+  "45.5_-109": 709,
+  "45.75_-108.75": 1717,
+  "45.75_-111.5": 486,
+  "45.5_-108.75": 796,
+  "46.25_-114.25": 1100,
+  "48.25_-114.5": 1387,
+  "47.25_-111.25": 385,
+  "47_-114.75": 254,
+  "45.75_-112.25": 438,
+  "45.75_-111.75": 501,
+  "47.25_-111": 423,
+  "46.25_-106.75": 295,
+  "47.25_-114.25": 723,
+  "46.75_-110": 264,
+  "45.75_-108.25": 558,
+  "47.25_-115.25": 302,
+  "47_-115": 457,
+  "47_-110.5": 158,
+  "47.25_-109": 155,
+  "45.75_-113.25": 34,
+  "45.5_-111.25": 2306,
+  "46_-109": 212,
+  "47_-114.25": 458,
+  "45.5_-111.5": 238,
+  "48.25_-115.75": 564,
+  "48_-114.25": 1149,
+  "45.5_-109.5": 571,
+  "46.75_-114": 668,
+  "45.75_-111.25": 712,
+  "46.75_-113.5": 160,
+  "47.5_-114.25": 1194,
+  "48_-114.5": 1880,
+  "46.25_-106.25": 216,
+  "48.25_-105.25": 4,
+  "48.5_-105.25": 2,
+  "46.25_-107": 320,
+  "45.5_-110.25": 84,
+  "46.25_-106.5": 198,
+  "45.5_-110.75": 740,
+  "47.5_-115.5": 244,
+  "47.25_-114.5": 228,
+  "46.75_-109.75": 98,
+  "48.25_-114.75": 58,
+  "45.75_-112.5": 506,
+  "47.25_-115.5": 210,
+  "46_-114.25": 539,
+  "47_-114.5": 292,
+  "46.5_-113.5": 190,
+  "48.5_-109.75": 541,
+  "45.25_-112.75": 418,
+  "46_-113": 837,
+  "46_-112.5": 238,
+  "48.75_-115.25": 624,
+  "47_-109.75": 149,
+  "46.5_-112.5": 193,
+  "48.25_-113": 97,
+  "45.75_-112.75": 811,
+  "45.5_-109.25": 424,
+  "47.5_-111.25": 451,
+  "45.75_-105.75": 226,
+  "46.5_-112": 1344,
+  "45.5_-112.75": 241,
+  "46_-108.5": 197,
+  "46.5_-111.75": 142,
+  "45.25_-109": 343,
+  "45_-109": 229,
+  "45.5_-111": 380,
+  "46.25_-105.5": 138,
+  "47.5_-114.75": 221,
+  "47_-113.5": 275,
+  "48.75_-105.5": 185,
+  "48.5_-115": 202,
+  "47_-104.75": 565,
+  "47_-105": 367,
+  "48.25_-105.5": 131,
+  "46_-105.75": 251,
+  "46.25_-108.75": 275,
+  "46.25_-112.75": 470,
+  "47.5_-104.5": 250,
+  "46.25_-113": 99,
+  "45.75_-110": 416,
+  "48_-104.75": 243,
+  "47.5_-104.25": 516,
+  "46.25_-106": 843,
+  "47.75_-104.25": 293,
+  "47.75_-114.25": 407,
+  "46.75_-105.5": 167,
+  "46.25_-109.5": 137,
+  "45.25_-105.75": 125,
+  "47.75_-114.5": 251,
+  "48_-114.75": 160,
+  "45.5_-107.75": 524,
+  "48_-115": 73,
+  "47.5_-111.5": 1076,
+  "45.5_-110": 32,
+  "45.5_-106": 147,
+  "45.75_-108": 200,
+  "46.75_-113.75": 289,
+  "45.75_-112": 425,
+  "45.25_-111.5": 180,
+  "48.75_-113.5": 144,
+  "48.5_-109.5": 166,
+  "47.25_-104.5": 253,
+  "46_-111.75": 132,
+  "48.25_-113.5": 104,
+  "45_-109.25": 339,
+  "48_-106.75": 411,
+  "45.75_-106.75": 296,
+  "48.25_-108": 228,
+  "46_-107.75": 289,
+  "46.75_-105": 170,
+  "48_-104.25": 142,
+  "48_-106.5": 274,
+  "46.5_-113": 311,
+  "46.5_-113.25": 389,
+  "45.75_-109": 108,
+  "47_-110.25": 236,
+  "47.25_-110.75": 131,
+  "48_-105.5": 265,
+  "46.25_-108.5": 129,
+  "45.75_-110.25": 154,
+  "47_-109": 260,
+  "48.5_-113.25": 344,
+  "46.75_-109": 55,
+  "46_-106.75": 109,
+  "45.25_-109.25": 372,
+  "48.5_-104.5": 271,
+  "47.25_-112.25": 312,
+  "46.75_-108.75": 161,
+  "46.5_-108.75": 216,
+  "48.5_-112.5": 340,
+  "46.25_-111.75": 337,
+  "48_-106.25": 174,
+  "46.75_-112.25": 367,
+  "47_-106.75": 93,
+  "47.25_-107": 186,
+  "48.25_-112": 421,
+  "47.25_-111.75": 344,
+  "48.5_-112.25": 192,
+  "48_-104.5": 352,
+  "48.5_-112": 430,
+  "46.25_-107.25": 230,
+  "46_-107": 162,
+  "46_-111.5": 158,
+  "48.25_-114.25": 957,
+  "46.5_-112.25": 1435,
+  "48.5_-109": 233,
+  "48.25_-107": 159,
+  "47_-106": 15,
+  "48_-105.25": 321,
+  "48.25_-106.75": 226,
+  "48.5_-109.25": 202,
+  "46_-107.5": 169,
+  "46_-107.25": 35,
+  "45.75_-107.75": 162,
+  "46.25_-112.25": 235,
+  "46.5_-112.75": 322,
+  "45.5_-108": 155,
+  "47.25_-104.75": 117,
+  "47_-112": 256,
+  "46_-112": 101,
+  "45.5_-109.75": 201,
+  "48_-106": 191,
+  "45.25_-107.5": 184,
+  "46.75_-106.5": 100,
+  "48.75_-115": 220,
+  "45.25_-107.75": 16,
+  "46.5_-113.75": 204,
+  "44.5_-112.75": 191,
+  "45.25_-109.5": 109,
+  "48_-115.5": 271,
+  "47.5_-111.75": 532,
+  "47.75_-111": 233,
+  "47.25_-115": 408,
+  "47.75_-110.75": 329,
+  "46.25_-110": 233,
+  "48.5_-110.25": 122,
+  "48.5_-110.5": 131,
+  "47.25_-106": 51,
+  "48.5_-110.75": 132,
+  "48.5_-111": 177,
+  "45_-112.75": 432,
+  "47.75_-112.25": 275,
+  "47.75_-104.5": 288,
+  "46.25_-112": 130,
+  "45.25_-111": 88,
+  "45.25_-109.75": 39,
+  "48.5_-111.25": 92,
+  "47.75_-105.5": 108,
+  "48_-105.75": 487,
+  "48.5_-110": 253,
+  "48.25_-112.25": 137,
+  "48.25_-111": 106,
+  "48.25_-112.5": 218,
+  "46.75_-113": 254,
+  "46.25_-109.25": 138,
+  "46.25_-109.75": 174,
+  "48.25_-111.5": 128,
+  "48.25_-111.75": 140,
+  "47_-109.5": 421,
+  "47_-111.75": 40,
+  "47.75_-111.75": 233,
+  "48.5_-105.5": 173,
+  "48_-112": 544,
+  "47_-104.5": 179,
+  "45.5_-110.5": 289,
+  "48.25_-107.25": 165,
+  "47.25_-112": 162,
+  "48.25_-116": 269,
+  "47.5_-112.25": 120,
+  "45_-109.5": 193,
+  "45_-108.75": 95,
+  "48.5_-113": 259,
+  "48.5_-112.75": 143,
+  "46.5_-105.75": 241,
+  "48_-110.5": 195,
+  "46.25_-105.75": 264,
+  "48_-110.25": 213,
+  "47_-105.25": 118,
+  "47.25_-114.75": 130,
+  "46_-110": 52,
+  "46.75_-112.75": 209,
+  "47.75_-110.5": 40,
+  "47.5_-115.25": 175,
+  "48.25_-110": 279,
+  "47.25_-113": 1,
+  "44.5_-111.25": 232,
+  "47.75_-105.75": 59,
+  "45.5_-107.5": 327,
+  "45.5_-107.25": 76,
+  "45_-111": 101,
+  "45_-111.75": 210,
+  "47.5_-105.5": 101,
+  "47.5_-105.75": 74,
+  "46.75_-113.25": 30,
+  "47_-108.5": 55,
+  "46.75_-104.25": 256,
+  "48.25_-104.5": 206,
+  "46.25_-109": 96,
+  "46.5_-110": 161,
+  "45.5_-111.75": 240,
+  "48.25_-110.25": 92,
+  "47_-104.25": 28,
+  "48.75_-105.25": 121,
+  "45.5_-112.5": 204,
+  "45.25_-105.25": 159,
+  "47.5_-108.75": 79,
+  "47.5_-109": 27,
+  "48.25_-112.75": 219,
+  "48.5_-114.75": 188,
+  "47_-112.5": 186,
+  "48_-111": 102,
+  "46_-112.25": 173,
+  "46_-110.75": 166,
+  "46.25_-112.5": 47,
+  "47.75_-114.75": 127,
+  "48.75_-104.75": 272,
+  "45.75_-111": 108,
+  "47_-105.75": 22,
+  "48.75_-113.25": 57,
+  "46.25_-111.25": 35,
+  "47.25_-105.5": 132,
+  "45_-113": 174,
+  "44.75_-113": 248,
+  "46.75_-105.25": 237,
+  "46_-108": 123,
+  "47_-110": 134,
+  "47.5_-113.75": 24,
+  "47.5_-111": 55,
+  "45.25_-110.75": 212,
+  "45.25_-105.5": 315,
+  "47.75_-112": 78,
+  "48.25_-108.5": 86,
+  "47.25_-110.5": 17,
+  "46.75_-114.5": 152,
+  "47.75_-111.25": 38,
+  "47.5_-115": 127,
+  "48.25_-113.25": 149,
+  "48_-105": 208,
+  "44.75_-111.25": 156,
+  "46.5_-108": 15,
+  "45.25_-112.25": 108,
+  "48.25_-107.75": 166,
+  "45.75_-110.75": 239,
+  "48.25_-109": 30,
+  "48.25_-107.5": 132,
+  "45_-107.5": 101,
+  "48.75_-106.25": 16,
+  "45.25_-112.5": 89,
+  "47_-107.25": 84,
+  "47_-107": 40,
+  "46.25_-104.5": 237,
+  "45.25_-108": 19,
+  "45.75_-114.5": 10,
+  "47.25_-112.5": 93,
+  "45.75_-114.25": 203,
+  "45.75_-114": 84,
+  "47.75_-115.75": 136,
+  "46.25_-105.25": 139,
+  "47.75_-114": 75,
+  "46.25_-105": 89,
+  "45_-111.5": 35,
+  "45.75_-113": 37,
+  "46.25_-104.75": 83,
+  "46.25_-113.25": 22,
+  "46.25_-113.5": 76,
+  "46_-113.5": 59,
+  "46.5_-106.25": 142,
+  "45_-111.25": 197,
+  "45.25_-111.75": 289,
+  "46.5_-108.25": 18,
+  "47_-111": 164,
+  "48.75_-112": 218,
+  "48.25_-114": 81,
+  "48.25_-115.5": 128,
+  "48.5_-115.25": 14,
+  "46_-113.25": 131,
+  "47_-115.25": 61,
+  "47_-112.25": 254,
+  "46.5_-104.25": 117,
+  "45.25_-112": 102,
+  "45.5_-105.75": 257,
+  "48.75_-112.75": 7,
+  "46.25_-104.25": 62,
+  "45.5_-108.5": 59,
+  "47.75_-115.5": 7,
+  "48.5_-115.5": 25,
+  "48_-112.25": 86,
+  "48_-112.5": 124,
+  "48.25_-108.25": 140,
+  "45.75_-110.5": 21,
+  "47.25_-105.75": 194,
+  "47.25_-115.75": 79,
+  "47_-107.75": 36,
+  "47.25_-107.25": 84,
+  "47_-113.25": 141,
+  "46_-104.5": 9,
+  "46.25_-111.5": 161,
+  "46.5_-107.25": 9,
+  "45.5_-104.5": 4,
+  "44.5_-112.5": 51,
+  "46.75_-106.75": 18,
+  "46.5_-111": 175,
+  "46.75_-112": 12,
+  "47.25_-110": 15,
+  "47_-107.5": 83,
+  "47_-108.75": 49,
+  "47.75_-108.75": 70,
+  "48.75_-105.75": 40,
+  "47_-109.25": 96,
+  "45.5_-112.25": 26,
+  "45_-107": 27,
+  "45.75_-104.75": 1,
+  "46.75_-108": 11,
+  "47_-108.25": 15,
+  "48_-114": 73,
+  "48.25_-108.75": 94,
+  "48.5_-116": 60,
+  "48.75_-106.5": 24,
+  "48.75_-105": 116,
+  "45.5_-106.25": 121,
+  "47_-112.75": 4,
+  "45.5_-108.25": 7,
+  "48_-108.75": 12,
+  "45_-104.5": 50,
+  "46.25_-111": 258,
+  "45.25_-113.25": 48,
+  "45.5_-106.75": 125,
+  "46.75_-110.75": 33,
+  "46.5_-109.75": 55,
+  "44.75_-111.75": 134,
+  "47.5_-104.75": 87,
+  "47.5_-110.5": 34,
+  "47.75_-116": 9,
+  "47.5_-105.25": 35,
+  "48_-115.25": 153,
+  "48_-111.75": 3,
+  "46.75_-112.5": 52,
+  "44.75_-112.75": 30,
+  "45_-104.75": 77,
+  "47.25_-109.5": 35,
+  "48.75_-114.25": 1,
+  "45_-105.5": 67,
+  "48.25_-111.25": 63,
+  "45_-105.25": 2,
+  "46.75_-111": 25,
+  "45_-110.75": 24,
+  "48.75_-113": 16,
+  "47.75_-112.5": 69,
+  "45_-105": 85,
+  "48.5_-104.25": 23,
+  "47.75_-106.25": 11,
+  "48.75_-106": 34,
+  "48_-116": 96,
+  "45.5_-113.5": 53,
+  "45.5_-113.75": 40,
+  "48.5_-104.75": 4,
+  "45.75_-107.5": 11,
+  "48.75_-104.5": 46,
+  "47.25_-105": 12,
+  "45.5_-106.5": 54,
+  "45.5_-112": 86,
+  "48_-113.5": 12,
+  "47.5_-110.75": 13,
+  "47_-113.75": 52,
+  "48.25_-109.75": 156,
+  "46.75_-106.25": 38,
+  "47.75_-106.5": 6,
+  "48.75_-115.5": 33,
+  "44.75_-113.25": 7,
+  "45.25_-110": 15,
+  "44.75_-111.5": 85,
+  "47.5_-105": 51,
+  "47.75_-108.5": 36,
+  "45.5_-114": 16,
+  "44.5_-111.5": 37,
+  "45.5_-107": 63,
+  "48.25_-113.75": 67,
+  "46.5_-106": 17,
+  "47.5_-114.5": 10,
+  "46.5_-114": 16,
+  "46.75_-114.75": 4,
+  "48.75_-112.5": 6,
+  "48.5_-108.75": 11,
+  "48_-113.75": 18,
+  "47.25_-113.75": 86,
+  "48_-116.25": 5,
+  "47.75_-104.75": 32,
+  "46.5_-105.5": 112,
+  "46.25_-110.25": 31,
+  "47.5_-110.25": 6,
+  "46.5_-111.25": 4,
+  "45_-110": 16,
+  "45_-110.25": 2,
+  "48.75_-104.25": 22,
+  "46.25_-114": 4,
+  "48_-108": 1,
+  "48_-108.25": 57,
+  "45_-113.25": 38,
+  "48.5_-113.5": 39,
+  "48.5_-106.75": 17,
+  "47.25_-105.25": 13,
+  "47.25_-106.25": 44,
+  "46.25_-110.5": 43,
+  "46.5_-110.5": 32,
+  "47.25_-106.75": 53,
+  "47.5_-112.5": 54,
+  "47.25_-110.25": 13,
+  "48.5_-107.5": 1,
+  "47_-111.25": 1,
+  "48.75_-108.5": 6,
+  "48_-109.75": 3,
+  "47_-110.75": 6,
+  "45.25_-107": 3,
+  "48.5_-111.75": 2,
+  "46.75_-108.5": 15,
+  "48_-107": 1,
+  "48.75_-113.75": 2,
+  "48.5_-106.5": 16,
+  "48.75_-110.25": 13,
+  "47.25_-106.5": 26,
+  "46.5_-107.75": 5,
+  "48_-112.75": 34,
+  "48.5_-114.25": 4,
+  "47.5_-114": 34,
+  "45.75_-107.25": 4,
+  "45_-112.5": 4,
+  "47.75_-105": 4,
+  "48.5_-108": 5,
+  "46.5_-110.75": 31,
+  "45.25_-113.5": 90,
+  "48.75_-110": 2,
+  "47.25_-109.25": 34,
+  "46.25_-113.75": 1,
+  "45.75_-113.5": 6,
+  "47_-105.5": 1,
+  "48.75_-108.75": 1,
+  "47.5_-106.25": 13,
+  "45_-106.75": 1,
+  "45.5_-113.25": 2,
+  "46_-111": 16,
+  "46_-114": 3,
+  "47.5_-109.5": 1,
+  "45.5_-105.25": 1,
+  "48.25_-109.25": 1,
+  "48.75_-112.25": 2,
+  "46.5_-108.5": 1,
+  "45.25_-113": 2,
+  "46.25_-107.5": 5,
+  "46.5_-114.75": 6,
+  "46.75_-105.75": 10,
+  "45.75_-109.5": 7,
+  "46_-113.75": 1,
+  "46_-106": 1,
+  "48.5_-107.75": 5,
+  "48.5_-116.25": 11,
+  "45.25_-108.5": 1,
+  "47_-108": 4,
+  "45.75_-105": 1,
+  "46.5_-107.5": 6,
+  "48.5_-111.5": 1,
+  "46.75_-110.25": 22,
+  "45.5_-114.5": 7,
+  "48.25_-104.75": 13,
+  "47.25_-109.75": 3,
+  "46_-109.5": 1,
+  "46.75_-104.5": 1,
+  "48.25_-105": 3,
+  "47.5_-115.75": 2,
+  "48.75_-114.5": 1,
+  "48.5_-105": 1,
+  "46.5_-111.5": 5,
+  "45_-108.5": 1,
+  "48.25_-104.25": 1,
+  "46.75_-104.75": 1,
+  "46.75_-106": 1,
+  "46.75_-111.25": 1,
+  "47_-113": 1,
+  "46.75_-111.5": 1,
+  "48.5_-114": 1,
+  "46.75_-109.5": 1,
+  "47.75_-112.75": 11,
+  "46.75_-111.75": 2,
+  "45.25_-107.25": 1,
+  "46.5_-114.5": 2,
+  "46_-106.5": 4,
+  "45.75_-106.5": 2,
+  "48_-110": 2,
+  "48_-108.5": 2,
+  "46_-109.75": 1,
+  "47.25_-104.25": 2,
+  "48.75_-115.75": 5,
+  "45.25_-105": 4,
+  "45.25_-104.5": 2,
+  "48.25_-115.25": 1,
+  "48.75_-108": 1,
+  "48.5_-115.75": 3,
+  "48.5_-106.25": 1,
+  "46.25_-110.75": 3,
+  "45.25_-108.75": 1,
+  "45.25_-106.25": 2,
+  "48.25_-110.75": 1,
+  "44.5_-72.75": 277,
+  "44_-72.75": 408,
+  "44.5_-73.25": 551,
+  "44.5_-73": 413,
+  "44_-73": 211,
+  "44.75_-73.5": 57,
+  "43.25_-73": 139,
+  "45_-73.25": 4,
+  "44.25_-73": 282,
+  "44.25_-73.25": 957,
+  "44.75_-72.75": 187,
+  "44.75_-73.25": 710,
+  "44.25_-72.75": 414,
+  "43.75_-72.75": 522,
+  "44.25_-73.5": 39,
+  "44.5_-73.5": 63,
+  "44.5_-72.5": 78,
+  "44_-73.25": 365,
+  "44.25_-72.5": 274,
+  "44.75_-72.25": 402,
+  "44.75_-73": 355,
+  "43.5_-73": 468,
+  "44.25_-71.75": 29,
+  "44.25_-72": 109,
+  "43.75_-72.25": 210,
+  "45_-71.75": 6,
+  "43.75_-73": 117,
+  "44.75_-72.5": 257,
+  "44_-73.5": 139,
+  "43.75_-73.5": 82,
+  "44_-72.25": 286,
+  "43.75_-73.25": 205,
+  "43.5_-73.25": 294,
+  "43.5_-72.5": 475,
+  "43_-72.5": 162,
+  "45_-72.75": 20,
+  "45_-73": 12,
+  "43_-73.25": 169,
+  "43.75_-72.5": 253,
+  "44.25_-72.25": 304,
+  "43.5_-73.5": 58,
+  "43.25_-73.25": 143,
+  "45_-72.25": 27,
+  "44.75_-71.75": 16,
+  "44.75_-72": 51,
+  "45_-73.5": 4,
+  "44.5_-72": 175,
+  "45_-72.5": 4,
+  "42.75_-73.25": 247,
+  "44.5_-72.25": 247,
+  "43_-73": 158,
+  "42.75_-72.75": 551,
+  "43.5_-72.75": 135,
+  "44_-72.5": 221,
+  "43.25_-72.5": 189,
+  "44.5_-71.75": 11,
+  "45_-71.5": 1,
+  "42.75_-73.5": 21,
+  "45_-72": 1,
+  "43.25_-72.75": 322,
+  "43_-72.75": 197,
+  "42.75_-73": 149,
+  "43_-73.5": 2,
+  "42.5_-73.25": 1,
+  "42.75_-72.5": 8,
+  "42.5_-72.75": 7,
+  "42.5_-73": 1,
+  "42.5_-72.5": 2,
+  "37.75_-122.5": 2410,
+  "37.5_-122.5": 1904,
+  "37.75_-122.75": 145,
+  "37.5_-122.75": 71,
+  "37.5_-123.25": 1,
+  "39_-84.75": 4022,
+  "39_-84.5": 2942,
+  "40.75_-74": 7225,
+  "40.5_-74": 10868,
+  "40.5_-73.75": 970,
+  "40.5_-74.25": 3904,
+  "40.75_-74.25": 32,
+  "40.75_-73.75": 174,
+  "40.5_-74.5": 9,
   "40.25_-74.25": 3,
-  "40.25_-77.5": 1,
-  "40.5_-74.25": 735,
-  "40.5_-74.5": 10,
-  "40.5_-89.75": 1,
-  "40.75_-71.5": 1,
-  "40.75_-71.75": 1,
-  "40_-73.5": 1,
-  "40_-77.25": 1,
-  "40_-88.25": 408,
-  "41.25_-87.25": 9,
-  "41.25_-87.75": 331,
-  "41.25_-88.25": 24,
-  "41.25_-88": 29,
-  "41.5_-72.75": 1,
-  "41.5_-87.25": 1,
-  "41.5_-87.5": 36,
-  "41.5_-87.75": 3156,
-  "41.5_-88": 1195,
-  "41.5_-87": 1,
-  "41.5_-88.25": 26,
-  "41.5_-88.5": 41,
-  "41.5_-93.5": 1,
-  "41.75_-87.75": 208,
-  "41.75_-88": 2154,
-  "41.75_-88.25": 381,
-  "41.75_-88.5": 53,
-  "42.25_-88.25": 15,
-  "42.25_-88.5": 3,
-  "42.25_-88": 298,
-  "42_-87.75": 206,
-  "42_-88": 960,
-  "42_-88.25": 552,
-  "42_-88.5": 33
+  "39_-77.25": 11821,
+  "38.75_-77": 96,
+  "38.75_-77.25": 1697,
+  "39_-77.5": 2692,
+  "39_-77": 1722,
+  "39.25_-77.25": 684,
+  "39.25_-77.5": 220,
+  "39_-77.75": 4
  },
- "beatFiles": [
-  "beats/champaign.json",
-  "beats/chicago.json",
-  "beats/nyc.json"
- ],
+ "beatFiles": [],
  "totals": {
-  "stops": 7252795,
-  "mapped": 6968592,
-  "unmapped": 284203,
-  "beats": 355,
-  "cells": 31106
+  "stops": 5860229,
+  "mapped": 5860229,
+  "unmapped": 1308365,
+  "beats": 0,
+  "cells": 163060
  },
+ "counting_note": "Accepted source stop records, not a verified count of unique encounters across all publishers. OPP lacks an independently validated encounter key.",
  "subscription": "not-gated"
 }

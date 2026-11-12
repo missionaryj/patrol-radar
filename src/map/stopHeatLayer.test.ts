@@ -88,7 +88,8 @@ describe('stop heat processed files', () => {
     expect(idx.gridM).toBeGreaterThanOrEqual(150); expect(idx.gridM).toBeLessThanOrEqual(250);
     expect(idx.disclaimer).toMatch(/uneven/);
     expect(idx.attribution).toMatch(/Open Policing Project/);
-    expect(idx.sources.some((s: { id: string }) => s.id === 'opp_chicago')).toBe(true);
+    expect(idx.sources.some((s: { id: string }) => s.id === 'opp_mt')).toBe(true);
+    expect(idx.notMapped.some((s: { id: string }) => s.id === 'opp_chicago')).toBe(true);
     expect(idx.totals.mapped).toBeGreaterThan(1000);
     expect(idx.notMapped.some((g: { id: string }) => g.id === 'ct_stops')).toBe(true);
     const files = [dir + 'index.json', ...idx.beatFiles.map((f: string) => dir + f), ...Object.keys(idx.tiles).map((k: string) => `${dir}tiles/${k}.json`)];
@@ -99,9 +100,22 @@ describe('stop heat processed files', () => {
       JSON.parse(text);
     }
     expect(readdirSync(dir, { recursive: true }).some((f: string | Buffer) => String(f).endsWith('.csv') || String(f).endsWith('.zip'))).toBe(false);
-    const beat = JSON.parse(readFileSync(dir + idx.beatFiles[0], 'utf8'));
-    expect(beat.features.length).toBeGreaterThan(0);
-    expect(beat.features[0].geometry.type).toMatch(/Polygon/);
-    expect(beat.features[0].properties.b.length).toBeGreaterThan(0);
+    expect(idx.beatFiles).toEqual([]); // no officer-assignment or guessed beat joins
+    const totals = new Map<number, number>(); let buckets = 0;
+    for (const key of Object.keys(idx.tiles)) {
+      const cells = JSON.parse(readFileSync(`${dir}tiles/${key}.json`, 'utf8'));
+      for (const cell of cells) {
+        for (let i = 0; i < cell[2].length; i += 2) totals.set(cell[2][i], (totals.get(cell[2][i]) ?? 0) + cell[2][i + 1]);
+        for (let i = 1; i < cell[3].length; i += 2) buckets += cell[3][i];
+      }
+    }
+    expect(buckets).toBe(idx.totals.mapped);
+    idx.sources.forEach((s: { mapped: number; audit: { seen: number; accepted: number; rejected: number; duplicate_rows: number } }, i: number) => {
+      expect(totals.get(i)).toBe(s.mapped);
+      expect(s.audit.seen).toBe(s.audit.accepted + s.audit.rejected + s.audit.duplicate_rows);
+    });
+    expect(idx.coverage.states_with_records).toEqual(['CA', 'MD', 'MT', 'NY', 'OH', 'VT']);
+    expect(idx.coverage.occupied_cell_us_area_percent).toBeLessThan(1);
+    expect(idx.coverage.point_area_m2).toBe(0);
   });
 });

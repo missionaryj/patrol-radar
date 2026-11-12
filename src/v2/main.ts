@@ -31,7 +31,7 @@ import { mountSegmented } from './segmented';
 import { nativeAppPresent, applyPlatformSettings } from './platform';
 import { mountUpdates } from './updatesUi';
 import { mountLegend } from '../map/legend';
-import { type HeatFilter, type StopHeatIndex, heatPaint } from '../map/stopHeatLayer';
+import { type HeatFilter, type StopHeatIndex, heatPaint, coverageCaption } from '../map/stopHeatLayer';
 
 // A single map and BLE scanning session serve Patrol and Navigation.
 // The destination picker is a separate full-screen view; a chosen route launches the driving HUD.
@@ -732,7 +732,7 @@ const hasVerifiedPro = false; // TODO: replace with verified, server-backed Goog
     sync();
     const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
     const src = document.getElementById('heat-sources');
-    if (src) src.innerHTML = idx.sources.map(s => `<div><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a><small>${s.stops.toLocaleString()} rows · ${s.mapped.toLocaleString()} mapped · ${esc(s.license)}${s.last_updated ? ` · updated ${esc(s.last_updated)}` : ''}</small></div>`).join('') || '<small>No source loaded.</small>';
+    if (src) src.innerHTML = `<small>${esc(idx.disclaimer)} ${esc(coverageCaption(idx))}</small>` + idx.sources.map(s => `<div><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a><small>${s.mapped.toLocaleString()} accepted records${s.audit ? ` · ${esc(s.audit.time_range.join(' to '))} · ${s.audit.rejected.toLocaleString()} excluded rows · ${s.audit.duplicate_rows.toLocaleString()} duplicate rows` : ''} · ${esc(s.license)}${s.last_updated ? ` · publisher updated ${esc(s.last_updated)}` : ''}${s.note ? ` · ${esc(s.note)}` : ''}${s.disclaimer ? `<br>${esc(s.disclaimer)}` : ''}${s.license_url ? `<br><a href="${esc(s.license_url)}" target="_blank" rel="noopener">Publisher terms</a>` : ''}</small></div>`).join('');
     const gaps = document.getElementById('heat-gaps');
     if (gaps) gaps.innerHTML = (idx.notMapped ?? []).map(g => `<div><a href="${esc(g.url)}" target="_blank" rel="noopener">${esc(g.name)}</a><small>${esc(g.why)}</small></div>`).join('');
     const ramp = [1, 10, 100, 1000];
@@ -753,7 +753,7 @@ const hasVerifiedPro = false; // TODO: replace with verified, server-backed Goog
   onSel('heat-tod-set', 'tod');
   onSel('heat-dow-set', 'dow');
   const show = (on: boolean) => {
-    map.showStopHeat(on, HEAT_URL).then(() => { const i = map.stopHeatInfo; if (i) { fill(i); if (st) st.textContent = `${i.totals.mapped.toLocaleString()} stops mapped · ${i.totals.beats.toLocaleString()} beats · ${i.totals.cells.toLocaleString()} grid cells · built ${i.generated.slice(0, 10)}`; } applyFilter(); })
+    map.showStopHeat(on, HEAT_URL).then(() => { const i = map.stopHeatInfo; if (i) { fill(i); if (st) st.textContent = `${i.totals.mapped.toLocaleString()} historical source records · ${coverageCaption(i)} · built ${i.generated.slice(0, 10)}`; } applyFilter(); })
       .catch(e => { if (st) st.textContent = `Stop history unavailable (${(e as Error).message})`; });
   };
   const m = ck('stopheat'); m.checked = localStorage.getItem('pr.stopheat') !== '0';

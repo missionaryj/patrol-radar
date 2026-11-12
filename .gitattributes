@@ -1,0 +1,2 @@
+# Node/Vite test imports require portable shebang line endings on Windows.
+scripts/*.mjs text eol=lf

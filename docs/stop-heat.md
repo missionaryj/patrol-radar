@@ -1,53 +1,69 @@
-# Historical stop heat (v2)
+# Historical stop heat — audited import
 
-Shaded beats and ~150 m cells for **where stops have tended to occur**. Not live pins, not a person, and not a scan hit. Built by:
+This map is historical, regional, visual-only shading. It does not show current police activity, identify people, or predict enforcement. Publisher coordinates may be anonymized or inaccurate. A 150 m display grid is **not** a claim of 150 m source accuracy.
 
-```bash
-node scripts/fetch-stop-heat.mjs
-node scripts/fetch-stop-heat.mjs --only opp_chicago,urbana
-node scripts/fetch-stop-heat.mjs --cache /tmp/stop-heat
+## Rebuild and review
+
+Use Node 20+ and `npm ci`. Windows uses the bundled `tar`; Linux/macOS require `unzip` for ZIP archives. Install `csv-parse` and `polygon-clipping` from the lockfile, not ad hoc processing scripts.
+
+```sh
+node scripts/build-verified-stop-heat.mjs --cache ../stop-heat-cache --out ../stop-heat-review
+node scripts/build-verified-stop-heat.mjs --cache ../stop-heat-cache --out ../stop-heat-replay --offline
+# Optional isolated source build; never treat this as an incremental merge:
+node scripts/build-verified-stop-heat.mjs --cache ../stop-heat-cache --out ../montgomery-review --only montgomery
 ```
 
-Output is `public/data/stop-heat/` (`index.json`, `beats/<place>.json`, `tiles/<lat>_<lng>.json`). The map loads beat polygons up front and grid tiles for the current view at zoom 11 and closer. A raw download is streamed in a temp directory (or `--cache`) and deleted unless you passed `--cache`. It is never written under `public/` or committed.
+`scripts/fetch-stop-heat.mjs` is a compatibility entry point to the same audited builder. `--cache` and `--out` are mandatory. Caches must be outside the checkout/output tree: Stanford raw archives can contain personal fields, although parsing discards them. Do not commit, publish or retain raw downloads unnecessarily. Municipal queries request only stop identifiers, dates, roles, coordinates and outcome/reason fields. Anonymous source identifiers stay in memory and are never in public aggregates. No driver identity, demographic attributes, officer information, plate, VIN or address is written to output.
 
-## What is stored
+The build downloads at most four pages concurrently per source and parses in order. Live sources require equal publisher revision timestamps and counts before/after retrieval. Each 50,000-row page must have its exact expected row count. Offline replays verify every page checksum and archive SHA-256. Any download, schema, CSV, population or reconciliation failure aborts publication; partially fetched data never replace a working snapshot. Output is staged and swapped after validation, with any old output retained as `.previous`; choose a fresh review path if a stage/backup already exists. There is no release, scheduled upload or production connection.
 
-Each beat or grid cell keeps counts only: year, 4-hour time of day, day of week, and, when the source has them, citation / warning / arrest counts plus a short reason category (speeding, signal, equipment, …). The grid is **150 m**, the same snap the live map uses, inside the 150–250 m privacy band (`GRID_M` in `scripts/stop-heat-lib.mjs`). A published coordinate is snapped to that grid unless it falls in a beat polygon or carries a beat code that matches one. The coordinate itself is not stored.
+Review all audit counts, metadata and coverage, compare replayed tile hashes, then explicitly promote the **complete** review directory into `public/data/stop-heat/` in a PR. Raw inputs and caches stay outside that directory. The source index is compactly renumbered for each complete build. Do not append files from a subset build to a full build.
 
-The ingest reads an allow-list of columns. Officer name, badge, officer id, driver name, address, city, state, ZIP, date of birth, license number, and demographic fields are not selected and `makeStop()` throws if one is passed in. `assertOutputClean()` runs again before anything is written.
+## Validation and counting
 
-## Sources in the default build
+The registry is `scripts/stop-heat-sources.mjs`. Vehicle stops require an explicit OPP `vehicular` type, a Cincinnati Driver role, or a vehicle-only official collection. Passengers and pedestrians are excluded. ISO civil dates must exist on the calendar and fall inside the source window and build cutoff. Missing/invalid times are assigned the unknown-time bucket. Coordinates must be finite and inside the source jurisdiction's **2020 Census polygon**, including holes and islands; coordinates outside it are rejected before snapping. Historical jurisdiction changes and legitimate out-of-jurisdiction enforcement can therefore be conservatively excluded.
 
-| Source | License | How it is drawn |
-|---|---|---|
-| [Stanford Open Policing Project](https://openpolicing.stanford.edu/data/), Chicago file (ODC-BY 1.0) | Open Data Commons Attribution License | Beat choropleth. Standardized stops from about 2012–2016 and 2018–2020. Beat outlines are the project shapefile. Rows with no beat code are placed by point-in-polygon, then the 150 m grid if they fall outside. Last substantial OPP update documented in 2023 (stops through about 2020). |
-| [City of Urbana IDOT stop sheets](https://data.illinois.gov/Local-Government/City-Of-Urbana-IDOT-Stop-Sheet-Police-Data-/vnxf-tjw4) | City of Urbana open data | 150 m grid, or a Champaign beat when the point falls inside one. Street addresses are not stored. |
-| [NYPD Vehicle Stop Reports](https://data.cityofnewyork.us/d/hn9i-dwpr) | NYC Open Data | Precinct choropleth joined on the published command code. The coordinate is not stored. |
-| [Montgomery County, MD electronic traffic violations](https://data.montgomerycountymd.gov/Public-Safety/Traffic-Violations/4mse-ku6q) | dataMontgomery | 150 m grid. Person and vehicle fields are not requested. |
-| [Champaign police beats](https://gisportal.champaignil.gov/ms/rest/services/Open_Data/Open_Data/MapServer/25) | City of Champaign open data | Polygon join only. A beat is drawn when at least one ingested stop falls inside it. |
+Official event IDs merge repeated violation/contact rows. Citation/warning/arrest flags are ORed; inconsistent reason categories become unknown. If a valid event ID conflicts on date, time or location, every valid row of that event is quarantined. Distinct event IDs at identical coordinates/times remain distinct. Every source reconciles:
 
-The map and Settings name these sources. The Stanford Open Policing Project requires attribution under ODC-BY.
+`source rows = accepted records + duplicate rows collapsed + rejected rows`.
 
-## Fetched by the script only when you opt in, or not drawn
+OPP archive `raw_row_number` is only a publisher-row identity. Where OPP performed raw-field deduplication, this adapter preserves that result but cannot independently establish encounter uniqueness. **Total accepted records are not a verified nationwide unique-encounter count.** No rounding, coordinate fingerprint or guessed identity is used to manufacture a unique-stop claim. Census polygon membership validates geographic plausibility, not ground-truth geocoding accuracy.
 
-These are real public files. They are listed in `index.json` under `notMapped` and in Settings so the gap is visible.
+## Snapshot: 2026-11-12
 
-- **Illinois statewide OPP** (~12 million IDOT-style rows). Mostly beat codes, no coordinates, and no statewide beat polygons in this repo. Do not commit the raw file.
-- **Connecticut** ([data.ct.gov traffic stops](https://data.ct.gov/d/nahi-zqrt)). Town and intersection text, no coordinates. Intersections are not geocoded.
-- **San Diego OPP**. Service-area codes and no coordinates. The project shapefile is nine divisions and does not use those codes.
-- **San Diego RIPA** ([data.sandiego.gov](https://data.sandiego.gov/datasets/police-ripa-stops/)). Beat name and street block, no latitude/longitude. Block addresses are not geocoded and are not stored.
+8,000,903 source rows produced **5,860,229 accepted records**, with **832,309 duplicate rows collapsed** and **1,308,365 rejected rows**. New-source records total **2,435,848**. The previous manifest counted 7,252,795 input rows as stops; the new total is 1,392,566 lower after validation, deduplication and quarantining unsupported legacy imports. This is a quality correction, not a net-count growth claim.
 
-Nationwide coverage is the same pipeline: any OPP CSV with coordinates or with beat codes plus a polygon file can be aggregated by extending `PIPELINE` in `scripts/fetch-stop-heat.mjs`. The default build does not download every jurisdiction, because many files are multi-gigabyte and many have no mappable geography.
+- Montana OPP: 921,228 read; 920,370 accepted; 858 rejected; no repeated publisher row keys. 2009–2017, state patrol only.
+- Vermont OPP: 283,285 read; 261,621 accepted; 21,664 rejected; no repeated publisher row keys. 2010–2015, state police only.
+- San Francisco OPP: 905,070 read; 898,737 accepted; 6,333 rejected; no repeated publisher row keys. 2007–2016.
+- Cincinnati: 750,258 read; 355,120 accepted; 368 duplicates collapsed; 394,770 rejected. Publisher-reported dates 1990-09-21 through 2026-11-11; early dates are not independently corroborated and the range does not imply continuous reporting.
+- NYPD: 2,971,075 read; 2,309,224 accepted; 661,851 rejected. 2023-01-01 through 2026-06-30. Anonymized coordinates; command codes are officer assignments and are **not** location joins.
+- Montgomery: 2,169,987 violation rows read; 1,115,157 accepted stop IDs; 831,941 additional violation rows collapsed; 222,889 rejected. 2012-01-01 through 2026-11-10. Only explicitly known motor-vehicle categories 01–27 are accepted; other/unknown and electric-bicycle rows are excluded. The source exposes 1,239,349 distinct IDs before date/geographic validation; that is not the accepted count.
 
-## Not in this layer
+Exact rejection reasons, source/date metadata, all acquisition checksums and Census boundary URLs/checksums are in `public/data/stop-heat/index.json`. Public tiles contain only aggregate buckets, outcome/reason categories and source counts.
 
-No FOIA requests, no court or clerk scraping, no live CAD, scanner audio, or OpenMHz, and no Google Play Billing. The settings toggle is there so the layer can be tested. A later subscription may hide it; nothing here charges or locks it.
+Chicago's previous 2,108,098 rows are withheld: OPP explicitly warns of unresolved duplicates and hourly time resolution. Urbana's previous 5,446 rows are withheld pending event identity and correct Urbana geometry; the old pipeline joined Urbana to Champaign beats. They remain named in `notMapped`, not silently counted. Unvalidated state/local overlaps are also excluded: no Cincinnati OPP plus official contact cards, no statewide NC plus its municipal subsets, and no overlapping CA RIPA/local/OPP years.
 
-## Map
+## Objective coverage
 
-Settings → Stop history holds the display toggle, year / time-of-day / weekday filters, color scale, source links, license and data-coverage notes. The driving map draws historical beat or ~150 m cell shading only: these shapes never open a popup, tooltip or external site when tapped in 2D or 3D. Other map markers keep their own interactions. The location dot stays above the shading, and grid cells appear at zoom 11+. The 3D view mirrors this visual-only layer under the location dot.
+**Six states have records:** CA, MD, MT, NY, OH and VT, out of 50 states plus DC. This is presence, not complete statewide coverage. Illinois is no longer included in the audited map until its quarantined sources are repaired.
 
-## Patrol Radar Pro subscription preview
-A staged Pro offering presents a $1.99/month **proposed U.S. price**. The app currently does not charge or enroll a user. Free users retain an all-periods visual Stop History preview with reduced opacity and access to attribution/source links. The Year, Time of day, and Day of week filters are disabled unless a verified entitlement is introduced. The existing heatmap files are public and therefore **not protected paid content**; production monetization must use a server-verified Google Play subscription entitlement and an appropriate paid-data delivery/aggregation strategy before launch. Never use localStorage or client-side flags as proof of a subscription.
+The six disjoint source jurisdictions contain **12,776,835 residents** in the 2020 Census, against a U.S. population of 331,449,281. This is agency-jurisdiction context, **not** the number/share of residents observed or protected, nor full local-agency coverage of Montana/Vermont.
 
-Release checklist: configure the Play Console subscription product and monthly base plan ($1.99 US), review coverage/source licensing, implement a Capacitor-compatible Play Billing purchase/restore flow and secure backend Play Developer API verification (including cancellation/refund/expiration), test license accounts and RTDN events, add proper price disclosures/terms, confirm existing testers' intended complimentary access through authorized test entitlements, then enable a real checkout in a separate reviewed change.
+There are **163,060 occupied 150 m cells**. Their spherical area, clipped to the union of Census jurisdiction polygons, is approximately **3,654.242 km²**, or **0.03710169%** of the 50-state-plus-DC area of 9,849,259.424 km² (land plus water). Cells are counted once across sources. The footprint measures coarse cells containing geographically plausible publisher coordinates; it is not road-network coverage, land-only coverage, surveyed stop-location accuracy, or the area of entire shaded jurisdictions. Point observations themselves have zero area. Do not count beats, bounding boxes, whole states, reporting-agency addresses or all jurisdiction residents as observed coverage. The 75% goal has **not** been reached under any defensible nationwide measure.
+
+## Refresh process
+
+1. Keep pinned OPP archives historical. To replace one, review publisher documentation, set a new version URL/checksum and date window in a PR, then replay it from scratch. An archive download date is not its last stop date.
+2. For daily/periodic municipal updates, use a fresh external cache and review output. Reject any source that changes during acquisition; retry a complete snapshot rather than resuming unverified offset pages. Later corrections can change old dates, so rebuild complete selected sources.
+3. Inspect exact accepted/excluded/duplicate counts, observed time ranges, coordinate-rejection spikes and event conflicts. Compare per-source/year totals against the prior accepted snapshot; investigate unexpected drift rather than publishing automatically.
+4. Replay offline; verify identical tile bytes and coverage/counts (build timestamp and cache fetch metadata can differ). Run `npm test` and `npm run build`. Reconcile all tile bucket/source counts to the manifest. Review provenance, terms and any new overlapping publisher/agency/year range.
+5. Open a data-update PR. Human review is the promotion step. No merge, Alpha release, production write, cron publishing or billing change is authorized by this work.
+
+See [the nationwide research ledger](stop-heat-research.md) and [51-jurisdiction discovery inventory](stop-heat-source-inventory.json) for remaining acquisition work. Those leads are not imported coverage.
+
+## Map and Pro limitations
+
+Both map views retain visual-only historical shading, without heatmap tap targets, popups or external links. Source attribution, accepted/excluded counts, time ranges and regional coverage caveats appear in Settings. The location dot stays above the layer; grid cells appear at zoom 11+ with the existing per-view cap. Darker shading reflects record density, not enforcement probability.
+
+This change does not alter the proposed Pro offering, entitlement checks or Google Play Billing. Public aggregate files are not protected paid content. Verify commercial reuse terms (particularly municipal portal terms), attribution, data freshness and subscription/backend delivery separately before any release. No payment, enrollment, merge or release is performed by the import scripts.
