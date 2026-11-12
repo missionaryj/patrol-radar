@@ -81,14 +81,16 @@ describe('Android scanner lifecycle', () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
-  it('reports Android service shutdown when the user did not request Stop', async () => {
+  it('ignores an old service shutdown but reports a native fatal error', async () => {
     const { plugin, listeners } = mockNative();
     try {
       const scanner = new NativeScanner(); scanner.wifi = false;
       const error = vi.fn(); scanner.onError = error;
       await scanner.start(vi.fn());
       listeners.get('state')!({ state: 'stopped' });
-      expect(error).toHaveBeenCalledWith('Android background scan stopped. Tap Scan to restart.');
+      expect(error).not.toHaveBeenCalled();
+      listeners.get('state')!({ state: 'error', detail: 'Bluetooth scan stopped' });
+      expect(error).toHaveBeenCalledWith('Bluetooth scan stopped');
       scanner.stop();
       await vi.waitFor(() => expect(plugin.stop).toHaveBeenCalled());
     } finally { vi.unstubAllGlobals(); }
