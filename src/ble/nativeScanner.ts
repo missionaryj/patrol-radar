@@ -158,3 +158,4 @@ export class NativeScanner implements Scanner {
     // Run Stop after an in-flight native Start, even when Start resolves late.
     void nativeCommand(() => this.plugin?.stop?.()).catch(() => {});
   }
+}
