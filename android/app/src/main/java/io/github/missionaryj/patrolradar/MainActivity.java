@@ -14,4 +14,6 @@ public class MainActivity extends BridgeActivity {
         } catch (ClassNotFoundException ignored) { /* Native SDK not included in this build. */ }
         super.onCreate(savedInstanceState);
     }
+    @Override public void onResume() { super.onResume(); ScanService.setUiForeground(true); }
+    @Override public void onPause() { ScanService.setUiForeground(false); super.onPause(); }
 }
