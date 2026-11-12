@@ -510,6 +510,7 @@ async function start() {
   if (scanner instanceof NativeScanner) {
     const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
     scanner.filtered = picker.value !== 'all';
+    scanner.alertSound = soundEnabled();
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
     scanner.onError = msg => { if(scanner!==candidate)return; recorder.event('error', kind, `native: ${msg}`); stop(); status(`[scan] ${msg}`, 'err'); };
@@ -616,15 +617,16 @@ vibration.onchange = () => localStorage.setItem('pr.pingVibrate', vibration.chec
 if (!navigator.vibrate) $('vibrate-wrap').hidden = true;
 $('sound-sample').onclick = () => { void ping.unlock().then(() => ping.play('normal')); };
 const soundBox = $<HTMLInputElement>('sound'); soundBox.checked = soundEnabled();
-soundBox.onchange = () => { setSoundEnabled(soundBox.checked); if (soundBox.checked) { void ping.unlock().then(() => ping.play('soft')); } };
+soundBox.onchange = () => { setSoundEnabled(soundBox.checked); void nativePlugin()?.setAlertSound?.({ enabled: soundBox.checked })?.catch(() => {}); if (soundBox.checked) { void ping.unlock().then(() => ping.play('soft')); } };
 function firePing(m: Match, loc: { lat: number; lng: number }) {
   const c = coarsen(loc.lat, loc.lng); const level = pingGate.check({ deviceKey: m.sessionId, cell: `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`, category: m.signature.category, matched: true });
   if (!level) return;
   toast(`🔔 Police gear nearby: ${m.signature.label} (${(m.confidence * 100).toFixed(0)}%)`);
   document.body.classList.add('pinging'); setTimeout(() => document.body.classList.remove('pinging'), 2500);
   if (!document.hidden && vibration.checked) navigator.vibrate?.(180);
-  const pl = nativePlugin();
-  if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft', silent: !soundEnabled() }).catch(() => {}); return; }
+  // Android's foreground scan service now owns background matching and alerts.
+  // Never issue a second notification from a suspended WebView for the same advert.
+  if (nativePlugin() && document.hidden) return;
   if (soundEnabled()) ping.play(level);
 }
 
