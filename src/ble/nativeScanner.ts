@@ -86,6 +86,8 @@ export class NativeScanner implements Scanner {
   mode: NativeScanMode = 'balanced';
   /** true = hardware filters for police signatures only (works with screen off). false = all devices (screen on only on most phones). */
   filtered = true;
+  /** Sound setting for independent native notifications while the WebView is suspended. */
+  alertSound = true;
   private plugin = nativePlugin();
   private handle?: { remove(): Promise<void> | void };
   private stateHandle?: { remove(): Promise<void> | void };
@@ -144,7 +146,7 @@ export class NativeScanner implements Scanner {
         }
       });
       if (!current()) return;
-      await nativeCommand(() => current() ? this.plugin.start({ mode: this.mode, filtered: this.filtered, ...nativeFilters(), ...(this.wifi ? { wifiRules: nativeWifiRules() } : {}) }) : undefined);
+      await nativeCommand(() => current() ? this.plugin.start({ mode: this.mode, filtered: this.filtered, alertSound: this.alertSound, ...nativeFilters(), ...(this.wifi ? { wifiRules: nativeWifiRules() } : {}) }) : undefined);
     } catch (e) {
       if (!current()) return;
       this.cleanup();
