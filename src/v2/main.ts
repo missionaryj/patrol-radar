@@ -312,6 +312,7 @@ void map.ready.then(() => { if (!map.wants3D) { const loading = document.getElem
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
 let scanStartedAt = 0;
+let nativeStartedAt = 0;
 const lastSeen = new Map<string, number>();
 const stats = new ScanStats();
 const allDevs = new Set<string>(), policeDevs = new Set<string>();
@@ -492,11 +493,12 @@ async function start() {
   scanStartedAt = Date.now();
   void ping.unlock(); pingGate.reset();
   const kind = sel.value as BackendKind;
+  setScanning(true); // Allow Stop while Android permissions or startup are pending.
   if (kind !== 'native') recorder.event(scanner ? 'restart' : 'start', kind); scanner = createScanner(kind); stats.reset(); $('d-backend').textContent = kind; $('d-mode').textContent = '-';
   const candidate=scanner;
   if (!(await candidate.isSupported())) {
     if(generation!==scanGeneration)return;
-    scanner = undefined;
+    scanner = undefined; setScanning(false);
     status(kind === 'mock' ? 'Mock unavailable?' : 'No Web Bluetooth in this browser. On iPhone use Bluefy; on Android use Chrome. Or pick Mock in Settings.', 'err'); return;
   }
   if(generation!==scanGeneration){void candidate.stop();return;}
@@ -508,9 +510,10 @@ async function start() {
   if (scanner instanceof NativeScanner) {
     const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
     scanner.filtered = picker.value !== 'all';
+    scanner.alertSound = soundEnabled();
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
-    scanner.onError = msg => { if(scanner!==candidate)return; recorder.event('error', kind, `native: ${msg}`); ++scanGeneration; scanner = undefined; live.clear(); drawLive(); setScanning(false); status(`[scan] ${msg}`, 'err'); };
+    scanner.onError = msg => { if(scanner!==candidate)return; recorder.event('error', kind, `native: ${msg}`); stop(); status(`[scan] ${msg}`, 'err'); };
     scanner.onHealth = h => { recorder.setNativeHealth(h); setScanQuiet(h.quiet); };
     scanner.onSupervisor = (k, detail) => {
       if (k === 'quiet') { recorder.event('scanner-quiet', kind, detail); setScanQuiet(true); }
@@ -541,6 +544,7 @@ async function start() {
       firePing(m, loc);
     });
     if(generation!==scanGeneration){void candidate.stop();return;}
+    if (kind === 'native') nativeStartedAt = Date.now();
     void supervisor.started(kind, candidate, advCb);
     map.follow.resume();
     $('d-mode').textContent = (scanner as any).mode || scanner.name;
@@ -560,6 +564,19 @@ $('sq-restart').onclick = () => { $('scan-quiet').hidden = true; quietDismissed 
 (globalThis as any).__prQuiet = setScanQuiet; // preview/debug hook
 function stop() { ++scanGeneration; setScanQuiet(false); supervisor.stopped(); fusion.clear(); announced.clear(); recorder.discardWifiSession(); $('add').hidden = true; live.clear(); map.clearLive(); matches.clear(); if (scanner) recorder.event('stop', sel.value); scanner?.stop(); scanner = undefined; drawLive(); setScanning(false); status('Stopped'); }
 $('scan').onclick = () => (scanner ? stop() : start());
+// After backgrounding, reconcile the UI with the Android foreground service rather than a stale JS flag.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !(scanner instanceof NativeScanner) || Date.now() - nativeStartedAt < 5000) return;
+  const candidate = scanner, generation = scanGeneration;
+  void candidate.serviceStatus().then(state => {
+    if (!state || generation !== scanGeneration || scanner !== candidate) return;
+    if (!state.sessionActive) {
+      recorder.event('error', 'native', 'Android scan service ended while backgrounded');
+      stop(); status('Android background scan stopped. Tap Scan to restart.', 'err');
+    } else if (!state.running) status('Android scanner is recovering; waiting for native callbacks.', '', 'Recovering');
+    else status('Scanning (Android background service active).', 'ok');
+  }).catch(() => {});
+});
 // Native filter / scan mode are only read at start: apply a change made while scanning by restarting the scan.
 for (const id of ['picker', 'scanmode']) document.getElementById(id)?.addEventListener('change', () => {
   if (scanner instanceof NativeScanner) { recorder.event('restart', sel.value, `${id} changed to ${(document.getElementById(id) as HTMLSelectElement).value}`); stop(); void start(); }
@@ -600,15 +617,16 @@ vibration.onchange = () => localStorage.setItem('pr.pingVibrate', vibration.chec
 if (!navigator.vibrate) $('vibrate-wrap').hidden = true;
 $('sound-sample').onclick = () => { void ping.unlock().then(() => ping.play('normal')); };
 const soundBox = $<HTMLInputElement>('sound'); soundBox.checked = soundEnabled();
-soundBox.onchange = () => { setSoundEnabled(soundBox.checked); if (soundBox.checked) { void ping.unlock().then(() => ping.play('soft')); } };
+soundBox.onchange = () => { setSoundEnabled(soundBox.checked); void nativePlugin()?.setAlertSound?.({ enabled: soundBox.checked })?.catch(() => {}); if (soundBox.checked) { void ping.unlock().then(() => ping.play('soft')); } };
 function firePing(m: Match, loc: { lat: number; lng: number }) {
   const c = coarsen(loc.lat, loc.lng); const level = pingGate.check({ deviceKey: m.sessionId, cell: `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`, category: m.signature.category, matched: true });
   if (!level) return;
   toast(`🔔 Police gear nearby: ${m.signature.label} (${(m.confidence * 100).toFixed(0)}%)`);
   document.body.classList.add('pinging'); setTimeout(() => document.body.classList.remove('pinging'), 2500);
   if (!document.hidden && vibration.checked) navigator.vibrate?.(180);
-  const pl = nativePlugin();
-  if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft', silent: !soundEnabled() }).catch(() => {}); return; }
+  // Android's foreground scan service now owns background matching and alerts.
+  // Never issue a second notification from a suspended WebView for the same advert.
+  if (nativePlugin() && document.hidden) return;
   if (soundEnabled()) ping.play(level);
 }
 

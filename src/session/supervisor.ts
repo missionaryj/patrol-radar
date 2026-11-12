@@ -11,16 +11,19 @@ import type { SessionRecorder } from '../recorder/recorder';
 export class ScanSupervisor {
   readonly wake = new ScreenWake();
   private dog: StallWatchdog; private scanner?: Scanner; private cb?: AdvListener; private kind = ''; private restarting = false;
+  private generation = 0; private tapResume?: (event: Event) => void;
   constructor(private o: { warn: (msg: string, err?: boolean) => void; recorder: SessionRecorder; onWake?: (held: boolean) => void }) {
     this.dog = new StallWatchdog((r, ms) => void this.stalled(r, ms));
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => this.dog.visibility(document.visibilityState === 'hidden'));
   }
   async started(kind: string, scanner: Scanner, cb: AdvListener) {
-    this.kind = kind; this.scanner = scanner; this.cb = cb;
+    const generation = ++this.generation;
+    this.clearTapResume(); this.kind = kind; this.scanner = scanner; this.cb = cb;
     if (kind === 'web') this.dog.start();
-    this.o.onWake?.(await this.wake.acquire());
+    const held = await this.wake.acquire();
+    if (generation === this.generation) this.o.onWake?.(held);
   }
-  stopped() { this.dog.stop(); this.scanner = undefined; this.cb = undefined; void this.wake.release(); this.o.onWake?.(false); }
+  stopped() { ++this.generation; this.clearTapResume(); this.dog.stop(); this.scanner = undefined; this.cb = undefined; void this.wake.release(); this.o.onWake?.(false); }
   advert() { this.dog.advert(); }
   private async stalled(reason: StallReason, ms: number) {
     if (!this.scanner || !this.cb) return;
@@ -31,10 +34,32 @@ export class ScanSupervisor {
   }
   /** Restarts the same scanner object (keeps the session salt). Chrome may require a tap; then we ask for one. */
   async restart(): Promise<boolean> {
-    if (this.restarting || !this.scanner || !this.cb) return false; this.restarting = true;
-    try { this.scanner.stop(); await this.scanner.start(this.cb); this.dog.advert(); this.o.recorder.event('auto-restart', this.kind); this.o.warn('Scan restarted.'); return true; }
-    catch (e) { this.o.recorder.event('error', this.kind, `auto-restart failed: ${(e as Error)?.message ?? e}`); this.o.warn('Scan stalled and the browser blocked an automatic restart. Tap anywhere on the map to resume.', true); this.armTapResume(); return false; }
-    finally { this.restarting = false; }
+    if (this.restarting || !this.scanner || !this.cb) return false;
+    this.restarting = true;
+    const scanner = this.scanner, cb = this.cb, generation = this.generation, kind = this.kind;
+    this.clearTapResume();
+    try {
+      scanner.stop();
+      await scanner.start(cb);
+      if (generation !== this.generation) { scanner.stop(); return false; }
+      this.dog.advert(); this.o.recorder.event('auto-restart', kind); this.o.warn('Scan restarted.'); return true;
+    } catch (e) {
+      if (generation === this.generation) {
+        this.o.recorder.event('error', kind, `auto-restart failed: ${(e as Error)?.message ?? e}`);
+        this.o.warn('Scan stalled and the browser blocked an automatic restart. Tap anywhere on the map to resume.', true);
+        this.armTapResume();
+      }
+      return false;
+    } finally { this.restarting = false; }
   }
-  private armTapResume() { if (typeof document === 'undefined') return; document.addEventListener('pointerdown', () => void this.restart(), { once: true, capture: true }); }
+  private clearTapResume() {
+    if (this.tapResume && typeof document !== 'undefined') document.removeEventListener('pointerdown', this.tapResume, true);
+    this.tapResume = undefined;
+  }
+  private armTapResume() {
+    if (typeof document === 'undefined') return;
+    this.clearTapResume();
+    this.tapResume = () => { this.clearTapResume(); void this.restart(); };
+    document.addEventListener('pointerdown', this.tapResume, { once: true, capture: true });
+  }
 }

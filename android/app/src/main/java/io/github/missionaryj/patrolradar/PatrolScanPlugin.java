@@ -2,7 +2,6 @@ package io.github.missionaryj.patrolradar;
 
 import android.Manifest;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
@@ -82,11 +81,19 @@ public class PatrolScanPlugin extends Plugin {
         android.bluetooth.BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
         if (ad == null) { call.reject("This phone has no Bluetooth LE adapter."); return; }
         if (!ad.isEnabled()) { call.reject("Bluetooth is off. Turn on Bluetooth, then tap Start again."); return; }
+        // Keep native background alerts consistent with the app's sound preference.
+        getContext().getSharedPreferences("patrol_alerts", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("sound", call.getBoolean("alertSound", true)).apply();
         try { ScanService.start(getContext(), mode, filtered, cids, uuids, wifiRules, ouis); call.resolve(); }
         catch (Exception e) { call.reject("Could not start background scan: " + e.getMessage()); }
     }
+    @PluginMethod public void setAlertSound(PluginCall call) {
+        getContext().getSharedPreferences("patrol_alerts", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("sound", call.getBoolean("enabled", true)).apply();
+        call.resolve();
+    }
     @PluginMethod public void stop(PluginCall call) { ScanService.stop(getContext()); call.resolve(); }
-    @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); call.resolve(r); }
+    @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); r.put("sessionActive", ScanService.sessionActive); call.resolve(r); }
 
     /** Read-only setup information; opening this screen never requests permissions. */
     @PluginMethod public void setupStatus(PluginCall call) {
@@ -114,31 +121,11 @@ public class PatrolScanPlugin extends Plugin {
         }
         call.resolve(r);
     }
-    /** Police-ping notification (used when the app is in the background). Sound = res/raw/police_ping.ogg on its own channel. */
+    /** Optional JS notification bridge; native service uses the same channel helper. */
     @PluginMethod public void alert(PluginCall call) {
-        android.content.Context ctx = getContext();
-        android.app.NotificationManager nm = (android.app.NotificationManager) ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
-        boolean soft = call.getBoolean("soft", false);
-        boolean silent = call.getBoolean("silent", false);
-        String ch = silent ? "police_ping_silent" : soft ? "police_ping_soft" : "police_ping";
-        Uri snd = Uri.parse("android.resource://" + ctx.getPackageName() + "/" + R.raw.police_ping);
-        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(ch) == null) {
-            android.app.NotificationChannel c = new android.app.NotificationChannel(ch, soft ? "Fixed camera ping" : "Police ping",
-                soft ? android.app.NotificationManager.IMPORTANCE_DEFAULT : android.app.NotificationManager.IMPORTANCE_HIGH);
-            if (!silent) c.setSound(snd, new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
-            else c.setSound(null, null);
-            nm.createNotificationChannel(c);
-        }
-        Intent open = new Intent(ctx, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(ctx, 1, open, android.app.PendingIntent.FLAG_IMMUTABLE);
-        androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(ctx, ch)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle(call.getString("title", "Police gear nearby")).setContentText(call.getString("text", ""))
-            .setSilent(silent).setAutoCancel(true).setContentIntent(pi)
-            .setPriority(soft ? androidx.core.app.NotificationCompat.PRIORITY_DEFAULT : androidx.core.app.NotificationCompat.PRIORITY_HIGH);
-        if (!silent) builder.setSound(snd);
-        android.app.Notification n = builder.build();
-        try { nm.notify(2001, n); call.resolve(); } catch (SecurityException e) { call.reject("notifications not allowed"); }
+        boolean sent = PoliceAlertNotifications.show(getContext(),
+            call.getString("title", "Police gear nearby"), call.getString("text", ""),
+            call.getBoolean("soft", false), call.getBoolean("silent", false));
+        if (sent) call.resolve(); else call.reject("notifications not allowed");
     }
 }

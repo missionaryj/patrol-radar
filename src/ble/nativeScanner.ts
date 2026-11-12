@@ -63,6 +63,14 @@ export function nativeFilters() {
   return { companyIds: COMPANY_IDS, serviceUuids: [...new Set(serviceUuids)], ouis: OUIS };
 }
 
+// Serialize native commands across scanner instances: Stop must follow any pending Start.
+let nativeCommands: Promise<void> = Promise.resolve();
+function nativeCommand<T>(action: () => Promise<T> | T): Promise<T> {
+  const next = nativeCommands.then(action);
+  nativeCommands = next.then(() => {}, () => {});
+  return next;
+}
+
 /** Converts a native advert into the event shape normalizeEvent already understands. */
 export function toEvent(a: NativeAdvert) {
   return { device: { id: a.id }, name: a.name, rssi: a.rssi, txPower: a.txPower, manufacturerData: a.mfr ?? {}, uuids: a.uuids ?? [], serviceData: a.svc ?? {}, oui: a.oui, t: a.t };
@@ -78,6 +86,8 @@ export class NativeScanner implements Scanner {
   mode: NativeScanMode = 'balanced';
   /** true = hardware filters for police signatures only (works with screen off). false = all devices (screen on only on most phones). */
   filtered = true;
+  /** Sound setting for independent native notifications while the WebView is suspended. */
+  alertSound = true;
   private plugin = nativePlugin();
   private handle?: { remove(): Promise<void> | void };
   private stateHandle?: { remove(): Promise<void> | void };
@@ -92,22 +102,64 @@ export class NativeScanner implements Scanner {
   /** kind: 'restart' (detail = reason), 'quiet' (scanner silent and restarts did not help), 'recovered', 'screen-on' / 'screen-off'. */
   onSupervisor?: (kind: string, detail: string) => void;
   private wifiHandle?: { remove(): Promise<void> | void };
+  private generation = 0;
+  private stopped = false;
 
   async isSupported() { return !!this.plugin; }
+  /** An active native session may temporarily be running=false while bounded retries occur. */
+  async serviceStatus(): Promise<{ sessionActive: boolean; running: boolean } | undefined> {
+    return this.plugin?.status?.();
+  }
   async start(onAdv: AdvListener) {
     if (!this.plugin) throw new ScanError('unsupported', 'Native scanner only works inside the Patrol Radar Android app.');
+    this.stopped = false;
+    const generation = ++this.generation;
+    const current = () => generation === this.generation;
+    const listen = async (name: string, cb: (event: any) => void) => {
+      const handle = await this.plugin.addListener(name, cb);
+      if (!current()) { void handle.remove(); return undefined; }
+      return handle as { remove(): Promise<void> | void };
+    };
     const perm = await this.plugin.requestScanPermissions();
+    if (!current()) return; // Cancel when Stop/Change Mode was tapped during permissions.
     if (perm?.ble !== 'granted') throw new ScanError('permission', 'Allow "Nearby devices" for Patrol Radar in Android Settings > Apps > Patrol Radar > Permissions.');
-    this.handle = await this.plugin.addListener('advert', (a: NativeAdvert) => { normalizeEvent(toEvent(a)).then(onAdv); });
-    if (this.wifi) this.wifiHandle = await this.plugin.addListener('wifi', (m: NativeWifiMatch) => { if (Array.isArray(m?.rules)) this.onWifi?.({ id: String(m.id), rssi: m.rssi, rules: m.rules.map(String), throttled: m.throttled, radio: m.radio ? String(m.radio) : undefined, freq: typeof m.freq === 'number' ? m.freq : undefined, t: typeof m.t === 'number' ? m.t : undefined, cached: m.cached === true }); });
-    this.stateHandle = await this.plugin.addListener('state', (s: { state: string; detail?: string }) => {
-      if (s?.state === 'health') { const h = parseNativeHealth(s.detail); if (h) this.onHealth?.(h); return; }
-      if (s && ['restart', 'restart-failed', 'quiet', 'recovered', 'screen-on', 'screen-off'].includes(s.state)) { this.onSupervisor?.(s.state, s.detail ?? ''); return; }
-      if (s?.state === 'error') { const msg = s.detail || 'Native scan failed'; this.cleanup(); this.onError?.(msg); }
-    });
-    try { await this.plugin.start({ mode: this.mode, filtered: this.filtered, ...nativeFilters(), ...(this.wifi ? { wifiRules: nativeWifiRules() } : {}) }); }
-    catch (e) { this.cleanup(); throw new ScanError('other', (e as any)?.message ?? String(e)); }
+    try {
+      this.handle = await listen('advert', (a: NativeAdvert) => {
+        void normalizeEvent(toEvent(a)).then(adv => { if (current()) onAdv(adv); }).catch(() => {});
+      });
+      if (!current()) return;
+      if (this.wifi) {
+        this.wifiHandle = await listen('wifi', (m: NativeWifiMatch) => {
+          if (current() && Array.isArray(m?.rules)) this.onWifi?.({ id: String(m.id), rssi: m.rssi, rules: m.rules.map(String), throttled: m.throttled, radio: m.radio ? String(m.radio) : undefined, freq: typeof m.freq === 'number' ? m.freq : undefined, t: typeof m.t === 'number' ? m.t : undefined, cached: m.cached === true });
+        });
+        if (!current()) return;
+      }
+      this.stateHandle = await listen('state', (s: { state: string; detail?: string }) => {
+        if (!current()) return;
+        if (s?.state === 'health') { const h = parseNativeHealth(s.detail); if (h) this.onHealth?.(h); return; }
+        if (s && ['restart', 'restart-failed', 'quiet', 'recovered', 'screen-on', 'screen-off'].includes(s.state)) { this.onSupervisor?.(s.state, s.detail ?? ''); return; }
+        // Android may deliver an old service's "stopped" event during a rapid restart.
+        // Only an explicit error is fatal here; on-resume status checks detect a dead service.
+        if (s?.state === 'error') {
+          this.cleanup();
+          this.onError?.(s.detail || 'Native scan failed');
+        }
+      });
+      if (!current()) return;
+      await nativeCommand(() => current() ? this.plugin.start({ mode: this.mode, filtered: this.filtered, alertSound: this.alertSound, ...nativeFilters(), ...(this.wifi ? { wifiRules: nativeWifiRules() } : {}) }) : undefined);
+    } catch (e) {
+      if (!current()) return;
+      this.cleanup();
+      throw new ScanError('other', (e as any)?.message ?? String(e));
+    }
   }
-  private cleanup() { this.handle?.remove(); this.handle = undefined; this.stateHandle?.remove(); this.stateHandle = undefined; this.wifiHandle?.remove(); this.wifiHandle = undefined; }
-  stop() { this.plugin?.stop?.(); this.cleanup(); }
+  private cleanup() { void this.handle?.remove(); this.handle = undefined; void this.stateHandle?.remove(); this.stateHandle = undefined; void this.wifiHandle?.remove(); this.wifiHandle = undefined; }
+  stop() {
+    if (this.stopped) return;
+    this.stopped = true;
+    ++this.generation;
+    this.cleanup();
+    // Run Stop after an in-flight native Start, even when Start resolves late.
+    void nativeCommand(() => this.plugin?.stop?.()).catch(() => {});
+  }
 }
