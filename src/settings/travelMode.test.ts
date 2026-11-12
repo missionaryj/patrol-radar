@@ -3,7 +3,6 @@ import { PROFILES, travel, setTravelMode, loadTravelMode, TRAVEL_KEY } from './t
 import { bandFor, bandRadius, LiveDeviceTracker } from '../map/liveDevices';
 import { rangeFromRssi } from '../fusion/localize';
 import { GearFusion } from '../fusion/gearFusion';
-import { accuracyHtml } from './accuracyReports';
 import { style3d, PALETTE } from '../map/palette';
 import { toGeoJSON, circlePoly } from '../map/map3d';
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m }; };
@@ -45,28 +44,5 @@ describe('map palette + 3D', () => {
     const g = toGeoJSON({ pins: [{ lat: 40, lng: -88, color: '#e53935', r: 6, kind: 'dot' }, { lat: 40, lng: -88, color: '#f00', r: 0, ring: 30, kind: 'ring' }], me: { lat: 40.1, lng: -88.2, acc: 10 } });
     expect(g.me.features).toHaveLength(1); expect(g.pts.features).toHaveLength(1); expect(g.polys.features).toHaveLength(1);
     expect(circlePoly(40, -88, 10)).toHaveLength(25);
-  });
-});
-describe('accuracy reports', () => {
-  it('keeps the 2 November community update and escapes', () => {
-    const h = accuracyHtml(); expect(h).toContain('Community Accuracy Update'); expect(h).toContain('5 distinct Axon devices matched'); expect(h).toContain('<table>'); expect(h).toContain('Drive safe.');
-    expect(accuracyHtml([{ title: '<x>', subtitle: '', date: '', sections: [], footer: '' }])).toContain('&lt;x&gt;');
-  });
-  it('prepends 6 November field-test notes without an overall rate or device identifiers', () => {
-    const h = accuracyHtml();
-    expect(h.match(/class="acc-report"/g)).toHaveLength(2);
-    expect(h.indexOf('Field-test notes')).toBeGreaterThanOrEqual(0);
-    expect(h.indexOf('Field-test notes')).toBeLessThan(h.indexOf('Community Accuracy Update'));
-    for (const s of [
-      'Updated 6 November 2026', 'America/Chicago', 'five Axon devices', 'original debug file',
-      'not reverified against raw JSON', 'not newly independently validated',
-      'cannot reliably establish missed detections', '4 November (evening)', '72%', 'police present',
-      'not an individual Confirm', 'not police', '72–85%', 'Six advertisements', 'not six sightings',
-      'travelling nearby', 'four Cradlepoint hints at 30%', '5–6 November', 'one router or one bus',
-      'not an overall accuracy percentage', 'existing app scores', 'not measured probabilities',
-      'Duplicate exports', 'repeated confirmation taps',
-    ]) expect(h, s).toContain(s);
-    expect(h).not.toMatch(/\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b/);
-    expect(h).not.toMatch(/-?\d{1,3}\.\d{3,}/);
   });
 });

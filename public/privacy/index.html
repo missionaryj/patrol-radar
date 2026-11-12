@@ -16,7 +16,7 @@
 <ul>
 <li>In Patrol Mode, your precise location is used to draw your position on screen and stays on your device, except when you explicitly enable optional network-dependent features described below. Choosing Navigation Mode and requesting a route sends the starting coordinates and destination coordinates to Mapbox to calculate directions, traffic estimates, and navigation. Active native navigation may also exchange location information with Mapbox for routing and map matching. Route requests are user-initiated; exact GPS coordinates are not added to Patrol Radar's crowd map.</li>
 <li>Detections are snapped to a coarse grid of about 150–250 m before they are stored or shared.</li>
-<li>On Android, a foreground service with a visible notification keeps scanning while the screen is off. It runs only after you tap Start and stops when you tap Stop. The app does not request background (“all the time”) location.</li>
+<li>On Android, a foreground service with a visible notification keeps scanning while the screen is off. It runs only after you tap Start and stops when you tap Stop or after 6 hours. The app does not request background (“all the time”) location.</li>
 </ul>
 
 <h2>Data stored on your device</h2>

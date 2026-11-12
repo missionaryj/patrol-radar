@@ -8,7 +8,7 @@ export const STEPS: TutorialStep[] = [
   { id: 'scan', target: '#scan', title: 'Scan', body: 'Tap <b>Scan</b> to start listening and <b>Stop</b> to end. The pill at the top shows Idle / Scanning and the gear count. To send a debug file, open Live detections and tap <b>● Record</b>.' },
   { id: 'map', target: '#map-legend', title: 'Reading the map', body: 'Your location dot is <b>You</b>; red pins are <b>Gear hits</b>; <b>Flock camera</b> marks mapped plate readers. Tap the legend to expand its categories. ◎ recenters and follows you; <b>3D</b> tilts the map.' },
   { id: 'sheet', target: '#sheet', title: 'Live detections', body: 'Swipe up or tap the handle. Each card shows a grade (<b>strong</b>, <b>likely</b>, <b>hint</b>), a confidence %, signal (<b>RSSI</b>) and rough range (📍 ~m). Grouped signals appear as one 🚓 Vehicle card. The list scrolls on its own.' },
-  { id: 'bell', target: '#open-updates', title: 'Updates & Accuracy reports', body: 'The bell shows app news, with a dot when something is new. The <b>Accuracy reports</b> tab explains how reliable each detection type is.' },
+  { id: 'bell', target: '#open-updates', title: 'Updates', body: 'The bell shows app news, with a dot when something is new.' },
   { id: 'settings', target: '#open-settings', title: 'Settings', body: 'Set <b>Travel mode</b> to <b>Car</b> or <b>On foot</b> (shorter range, stricter filtering). <b>3D buildings</b> is on by default. You can also adjust scan mode, sounds, layers and replay this tutorial here.' },
   { id: 'chat', target: '#open-chat', title: 'City chat', body: 'Anonymous, city-level chat with people nearby. Be civil: no names, plates or addresses. Posts delete after 24 h. That’s it, enjoy.' },
 ];

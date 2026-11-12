@@ -9,12 +9,13 @@ import { MapView, coarsen } from '../map';
 import { LocalReportStore } from '../reports';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
-import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
+import { NativeScanner, nativePlugin, backgroundScanEndedMessage, type NativeScanMode } from '../ble/nativeScanner';
 import { setupScannerPhrase, syncSetupScanner, webSetupMessage } from './setupCard';
 import { LiveDeviceTracker, colorFor, WIFI_COLOR, bandRadius, type LiveDevice } from '../map/liveDevices';
 import { corroborationText, type Vehicle } from '../fusion/vehicles';
 import { bandOfMHz } from '../wifi/context';
 import { WIFI_EVIDENCE_LINE, VEHICLE_EVIDENCE_LINE } from '../wifi/identity';
+import { GROUPED_RELIABILITY, reliabilityLine } from './reliability';
 import { planWifi } from '../wifi/observe';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
@@ -435,6 +436,7 @@ function renderCards() {
     return `<li class="card${stale ? ' stale' : ''}${wifi ? ' wifi' : ''}" style="--c:${wifi ? WIFI_COLOR : d.color}">
       <div class="row"><span class="badge ${b.cls}">${b.text}</span><span class="name">${esc(d.label)}</span><span class="ago">${ago(d.lastSeen)}</span></div>
       ${d.kind === 'match' ? `<div class="conf"><span class="grade">${gradeOf(conf)}</span><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
+      ${d.kind === 'match' ? `<p class="evidence">${esc(reliabilityLine({ radio: m?.radio ?? d.radio, category: m?.signature.category, vendor: m?.signature.vendor }))}</p>` : ''}
       ${d.kind === 'match' && m ? confirmRow(d.key) : ''}
       ${wifi ? `<p class="evidence">${esc(WIFI_EVIDENCE_LINE)}</p>` : ''}
       <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span><span class="loc">📍 ~${bandRadius(d.band)} m${map.anchors.get(d.key) ? ' · pinned' : ''}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">${wifi ? (d.key.startsWith('wifi:') ? 'signature only' : `AP ${esc(d.key.slice(0, 6))}`) : `#${esc(d.key.slice(0, 6))}`}</span></div>
@@ -469,6 +471,7 @@ function vehicleCard(v: Vehicle) {
     <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
     <div class="conf"><span class="grade">${gradeOf(v.confidence)}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     <div class="vmembers">${rows}</div>
+    <p class="evidence">${esc(GROUPED_RELIABILITY)}</p>
     <p class="evidence">${esc(VEHICLE_EVIDENCE_LINE)}</p>
     ${confirmRow(v.id)}
     <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">${corroborationText(v)}</span></div>
@@ -517,7 +520,12 @@ async function start() {
     scanner.alertSound = soundEnabled();
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
-    scanner.onError = msg => { if(scanner!==candidate)return; recorder.event('error', kind, `native: ${msg}`); stop(); status(`[scan] ${msg}`, 'err'); };
+    scanner.onError = msg => {
+      if (scanner !== candidate) return;
+      recorder.event('error', kind, `native: ${msg}`);
+      const limit = msg === backgroundScanEndedMessage('limit');
+      stop(); status(limit ? msg : `[scan] ${msg}`, 'err', limit ? 'Stopped' : undefined);
+    };
     scanner.onHealth = h => { recorder.setNativeHealth(h); setScanQuiet(h.quiet); };
     scanner.onSupervisor = (k, detail) => {
       if (k === 'quiet') { recorder.event('scanner-quiet', kind, detail); setScanQuiet(true); }
@@ -575,8 +583,9 @@ document.addEventListener('visibilitychange', () => {
   void candidate.serviceStatus().then(state => {
     if (!state || generation !== scanGeneration || scanner !== candidate) return;
     if (!state.sessionActive) {
-      recorder.event('error', 'native', 'Android scan service ended while backgrounded');
-      stop(); status('Android background scan stopped. Tap Scan to restart.', 'err');
+      const limit = state.stopReason === 'limit';
+      recorder.event('error', 'native', limit ? '6-hour scan limit' : 'Android scan service ended while backgrounded');
+      stop(); status(backgroundScanEndedMessage(state.stopReason), 'err', limit ? 'Stopped' : undefined);
     } else if (!state.running) status('Android scanner is recovering; waiting for native callbacks.', '', 'Recovering');
     else status('Scanning (Android background service active).', 'ok');
   }).catch(() => {});
