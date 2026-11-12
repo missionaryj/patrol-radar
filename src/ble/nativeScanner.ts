@@ -101,6 +101,7 @@ export class NativeScanner implements Scanner {
   onSupervisor?: (kind: string, detail: string) => void;
   private wifiHandle?: { remove(): Promise<void> | void };
   private generation = 0;
+  private stopped = false;
 
   async isSupported() { return !!this.plugin; }
   /** An active native session may temporarily be running=false while bounded retries occur. */
@@ -109,6 +110,7 @@ export class NativeScanner implements Scanner {
   }
   async start(onAdv: AdvListener) {
     if (!this.plugin) throw new ScanError('unsupported', 'Native scanner only works inside the Patrol Radar Android app.');
+    this.stopped = false;
     const generation = ++this.generation;
     const current = () => generation === this.generation;
     const listen = async (name: string, cb: (event: any) => void) => {
@@ -149,6 +151,8 @@ export class NativeScanner implements Scanner {
   }
   private cleanup() { void this.handle?.remove(); this.handle = undefined; void this.stateHandle?.remove(); this.stateHandle = undefined; void this.wifiHandle?.remove(); this.wifiHandle = undefined; }
   stop() {
+    if (this.stopped) return;
+    this.stopped = true;
     ++this.generation;
     this.cleanup();
     // Run Stop after an in-flight native Start, even when Start resolves late.
