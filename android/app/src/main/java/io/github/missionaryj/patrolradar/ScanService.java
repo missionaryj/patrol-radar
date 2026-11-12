@@ -52,6 +52,8 @@ public class ScanService extends Service {
     public static volatile boolean running;
     /** Session still requested, including the gap between bounded retry attempts. */
     public static volatile boolean sessionActive;
+    private static volatile boolean uiForeground = true;
+    static void setUiForeground(boolean foreground) { uiForeground = foreground; }
 
     static final String CHANNEL = "patrol_scan_v2"; // v2: IMPORTANCE_DEFAULT (silent); old LOW channel was hidden on some OEM Android 7-11 builds
     static final int NOTIF_ID = 4711;
@@ -79,6 +81,14 @@ public class ScanService extends Service {
     private long lastAdvertAt, lastStartAt, screenOffSince, screenOffTotalMs, windowStart; private int windowCount; private double baselinePerMin, nativeRatePerMin;
     private int restartsStall, restartsPeriodic, restartsScreen, failedRestarts; private boolean quiet;
     private BroadcastReceiver screenRx;
+    /** Coarse, in-memory notification suppression. Only per-session salted device hashes are kept. */
+    private final java.util.Map<String, Long> alertedDevices = new java.util.HashMap<>();
+    private long lastNativeAlertAt = -45_000L;
+    private static final ParcelUuid[] AXON_UUIDS = {
+        ParcelUuid.fromString("0000fe6b-0000-1000-8000-00805f9b34fb"),
+        ParcelUuid.fromString("0000fe6c-0000-1000-8000-00805f9b34fb"),
+        ParcelUuid.fromString("0000fc81-0000-1000-8000-00805f9b34fb")
+    };
 
     /** Pure stall rule (used by the native supervisor). Only meaningful for an unfiltered scan with the screen on. */
     static boolean isStalled(long sinceLastAdvertMs, double lastMinRate, double baselinePerMin) {
@@ -120,6 +130,7 @@ public class ScanService extends Service {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
         stopScan();
         salt = new byte[16]; new SecureRandom().nextBytes(salt);
+        alertedDevices.clear(); lastNativeAlertAt = -45_000L;
         String mode = intent.getStringExtra("mode");
         boolean filtered = intent.getBooleanExtra("filtered", true);
         int[] cids = intent.getIntArrayExtra("companyIds");
@@ -219,6 +230,7 @@ public class ScanService extends Service {
         lastAdvertAt = now; windowCount++;
         boolean recovered = health.callback(now);
         if (quiet || recovered) { quiet = false; emitState("recovered", "Native callbacks resumed"); emitHealth(); }
+        maybeAlertInBackground(r, now);
         Sink s = sink; if (s == null) return;
         try {
             JSONObject o = new JSONObject();
@@ -248,6 +260,36 @@ public class ScanService extends Service {
             }
             s.onAdvert(o);
         } catch (Exception ignored) { }
+    }
+
+    /** Runs on the scanner service thread even when the WebView is suspended or no plugin sink exists. */
+    private void maybeAlertInBackground(ScanResult result, long now) {
+        if (uiForeground || salt == null || !supervising) return;
+        ScanRecord record = result.getScanRecord();
+        if (record == null) return;
+        try {
+            java.util.List<byte[]> payloads = new ArrayList<>();
+            SparseArray<byte[]> mfr = record.getManufacturerSpecificData();
+            if (mfr != null) for (int i = 0; i < mfr.size(); i++) payloads.add(mfr.valueAt(i));
+            Map<ParcelUuid, byte[]> services = record.getServiceData();
+            if (services != null) payloads.addAll(services.values());
+            boolean axonService = false;
+            for (ParcelUuid id : AXON_UUIDS) {
+                if ((record.getServiceUuids() != null && record.getServiceUuids().contains(id))
+                    || (services != null && services.containsKey(id))) { axonService = true; break; }
+            }
+            String label = NativeAlertMatcher.match(record.getManufacturerSpecificData(0x034d), axonService, payloads);
+            if (label == null) return;
+            String id = hash(result.getDevice().getAddress());
+            Long previous = alertedDevices.get(id);
+            if (!NativeAlertMatcher.canAlert(now, lastNativeAlertAt, previous)) return;
+            boolean silent = !getSharedPreferences("patrol_alerts", MODE_PRIVATE).getBoolean("sound", true);
+            if (PoliceAlertNotifications.show(this, "Police gear may be nearby", label, false, silent)) {
+                alertedDevices.put(id, now); lastNativeAlertAt = now;
+                // Prune once per notification; no unbounded per-device history.
+                alertedDevices.entrySet().removeIf(e -> now - e.getValue() >= 600_000L);
+            }
+        } catch (Exception ignored) { /* Unavailable payload or notification permissions must not interrupt BLE scanning. */ }
     }
 
     private String hash(String addr) throws Exception {
@@ -379,6 +421,7 @@ public class ScanService extends Service {
         if (wifi != null) { wifi.stop(); wifi = null; }
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         wakeLock = null; running = false; sessionActive = false;
+        alertedDevices.clear(); lastNativeAlertAt = -45_000L;
     }
 
     @Override public void onDestroy() { stopScan(); salt = null; emitState("stopped", ""); super.onDestroy(); }
