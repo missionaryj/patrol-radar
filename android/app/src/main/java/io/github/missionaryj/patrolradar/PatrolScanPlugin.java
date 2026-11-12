@@ -87,6 +87,18 @@ public class PatrolScanPlugin extends Plugin {
         try { ScanService.start(getContext(), mode, filtered, cids, uuids, wifiRules, ouis); call.resolve(); }
         catch (Exception e) { call.reject("Could not start background scan: " + e.getMessage()); }
     }
+    /** Saved appearance choice. Light and Dark stick; anything else follows the phone. */
+    @PluginMethod public void setThemeBars(PluginCall call) {
+        String choice = call.getString("choice", "system");
+        if (!"light".equals(choice) && !"dark".equals(choice)) choice = "system";
+        SystemBars.saveChoice(getContext(), choice);
+        android.app.Activity activity = getActivity();
+        if (activity != null) {
+            String saved = choice;
+            activity.runOnUiThread(() -> SystemBars.paint(activity, SystemBars.light(activity, saved)));
+        }
+        call.resolve();
+    }
     @PluginMethod public void setAlertSound(PluginCall call) {
         getContext().getSharedPreferences("patrol_alerts", android.content.Context.MODE_PRIVATE)
             .edit().putBoolean("sound", call.getBoolean("enabled", true)).apply();

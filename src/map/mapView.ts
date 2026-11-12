@@ -119,17 +119,29 @@ export class MapView {
   private heatLoading?: Promise<void>; private heatDraw = 0; private heatTimer?: number; private heatRenderer!: L.Renderer;
   /** Live dots/rings on one canvas: hundreds of SVG paths rebuilt per refresh janked the map (see scripts/stress). */
   private liveRenderer = L.canvas({ padding: 0.3 });
+  private dark = false;
+  /** Street tiles and the 3D style follow the appearance setting. */
+  setTheme(dark: boolean) {
+    if (this.dark === dark) return;
+    this.dark = dark;
+    const name = dark ? 'tiles-slate-dark' : 'tiles-slate';
+    this.raster.options.className = name;
+    const tiles = this.raster.getContainer?.();
+    if (tiles) { tiles.classList.remove('tiles-slate', 'tiles-slate-dark'); tiles.classList.add(name); }
+    this.m3.setTheme(dark ? 'dark' : 'light');
+  }
   constructor(el: HTMLElement, center: [number, number] = [41.88, -87.63], opts: MapViewOptions = {}) {
+    this.dark = !!opts.dark;
     this.map = L.map(el, { zoomControl: opts.zoomControl ?? true });
     this.waitingForLocation = !!opts.waitForLocation;
     if (this.waitingForLocation) this.viewReady = new Promise(resolve => { this.resolveView = resolve; });
     else { this.map.setView(center, 15); this.mapHasView = true; }
     // Cool-slate basemap (OSM tiles + CSS filter, no API key); .tiles-slate adds a slight blue-grey tint.
-    this.raster = L.tileLayer(opts.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: opts.dark ? 'tiles-slate-dark' : 'tiles-slate' });
+    this.raster = L.tileLayer(this.dark ? RASTER_2D.dark : RASTER_2D.light, { maxZoom: 19, attribution: RASTER_2D.attribution, className: this.dark ? 'tiles-slate-dark' : 'tiles-slate' });
     this.wants3d = !!opts.initial3D;
     this.present2D(!this.wants3d);
     const el3 = L.DomUtil.create('div', 'map3d', el); el3.hidden = true; L.DomEvent.disableClickPropagation(el3); L.DomEvent.disableScrollPropagation(el3);
-    this.m3 = new Map3D(el3, opts.dark ? 'dark' : 'light', () => this.follow.userPanned(), () => { void this.set3D(false); this.on3DFailure?.(); this.onPresentationChange?.('fallback'); });
+    this.m3 = new Map3D(el3, this.dark ? 'dark' : 'light', () => this.follow.userPanned(), () => { void this.set3D(false); this.on3DFailure?.(); this.onPresentationChange?.('fallback'); });
     this.m3.onMoveEnd = () => { if (this.flockOn) this.scheduleFlock(); };
     // Traffic cameras get their own pane above the overlay canvas (so they stay tappable); the own-location dot and its
     // accuracy circle sit in a still higher, click-through pane so nothing can ever cover them.

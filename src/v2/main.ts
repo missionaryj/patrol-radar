@@ -1,4 +1,5 @@
 import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
+import { mountTheme, readThemeChoice } from '../settings/theme';
 import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate, type Destination } from '../navigation/mapboxPreview';
 import { NavigationPlaces, samePlace } from '../navigation/places';
 import { routeRemaining, remainingSeconds, speedMph, arrivalTime, distanceToNextTurn } from '../navigation/tripDisplay';
@@ -306,7 +307,7 @@ const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 mountLegend($('map-legend'));
-const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false, waitForLocation: true, initial3D: savedMap3D() });
+const map = new MapView($('map'), undefined, { dark: document.documentElement.dataset.theme !== 'light', legend: false, layersControl: false, zoomControl: false, waitForLocation: true, initial3D: savedMap3D() });
 map.onPresentationChange = state => {
   const loading = document.getElementById('map-startup');
   if (loading) { loading.hidden = state !== 'loading3d'; loading.textContent = 'Loading 3D map…'; }
@@ -358,6 +359,9 @@ const bootScanStop = Promise.resolve(nativePlugin()?.stop?.()).catch(()=>{});
 sel.value = isNativeApp ? 'native' : new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
 applyPlatformSettings(document, isNativeApp);
 { const sm = document.getElementById('scanmode') as HTMLSelectElement | null; const v = localStorage.getItem('pr.scanmode'); if (sm && v) sm.value = v; }
+const themeCtl = mountTheme(theme => map.setTheme(theme === 'dark'));
+const themeSel = document.getElementById('theme') as HTMLSelectElement | null;
+if (themeSel) { themeSel.value = themeCtl.choice(); themeSel.onchange = () => themeCtl.set(readThemeChoice(themeSel.value)); }
 { const pl = nativePlugin(); const b = document.getElementById('battery') as HTMLButtonElement | null; if (pl && b) { b.hidden = false; b.onclick = () => pl.openBatterySettings(); } }
 document.querySelectorAll<HTMLSelectElement>('select[data-seg]').forEach(mountSegmented);
 if (sel.value === 'native') status('Android app: tap Scan. Scanning keeps running with the screen off (see the notification).', 'ok');
@@ -806,6 +810,7 @@ function updateSettingsSummaries() {
   $('alerts-section-summary').textContent = `Police ping ${soundBox.checked ? 'on' : 'off'} · camera alerts in Map layers`;
   $('crowd-section-summary').textContent = `Sharing ${shareBox.checked ? 'on' : 'off'} · crowd layer ${$<HTMLInputElement>('crowd').checked ? 'on' : 'off'}`;
   $('travel-section-summary').textContent = `${$<HTMLSelectElement>('travelmode').value === 'foot' ? 'On foot' : 'Car'} · 3D buildings ${$<HTMLInputElement>('map3d').checked ? 'on' : 'off'}`;
+  $('appearance-summary').textContent = ({ light: 'Light', dark: 'Dark', system: 'Match system' } as Record<string, string>)[$<HTMLSelectElement>('theme').value] ?? 'Match system';
   $('layers-section-summary').textContent = `Flock cameras ${$<HTMLInputElement>('flockmap').checked ? 'on' : 'off'} · traffic cameras · Stop History`;
 }
 $('settings').addEventListener('change', updateSettingsSummaries);

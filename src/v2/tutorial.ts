@@ -9,7 +9,7 @@ export const STEPS: TutorialStep[] = [
   { id: 'map', target: '#map-legend', title: 'Reading the map', body: 'Your location dot is <b>You</b>; red pins are <b>Gear hits</b>; <b>Flock camera</b> marks mapped plate readers. Tap the legend to expand its categories. ◎ recenters and follows you; <b>3D</b> tilts the map.' },
   { id: 'sheet', target: '#sheet', title: 'Live detections', body: 'Swipe up or tap the handle. Each card shows a grade (<b>strong</b>, <b>likely</b>, <b>hint</b>), a confidence %, signal (<b>RSSI</b>) and rough range (📍 ~m). Grouped signals appear as one 🚓 Vehicle card. The list scrolls on its own.' },
   { id: 'bell', target: '#open-updates', title: 'Updates', body: 'The bell shows app news, with a dot when something is new.' },
-  { id: 'settings', target: '#open-settings', title: 'Settings', body: 'Set <b>Travel mode</b> to <b>Car</b> or <b>On foot</b> (shorter range, stricter filtering). <b>3D buildings</b> is on by default. You can also adjust scan mode, sounds, layers and replay this tutorial here.' },
+  { id: 'settings', target: '#open-settings', title: 'Settings', body: 'Set <b>Travel mode</b> to <b>Car</b> or <b>On foot</b> (shorter range, stricter filtering). <b>3D buildings</b> is on by default. <b>Appearance</b> is Light, Dark, or Match system. You can also adjust scan mode, sounds, layers and replay this tutorial here.' },
   { id: 'chat', target: '#open-chat', title: 'City chat', body: 'Anonymous, city-level chat with people nearby. Be civil: no names, plates or addresses. Posts delete after 24 h. That’s it, enjoy.' },
 ];
 

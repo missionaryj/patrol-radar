@@ -1,7 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
-<meta name="theme-color" content="#07080a"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title>
-<style>html,body{margin:0;background:#07080a;color:#eee}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style></head>
+<meta name="theme-color" content="#07080a"/>
+<script>
+/* Apply the saved appearance before first paint. Match system is the default. Keep in step with src/settings/theme.ts. */
+(function(){try{var p=localStorage.getItem('pr.theme');var dark=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);var t=dark?'dark':'light';var h=document.documentElement;h.dataset.theme=t;h.style.colorScheme=t;var c=dark?'#07080a':'#f4f6f8';h.style.background=c;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',c);}catch(e){}})();
+</script>
+<style>html,body{margin:0;background:#07080a;color:#eee}html[data-theme="light"],html[data-theme="light"] body{background:#f4f6f8;color:#16181d}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title></head>
 <body>
 <div id="map"></div>
 <section id="mode-welcome" class="mode-welcome" aria-labelledby="mode-welcome-title">
@@ -94,6 +99,14 @@
   <header><h2>Settings</h2><button id="close-settings" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="control-status"><span class="status-kicker">SCANNER STATUS</span><strong id="settings-scan-status">Scan is stopped</strong><span id="settings-mode">Scan mode: Balanced</span><div id="status-full" class="status-full" role="status">Idle</div><button type="button" id="check-setup" class="setup-button">Check my setup <span aria-hidden="true">›</span></button></div>
   <div id="setup-results" class="setup-results" hidden aria-live="polite"></div>
+
+  <details class="settings-section" id="appearance-section"><summary><span><b>Appearance</b><small id="appearance-summary">Match system</small></span></summary>
+  <div class="group">
+    <div class="field"><span>Theme</span>
+      <select id="theme" data-seg data-labels="Light|Dark|Match system"><option value="light">Light</option><option value="dark">Dark</option><option value="system" selected>Match system</option></select>
+      <small>Match system follows this phone's dark mode and updates if you change it.</small></div>
+  </div>
+  </details>
 
   <details class="settings-section" id="scanning-section"><summary><span><b>Scanning</b><small id="scanning-section-summary">Scan mode and device filter</small></span></summary>
   <div class="group">

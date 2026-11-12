@@ -16,5 +16,9 @@ describe('Patrol Mode road context', () => {
     expect(PALETTE.dark.road).not.toBe(PALETTE.dark.land);
     expect(PALETTE.dark.roadMajor).not.toBe(PALETTE.dark.road);
     expect(PALETTE.dark.label).not.toBe(PALETTE.dark.land);
+    const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); return ((n >> 16) & 255) * 0.2126 + ((n >> 8) & 255) * 0.7152 + (n & 255) * 0.0722; };
+    expect(lum(PALETTE.light.land)).toBeGreaterThan(180);
+    expect(lum(PALETTE.dark.land)).toBeLessThan(80);
+    expect(style3d('light').layers[0].paint['background-color']).toBe(PALETTE.light.land);
   });
 });

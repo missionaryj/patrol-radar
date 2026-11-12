@@ -9,6 +9,7 @@ vi.mock('maplibre-gl', () => ({ default: { Map: class {
   jumpTo(options: any) { this.jumps.push(options); }
   getZoom() { return 17; } getPitch() { return 62; } setPaintProperty() {}
   on(event: string, ...args: any[]) { this.handlers[event] = args[args.length - 1]; }
+  off() {}
   emit(event: string) { this.handlers[event]?.({}); }
   remove() { this.removed = true; }
   addSource() {} addLayer() {} getSource() { return undefined; } getLayer() { return undefined; }
