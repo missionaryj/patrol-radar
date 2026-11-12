@@ -136,9 +136,11 @@ export class NativeScanner implements Scanner {
         if (!current()) return;
         if (s?.state === 'health') { const h = parseNativeHealth(s.detail); if (h) this.onHealth?.(h); return; }
         if (s && ['restart', 'restart-failed', 'quiet', 'recovered', 'screen-on', 'screen-off'].includes(s.state)) { this.onSupervisor?.(s.state, s.detail ?? ''); return; }
-        if (s?.state === 'error' || s?.state === 'stopped') {
+        // Android may deliver an old service's "stopped" event during a rapid restart.
+        // Only an explicit error is fatal here; on-resume status checks detect a dead service.
+        if (s?.state === 'error') {
           this.cleanup();
-          this.onError?.(s.detail || (s.state === 'stopped' ? 'Android background scan stopped. Tap Scan to restart.' : 'Native scan failed'));
+          this.onError?.(s.detail || 'Native scan failed');
         }
       });
       if (!current()) return;
