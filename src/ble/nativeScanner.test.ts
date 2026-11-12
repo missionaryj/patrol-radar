@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { pickDefaultBackend } from './detect';
-import { toEvent, nativeFilters } from './nativeScanner';
+import { toEvent, nativeFilters, backgroundScanEndedMessage } from './nativeScanner';
+import { readFileSync } from 'node:fs';
 import { normalizeEvent } from './normalize';
 import { match } from './matcher';
 
@@ -67,6 +68,15 @@ it('retains listeners through a retry failure and forwards callback-confirmed re
     expect(scanner.onSupervisor).toHaveBeenLastCalledWith('recovered', 'Native callbacks resumed');
     scanner.stop(); expect(remove).toHaveBeenCalledTimes(2);
   } finally { vi.unstubAllGlobals(); }
+});
+
+it('uses the same words as the Android scan-ended notification', () => {
+  const java = readFileSync('android/app/src/main/java/io/github/missionaryj/patrolradar/PoliceAlertNotifications.java', 'utf8');
+  const msg = backgroundScanEndedMessage('limit');
+  expect(java).toContain(msg);
+  expect(msg).not.toMatch(/\b(strong|likely|hint|grade|score)\b|%/i);
+  expect(backgroundScanEndedMessage()).toMatch(/Tap Scan to restart/);
+  expect(backgroundScanEndedMessage('other')).toBe(backgroundScanEndedMessage());
 });
 
 it('cleans up listeners and reports an unrecoverable Android scan failure to the UI', async () => {

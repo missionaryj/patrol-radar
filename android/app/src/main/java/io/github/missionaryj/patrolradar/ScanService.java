@@ -52,6 +52,8 @@ public class ScanService extends Service {
     public static volatile boolean running;
     /** Session still requested, including the gap between bounded retry attempts. */
     public static volatile boolean sessionActive;
+    /** "limit" after the 6-hour cap stops the session; cleared when the user starts again. */
+    public static volatile String stopReason = "";
     private static volatile boolean uiForeground = true;
     static void setUiForeground(boolean foreground) { uiForeground = foreground; }
 
@@ -75,6 +77,16 @@ public class ScanService extends Service {
     static final long WATCHDOG_TICK_MS = 15_000L;
     /** Android blocks the 6th startScan within 30 s (SCAN_FAILED_SCANNING_TOO_FREQUENTLY). We allow at most 3. */
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean limitEnded;
+    /** Fires once, on this service, including while the app is backgrounded. User Stop cancels it. */
+    private final Runnable sessionLimit = () -> {
+        if (!supervising || limitEnded) return;
+        limitEnded = true;
+        stopReason = "limit";
+        PoliceAlertNotifications.showScanEnded(this);
+        emitState("error", PoliceAlertNotifications.SCAN_ENDED_TEXT);
+        stopSelf();
+    };
     private static final java.util.ArrayDeque<Long> starts = new java.util.ArrayDeque<>();
     private String reqMode = "balanced"; private boolean reqFiltered = true; private int[] reqCids; private String[] reqUuids;
     private boolean screenOn = true, activeFiltered = true;
@@ -141,10 +153,11 @@ public class ScanService extends Service {
         PowerManager pmx = (PowerManager) getSystemService(POWER_SERVICE);
         screenOn = pmx == null || pmx.isInteractive(); screenOffSince = screenOn ? 0 : SystemClock.elapsedRealtime();
         health = new ScanHealth(); lastAdvertAt = 0; windowCount = 0; windowStart = SystemClock.elapsedRealtime();
-        supervising = true; sessionActive = true; health.started("initial");
+        supervising = true; sessionActive = true; stopReason = ""; limitEnded = false; health.started("initial");
         attemptStart("initial");
         registerScreen();
         handler.removeCallbacks(tick); handler.postDelayed(tick, WATCHDOG_TICK_MS);
+        handler.postDelayed(sessionLimit, ScanHealth.SESSION_LIMIT_MS);
         emitHealth();
         String wr = intent.getStringExtra("wifiRules");
         if (wr != null && supervising && !"failed".equals(health.state)) {
@@ -218,7 +231,7 @@ public class ScanService extends Service {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (wakeLock == null || !wakeLock.isHeld()) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "patrolradar:scan");
-            wakeLock.acquire(6 * 60 * 60 * 1000L); // hard cap 6 h
+            wakeLock.acquire(ScanHealth.SESSION_LIMIT_MS); // same 6 h cap as sessionLimit
         }
         long now = SystemClock.elapsedRealtime(); lastStartAt = now; windowStart = now; windowCount = 0; nativeRatePerMin = 0; activeFiltered = !filters.isEmpty();
         running = true;

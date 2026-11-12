@@ -93,7 +93,7 @@ public class PatrolScanPlugin extends Plugin {
         call.resolve();
     }
     @PluginMethod public void stop(PluginCall call) { ScanService.stop(getContext()); call.resolve(); }
-    @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); r.put("sessionActive", ScanService.sessionActive); call.resolve(r); }
+    @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); r.put("sessionActive", ScanService.sessionActive); r.put("stopReason", ScanService.stopReason); call.resolve(r); }
 
     /** Read-only setup information; opening this screen never requests permissions. */
     @PluginMethod public void setupStatus(PluginCall call) {

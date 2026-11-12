@@ -12,7 +12,7 @@ describe('tutorial', () => {
   });
   it('covers privacy, scan, legend, cards, bell, travel mode and chat', () => {
     const all = STEPS.map(s => s.body).join(' ');
-    for (const w of ['Receive-only', 'Scan', 'Record', 'Flock camera', 'legend', 'RSSI', 'Accuracy reports', 'On foot', 'Car', '3D buildings', 'chat']) expect(all).toContain(w);
+    for (const w of ['Receive-only', 'Scan', 'Record', 'Flock camera', 'legend', 'RSSI', 'app news', 'On foot', 'Car', '3D buildings', 'chat']) expect(all).toContain(w);
   });
   it('steps forward/back within bounds', () => {
     const t = new TutorialState(3); expect(t.first).toBe(true); t.back(); expect(t.i).toBe(0);

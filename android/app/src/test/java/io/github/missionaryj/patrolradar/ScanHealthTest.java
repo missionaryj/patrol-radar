@@ -60,6 +60,13 @@ public class ScanHealthTest {
         ScanHealth h = new ScanHealth(); h.failed(2, 1); h.stopped();
         assertFalse(h.retryDue(999999)); assertEquals("stopped", h.state);
     }
+    @Test public void sixHourSessionEndsOnceTheCapIsReached() {
+        long cap = ScanHealth.SESSION_LIMIT_MS;
+        assertEquals(6L * 60 * 60 * 1000L, cap);
+        assertFalse(ScanHealth.sessionLimitReached(0, cap));
+        assertFalse(ScanHealth.sessionLimitReached(1_000, 1_000 + cap - 1));
+        assertTrue(ScanHealth.sessionLimitReached(1_000, 1_000 + cap));
+    }
     @Test public void silenceBudgetCoversPeriodicAndStallAndResetsOnlyOnCallback() {
         ScanHealth h = new ScanHealth(); h.started("initial");
         for (int i = 0; i < 3; i++) { assertTrue(h.canRestartSilent()); h.started(i == 0 ? "periodic" : "stall"); }

@@ -2,6 +2,11 @@ package io.github.missionaryj.patrolradar;
 
 /** Main-thread, aggregate-only native health. No device data or Android dependencies. */
 final class ScanHealth {
+    /** One scan session, matching the partial wake-lock cap. */
+    static final long SESSION_LIMIT_MS = 6L * 60 * 60 * 1000L;
+    static boolean sessionLimitReached(long startedAt, long now) {
+        return startedAt > 0 && now - startedAt >= SESSION_LIMIT_MS;
+    }
     long callbacks, lastCallbackAt = -1, retryAt;
     int failures, silentRestarts, failureCode;
     String state = "stopped", reason = "none", result = "none";
