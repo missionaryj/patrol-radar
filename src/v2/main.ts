@@ -36,6 +36,8 @@ import { type HeatFilter, type StopHeatIndex, heatPaint } from '../map/stopHeatL
 // A single map and BLE scanning session serve Patrol and Navigation.
 // The destination picker is a separate full-screen view; a chosen route launches the driving HUD.
 type MapExperience = 'patrol' | 'navigation';
+// Heavy optional map layers load only after a mode is selected and the map has a viewport.
+const deferredMapLayers: Array<() => void> = [];
 const welcome = document.getElementById('mode-welcome')!;
 const navigationPanel = document.getElementById('navigation-panel')!;
 const changeMode = document.getElementById('change-mode') as HTMLButtonElement;
@@ -146,23 +148,26 @@ document.addEventListener('keydown',event=>{
 function chooseExperience(mode: MapExperience) {
   welcome.hidden=true;
   navigationPanel.hidden=mode!=='navigation' || !!activeGuidance;
-  changeMode.hidden=mode==='navigation';
+  changeMode.hidden=false;
   document.body.dataset.experience=mode;
   if(scanner)stop(); else ++scanGeneration; // Entering a mode cancels any pending scan start.
   if(mode==='navigation')refreshPlaces();else map.setNavigationPlaces([]);
   window.dispatchEvent(new Event('resize'));
+  if(deferredMapLayers.length) void map.ready.then(() => requestAnimationFrame(() => {
+    for(const load of deferredMapLayers.splice(0)) load();
+  }));
 }
 (document.getElementById('choose-navigation') as HTMLButtonElement).onclick=()=>chooseExperience('navigation');
 (document.getElementById('choose-patrol') as HTMLButtonElement).onclick=()=>chooseExperience('patrol');
 function showModeChoices() {
   navigationRequest?.abort();
+  if(activeGuidance || nativeGuidanceActive)stopGuidance();
   if(scanner)stop(); else ++scanGeneration;
   if(!navSearchScreen.hidden)closeSearch();
   document.body.dataset.experience='';
   navigationPanel.hidden=true;welcome.hidden=false;changeMode.hidden=true;map.setNavigationPlaces([]);
 }
 changeMode.onclick=showModeChoices;
-(document.getElementById('navigation-back') as HTMLButtonElement).onclick=showModeChoices;
 
 function stopGuidance() {
   ++tripGeneration;
@@ -519,6 +524,7 @@ async function start() {
   try {
     let advCb: (adv: any) => void;
     await scanner.start(advCb = adv => {
+      if(generation!==scanGeneration || scanner!==candidate)return;
       supervisor.advert();
       const m0 = match(adv); const fz = m0 ? fusion.ble(m0, pos) : null; const m = m0 && ScanFusion.boostFlock(m0, fz); if (fz) patrolFlag(fz, pos); recorder.add(adv, m, pos); stats.record(!!m); allDevs.add(adv.sessionId); if (m) { policeDevs.add(adv.sessionId); matches.set(adv.sessionId, { ...m, radio: 'ble' }); onVehicle(fusion.vehicle({ ...m, radio: 'ble' }, pos)); }
       const isNew = !live.has(adv.sessionId);
@@ -541,7 +547,7 @@ async function start() {
     status(`Scanning (${scanner.name}). Watch "adverts seen" in Debug: if it stays 0 for 30 s with Bluetooth devices around, scanning is not working.`, 'ok');
     setScanning(true); $('add').hidden = !(scanner instanceof BluefyScanner);
     setTimeout(() => {
-      if (!scanner || stats.raw !== 0 || kind === 'mock') return;
+      if (generation!==scanGeneration || scanner!==candidate || stats.raw !== 0 || kind === 'mock') return;
       if (kind === 'native' && picker.value !== 'all') status('No police gear heard in 20 s. "Police gear only" ignores phones, earbuds and cars, so 0 is normal with no police nearby. To test that scanning works, set Devices to "All devices" in Settings.', '');
       else status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err');
     }, 20_000);
@@ -584,7 +590,7 @@ async function pollCrowd() {
     $('crowd-status').textContent = `${cells.length} crowd area(s) · ${conf} confirmed · updated ${new Date().toLocaleTimeString()}`; }
   catch (e) { $('crowd-status').textContent = `Crowd map unavailable (${(e as Error).message})`; }
 }
-pollCrowd(); setInterval(pollCrowd, 90_000);
+deferredMapLayers.push(() => { void pollCrowd(); setInterval(pollCrowd, 90_000); });
 
 // ---- police ping (audio alert on NEW police-gear match) ----
 const ping = new PingPlayer(), pingGate = new PingGate();
@@ -601,10 +607,9 @@ function firePing(m: Match, loc: { lat: number; lng: number }) {
   toast(`🔔 Police gear nearby: ${m.signature.label} (${(m.confidence * 100).toFixed(0)}%)`);
   document.body.classList.add('pinging'); setTimeout(() => document.body.classList.remove('pinging'), 2500);
   if (!document.hidden && vibration.checked) navigator.vibrate?.(180);
-  if (!soundEnabled()) return;
   const pl = nativePlugin();
-  if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft' }).catch(() => {}); return; }
-  ping.play(level);
+  if (pl && document.hidden) { void pl.alert?.({ title: 'Police gear nearby', text: m.signature.label, soft: level === 'soft', silent: !soundEnabled() }).catch(() => {}); return; }
+  if (soundEnabled()) ping.play(level);
 }
 
 // ---- scan supervisor (stall watchdog + wake lock), Wi-Fi rules, patrol-car fusion, follow-me, Flock layer ----
@@ -642,7 +647,8 @@ const FLOCK_URL = `${import.meta.env.BASE_URL}data/flock/`;
   const setFlock = (on: boolean) => { localStorage.setItem('pr.flockmap', on ? '1' : '0');
     map.showFlock(on, FLOCK_URL).then(() => { const i = map.flockInfo; if (fs && i) fs.textContent = `${i.count.toLocaleString()} mapped US Flock cameras · OSM data as of ${i.osmBase?.slice(0, 10) ?? '?'} · zoom in to see them`; })
       .catch(e => { if (fs) fs.textContent = `Flock layer unavailable (${(e as Error).message})`; }); };
-  const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); } setFlock(on); }
+  const on = localStorage.getItem('pr.flockmap') !== '0'; if (fb) { fb.checked = on; fb.onchange = () => setFlock(fb.checked); }
+  if(on) deferredMapLayers.push(() => { if(fb?.checked) setFlock(true); }); }
 // Traffic enforcement cameras (OSM + city open data), lazy 5° tiles, with their own Settings page and on-device alerts.
 const TC_URL = `${import.meta.env.BASE_URL}data/traffic-cams/`;
 const tcSet = loadTcSettings(), tcAlerter = new TrafficAlerter();
@@ -672,7 +678,7 @@ const tcSet = loadTcSettings(), tcAlerter = new TrafficAlerter();
   const dist = sel('tc-distance'); dist.value = String(tcSet.distance); dist.onchange = () => { tcSet.distance = dist.value === 'auto' ? 'auto' : (+dist.value as AlertDistance); apply(); };
   const ah = ck('tc-ahead'); ah.checked = tcSet.aheadOnly; ah.onchange = () => { tcSet.aheadOnly = ah.checked; apply(); };
   const sty = sel('tc-style'); sty.value = tcSet.style; sty.onchange = () => { tcSet.style = sty.value as AlertStyle; apply(); if (tcSet.style === 'sound') void ping.unlock().then(() => ping.play('soft')); else if (tcSet.style === 'vibrate') navigator.vibrate?.(120); };
-  apply(); if (tcSet.show) void show(true);
+  apply(); if (tcSet.show) deferredMapLayers.push(() => { if(tcSet.show) void show(true); });
 }
 // Historical Stop History preview and Pro presentation. Purchases must not be enabled without verified Play Billing.
 const HEAT_URL = `${import.meta.env.BASE_URL}data/stop-heat/`;
@@ -696,7 +702,7 @@ const hasVerifiedPro = false; // TODO: replace with verified, server-backed Goog
   $('close-settings').addEventListener('click', () => openHeat(false)); $('scrim').addEventListener('click', () => openHeat(false));
   let saved: HeatFilter = { year: null, tod: null, dow: null };
   try { const v = JSON.parse(localStorage.getItem(HEAT_FILTER_KEY) ?? ''); if (v && typeof v === 'object') saved = { year: v.year ?? null, tod: v.tod ?? null, dow: v.dow ?? null }; } catch { /* default all */ }
-  const read = (el: HTMLSelectElement, kind: 'year' | 'tod' | 'dow') => el.value === '' ? null : kind === 'year' ? +el.value : +el.value;
+  const read = (el: HTMLSelectElement) => el.value === '' ? null : Number(el.value);
   const writeSel = (el: HTMLSelectElement, v: number | null) => { el.value = v == null ? '' : String(v); };
   const fill = (idx: StopHeatIndex) => {
     const yearOpts = '<option value="">All years</option>' + idx.years.map(y => `<option value="${y}">${y}</option>`).join('');
@@ -724,7 +730,7 @@ const hasVerifiedPro = false; // TODO: replace with verified, server-backed Goog
     sync(); map.setStopHeatFilter(hasVerifiedPro ? saved : { year: null, tod: null, dow: null });
     if (sum) sum.textContent = !ck('stopheat').checked ? 'Hidden' : !hasVerifiedPro ? 'Free preview · Pro filters locked' : saved.year || saved.tod != null || saved.dow != null ? 'Shown · filtered' : 'Shown · all periods';
   };
-  const onSel = (id: string, kind: 'year' | 'tod' | 'dow') => { sel(id).onchange = () => { if (!hasVerifiedPro) return; saved = { ...saved, [kind]: read(sel(id), kind) }; applyFilter(); }; };
+  const onSel = (id: string, kind: 'year' | 'tod' | 'dow') => { sel(id).onchange = () => { if (!hasVerifiedPro) return; saved = { ...saved, [kind]: read(sel(id)) }; applyFilter(); }; };
   onSel('heat-year-set', 'year');
   onSel('heat-tod-set', 'tod');
   onSel('heat-dow-set', 'dow');
@@ -734,7 +740,7 @@ const hasVerifiedPro = false; // TODO: replace with verified, server-backed Goog
   };
   const m = ck('stopheat'); m.checked = localStorage.getItem('pr.stopheat') !== '0';
   m.onchange = () => { localStorage.setItem('pr.stopheat', m.checked ? '1' : '0'); applyFilter(); void show(m.checked); };
-  applyFilter(); if (m.checked) void show(true);
+  applyFilter(); if (m.checked) deferredMapLayers.push(() => { if(m.checked) void show(true); });
 }
 let tcBannerT: number | undefined, tcBusy = false;
 function showTcBanner(a: TcAlert) {
@@ -745,7 +751,7 @@ function showTcBanner(a: TcAlert) {
 }
 /** Called for every GPS fix. Position/heading stay in memory for this check only; nothing is stored or sent. */
 async function checkTrafficCams(f: Fix) {
-  if (tcBusy || !tcSet.alerts || !tcSet.show) { tcAlerter.heading(f); return; }
+  if (!document.body.dataset.experience || tcBusy || !tcSet.alerts || !tcSet.show) { tcAlerter.heading(f); return; }
   tcBusy = true;
   try { const cams = await map.trafficCamsNear(TC_URL, f.lat, f.lng, 700); const a = tcAlerter.check(f, cams, tcSet, travel().mode); if (a) showTcBanner(a); }
   catch { /* data unavailable: no alert */ } finally { tcBusy = false; }

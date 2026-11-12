@@ -13,5 +13,7 @@ describe('manual Patrol scanning',()=>{
     expect(code).toContain("if(scanner)stop(); else ++scanGeneration");
     expect(code).toContain("$('scan').onclick = () => (scanner ? stop() : start())");
     expect(code).toContain("if(generation!==scanGeneration)");
+    expect(code).toContain("if(generation!==scanGeneration || scanner!==candidate)return;");
+    expect(code).toContain("if (generation!==scanGeneration || scanner!==candidate || stats.raw !== 0");
   });
 });

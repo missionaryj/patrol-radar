@@ -445,12 +445,14 @@ details.group{margin-top:14px}
 .mode-choice-icon{font-size:26px;color:#72acff;min-width:32px}
 .patrol-choice .mode-choice-icon{color:#ff5964}
 .mode-choice>span:last-child{font-size:26px}
-.mode-return{position:fixed;left:15px;top:calc(65px + env(safe-area-inset-top));z-index:550;color:#fff;background:#192333;border:1px solid #5b6577;border-radius:14px;padding:10px 13px;font-weight:700}
+.mode-return{position:fixed;right:calc(12px + var(--sr));top:calc(64px + var(--st));z-index:1110;display:flex;align-items:center;gap:8px;min-height:48px;color:#fff;background:#c51c2e;border:1px solid #ff737d;border-radius:14px;padding:11px 16px;font-size:14px;font-weight:800;box-shadow:0 6px 22px #000a,0 0 0 2px #ff4b5c33}
+.mode-return:focus-visible{outline:3px solid white;outline-offset:3px}
+body[data-experience="patrol"] #map-legend{top:calc(126px + var(--st))}
+body[data-navigation-driving="true"] .mode-return{display:none!important}
 /* Navigation dock: stay at thumb level and keep the map visible. */
 .navigation-panel{position:fixed;z-index:1100;bottom:calc(14px + env(safe-area-inset-bottom));left:12px;right:12px;background:#101b2c;border:1px solid #3b4c63;border-radius:22px;padding:15px;box-shadow:0 14px 40px #000a;color:white;max-height:48dvh;overflow-y:auto}
 .navigation-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .navigation-panel-head strong{font-size:17px}
-.navigation-panel-head button{background:transparent;color:#c1d8fc;border:0;padding:8px;font:inherit;font-size:13px}
 .navigation-open-search{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:#edf4ff;background:#22334b;border:1px solid #567295;border-radius:16px;padding:16px;font:inherit;font-size:17px;font-weight:700}
 .navigation-open-search span:first-child{font-size:28px;line-height:20px;color:#91b9ff}
 .navigation-open-search span:last-child{margin-left:auto;color:#9fb4d3}
