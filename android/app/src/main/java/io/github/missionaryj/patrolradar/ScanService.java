@@ -50,6 +50,8 @@ public class ScanService extends Service {
     public interface Sink { void onAdvert(JSONObject advert); void onState(String state, String detail); default void onWifi(JSONObject match) { } }
     public static volatile Sink sink;
     public static volatile boolean running;
+    /** Session still requested, including the gap between bounded retry attempts. */
+    public static volatile boolean sessionActive;
 
     static final String CHANNEL = "patrol_scan_v2"; // v2: IMPORTANCE_DEFAULT (silent); old LOW channel was hidden on some OEM Android 7-11 builds
     static final int NOTIF_ID = 4711;
@@ -128,7 +130,7 @@ public class ScanService extends Service {
         PowerManager pmx = (PowerManager) getSystemService(POWER_SERVICE);
         screenOn = pmx == null || pmx.isInteractive(); screenOffSince = screenOn ? 0 : SystemClock.elapsedRealtime();
         health = new ScanHealth(); lastAdvertAt = 0; windowCount = 0; windowStart = SystemClock.elapsedRealtime();
-        supervising = true; health.started("initial");
+        supervising = true; sessionActive = true; health.started("initial");
         attemptStart("initial");
         registerScreen();
         handler.removeCallbacks(tick); handler.postDelayed(tick, WATCHDOG_TICK_MS);
@@ -376,7 +378,7 @@ public class ScanService extends Service {
         if (screenRx != null) { try { unregisterReceiver(screenRx); } catch (Exception ignored) { } screenRx = null; }
         if (wifi != null) { wifi.stop(); wifi = null; }
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        wakeLock = null; running = false;
+        wakeLock = null; running = false; sessionActive = false;
     }
 
     @Override public void onDestroy() { stopScan(); salt = null; emitState("stopped", ""); super.onDestroy(); }
