@@ -12,6 +12,6 @@ export function mountSegmented(sel: HTMLSelectElement): void {
   const sync = () => btns.forEach((b, i) => { const on = sel.selectedIndex === i; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
   sel.classList.add('seg-src'); sel.tabIndex = -1; sel.setAttribute('aria-hidden', 'true');
   sel.after(wrap); sel.addEventListener('change', sync);
-  // programmatic .value writes don't fire events: poll cheaply
-  setInterval(sync, 1000); sync();
+  // User edits fire change; initial persisted values were set before mounting.
+  sync();
 }
