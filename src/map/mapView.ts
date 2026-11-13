@@ -18,6 +18,11 @@ import { type TcIndex, type TcRow, type TcType, TC_ATTRIBUTION, TC_MIN_ZOOM, TC_
 import { type HeatCell, type HeatFilter, type StopHeatIndex, HEAT_CELL_CAP, HEAT_GRID_MIN_ZOOM, OPEN_FILTER, STOP_HEAT_ATTRIBUTION, countBuckets, heatPaint, heatTilesFor } from './stopHeatLayer';
 import { type FlockCollection, type FlockIndex, FLOCK_ATTRIBUTION, FLOCK_MIN_ZOOM, flockInBounds, tilesFor } from './flockLayer';
 
+/** Hidden Leaflet only needs periodic position sync when MapLibre is the visible renderer. */
+export function shouldSyncLeaflet(active3D: boolean, now: number, last: number): boolean {
+  return !active3D || now - last >= 350;
+}
+
 /** Cap on live dots drawn (police matches first, then strongest RSSI). See scripts/stress/map.html. */
 export const MAX_LIVE_DOTS = 150;
 export interface MapViewOptions { dark?: boolean; legend?: boolean; layersControl?: boolean; zoomControl?: boolean; waitForLocation?: boolean; initial3D?: boolean; }
@@ -244,7 +249,7 @@ export class MapView {
     const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
     const visible3D = this.m3.active;
     // Leaflet is hidden behind MapLibre in 3D. Keep its layers/bounds warm at a lower rate.
-    const syncLeaflet = !visible3D || ts - this.lastLeafletFollow >= 350;
+    const syncLeaflet = shouldSyncLeaflet(visible3D, ts, this.lastLeafletFollow);
     if (syncLeaflet) {
       this.lastLeafletFollow = ts;
       this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
