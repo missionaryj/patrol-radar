@@ -23,7 +23,7 @@ export const SOURCES = [
 ];
 export const QUARANTINED = [
     { id: 'opp_chicago', name: 'Chicago OPP', url: docs, why: 'OPP documents unresolved duplicates and hourly time resolution. The previous 2,108,098 rows cannot be claimed as unique encounters; withheld pending a defensible encounter rule.' },
-    { id: 'urbana', name: 'Urbana IDOT stop sheets', url: 'https://data.illinois.gov/d/vnxf-tjw4', why: 'Prior build joined Urbana codes to Champaign beats. Withheld pending source event-key and correct Urbana geography validation.' },
+    { id: 'urbana', name: 'Urbana IDOT stop sheets', url: 'https://data.illinois.gov/d/vnxf-tjw4', why: 'The uploaded Urbana IDOT Stop Sheet is a person-level investigatory/pedestrian-stop dataset. MOTOR VEHICLE NON-IVC means a vehicle occupant not covered by an IVC traffic-stop sticker, not an ordinary motor-vehicle traffic stop; never import these as vehicle traffic stops. The old build also incorrectly joined Urbana data to Champaign beats. Find the separate Urbana Police Traffic Stops dataset.' },
     { id: 'ct_stops', name: 'Connecticut traffic stops', url: 'https://data.ct.gov/d/nahi-zqrt', why: 'Town/intersection locations require a separately validated coarse geography adapter; no fabricated street points.' },
 ];
 export function sourceURL(s) { return s.archive ?? `https://${s.domain}/d/${s.dataset}`; }
