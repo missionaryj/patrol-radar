@@ -46,7 +46,12 @@ android {
     buildTypes {
         debug { signingConfig signingConfigs.debug }
         release {
-            minifyEnabled false
+            // Shrink and obfuscate. Resource shrinking stays off: Capacitor looks up some
+            // mipmap, drawable, and raw files by name (AssetUtil.getIdentifier).
+            minifyEnabled true
+            // Play reads native symbols from the bundle when a dependency ships .so files
+            // (Mapbox Navigation). No effect on builds that contain no native code.
+            ndk { debugSymbolLevel 'FULL' }
             if (System.getenv('ANDROID_UPLOAD_KEYSTORE')) { signingConfig signingConfigs.release }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

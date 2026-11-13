@@ -28,6 +28,13 @@ jobs:
           VITE_MAPBOX_PUBLIC_TOKEN: ${{ vars.VITE_MAPBOX_PUBLIC_TOKEN }}
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
           MAPBOX_NAV_SDK_ENABLED: 'true'
+      - name: Release bundle with R8
+        if: github.event_name == 'pull_request'
+        run: cd android && ./gradlew bundleRelease --no-daemon
+        env:
+          VITE_MAPBOX_PUBLIC_TOKEN: ${{ vars.VITE_MAPBOX_PUBLIC_TOKEN }}
+          MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
+          MAPBOX_NAV_SDK_ENABLED: 'true'
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk patrol-radar-debug.apk
       - uses: actions/upload-artifact@v4
         with: { name: patrol-radar-debug-apk, path: patrol-radar-debug.apk }
@@ -70,8 +77,24 @@ jobs:
           cd android && ./gradlew bundleRelease --no-daemon
           rm -f "$RUNNER_TEMP/upload.jks"
           cp app/build/outputs/bundle/release/app-release.aab ../patrol-radar-release.aab
+          test -s app/build/outputs/mapping/release/mapping.txt
+          unzip -l ../patrol-radar-release.aab | grep -q 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map'
+          if unzip -l ../patrol-radar-release.aab | grep -q '\.so$'; then
+            test -s app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
+            unzip -l ../patrol-radar-release.aab | grep -q 'BUNDLE-METADATA/com.android.tools.build.debugsymbols/'
+          fi
       - uses: actions/upload-artifact@v4
         with: { name: patrol-radar-release-aab, path: patrol-radar-release.aab }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: patrol-radar-release-mapping
+          path: android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: patrol-radar-native-debug-symbols
+          path: android/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
+          if-no-files-found: ignore
 
   mapbox-sdk-smoke:
     if: github.event_name == 'pull_request'

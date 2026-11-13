@@ -12,10 +12,15 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Line numbers in the release mapping file, so Play can deobfuscate stack traces.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Capacitor 7.6.9 keeps annotated plugin classes, but not these annotation types.
+# R8 full mode treats types that are only reached via getAnnotation() as unused and
+# then nulls out PluginHandle's cached @CapacitorPlugin, which breaks permission
+# requests and the JS bridge method table. Plugin method names themselves are kept
+# by Capacitor's consumer rules.
+-keep @interface com.getcapacitor.annotation.** { *; }
+-keep @interface com.getcapacitor.PluginMethod { *; }
+-keep @interface com.getcapacitor.NativePlugin { *; }
