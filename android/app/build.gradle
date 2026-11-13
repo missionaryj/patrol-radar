@@ -2,9 +2,6 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "io.github.missionaryj.patrolradar"
-    // AGP 8.9's default. Setting it makes the build download the NDK, which is what
-    // extracts native debug symbols from the Mapbox .so files into the bundle.
-    ndkVersion "27.0.12077973"
     // Keep the optional native implementation out of normal release builds until validated.
     if (System.getenv('MAPBOX_NAV_SDK_ENABLED') == 'true' &&
         (System.getenv('MAPBOX_DOWNLOADS_TOKEN') ?: rootProject.findProperty('MAPBOX_DOWNLOADS_TOKEN'))) {
@@ -52,8 +49,8 @@ android {
             // Shrink and obfuscate. Resource shrinking stays off: Capacitor looks up some
             // mipmap, drawable, and raw files by name (AssetUtil.getIdentifier).
             minifyEnabled true
-            // Play reads native symbols from the bundle when a dependency ships .so files
-            // (Mapbox Navigation). No effect on builds that contain no native code.
+            // Package native debug symbols when a dependency still has them. Mapbox's
+            // published .so files are already stripped, so this is a no-op for those libs.
             ndk { debugSymbolLevel 'FULL' }
             if (System.getenv('ANDROID_UPLOAD_KEYSTORE')) { signingConfig signingConfigs.release }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
