@@ -1,5 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {Readable} from 'node:stream';
+// @ts-expect-error untyped source registry
+import {SOURCES,QUARANTINED} from '../../scripts/stop-heat-sources.mjs';
 // @ts-expect-error build script
 import {StopValidator,number,jurisdictionContains,occupiedArea,cellPolygon,geometryArea} from '../../scripts/stop-heat-validation.mjs';
 // @ts-expect-error build script
@@ -10,6 +12,12 @@ import {normalize,rows,build} from '../../scripts/build-verified-stop-heat.mjs';
 const geometry={type:'Polygon',coordinates:[[[0,0],[2,0],[2,2],[0,2],[0,0]],[[0.5,0.5],[1,0.5],[1,1],[0.5,1],[0.5,0.5]]]};
 const fixture=()=>new StopValidator({contains:jurisdictionContains(geometry),start:'2000-01-01',end:'2026-12-31',asOf:'2026-11-12'});
 const row={key:'one',vehicle:true,date:'2020-02-29',time:'12:00:00',hour:12,lat:1.5,lng:1.5,cite:1,warn:0,arrest:0,reason:0};
+describe('Illinois source eligibility', () => {
+  it('quarantines Urbana person stop sheets instead of treating vehicle occupants as IVC traffic stops', () => {
+    expect(SOURCES.some((s: {id: string}) => s.id === 'urbana')).toBe(false);
+    expect(QUARANTINED.find((s: {id: string}) => s.id === 'urbana')?.why).toMatch(/NON-IVC/);
+  });
+});
 describe('audited stop imports',()=>{
   it('parses multiline CSV while discarding personal columns and suppressing raw error values',async()=>{
     const found: unknown[]=[];
