@@ -205,6 +205,15 @@ export class Map3D {
       map.addLayer({ id: 'heat-fill', type: 'fill', source: 'heat', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'opacity'] } }, before);
     } else src.setData?.(this.heatFC);
   }
+  /** Refresh only the driver dot and accuracy circle between less-frequent overlay mirrors. */
+  updateLocation(lat: number, lng: number, acc: number) {
+    if (this.pending) this.pending.me = { lat, lng, acc };
+    if (!this.map || !this.ready) return;
+    const point = {type:'FeatureCollection' as const,features:[{type:'Feature' as const,properties:{},geometry:{type:'Point' as const,coordinates:[lng,lat]}}]};
+    const ring = {type:'FeatureCollection' as const,features:[{type:'Feature' as const,properties:{},geometry:{type:'Polygon' as const,coordinates:[circlePoly(lat,lng,Math.max(3,acc))]}}]};
+    (this.map.getSource('me') as import('maplibre-gl').GeoJSONSource | undefined)?.setData(point);
+    (this.map.getSource('acc') as import('maplibre-gl').GeoJSONSource | undefined)?.setData(ring);
+  }
   update(m: Mirror) {
     this.pending = m;
     if (!this.map || !this.ready) return;

@@ -57,8 +57,8 @@ export class MapView {
   private navigationPlaces = L.layerGroup();
   private driving = false;
   private drivingHeading?: number;
-  private navigationMoving = false;
-  private get drivingCamera() { return this.driving || (typeof document !== 'undefined' && document.body?.dataset.experience === 'navigation' && this.navigationMoving); }
+  // Driving presentation belongs to a selected route; ending navigation returns to free map mode.
+  private get drivingCamera() { return this.driving; }
   /** Pins for places explicitly saved on this device. */
   setNavigationPlaces(places: Array<{lat:number;lng:number;label:string}>) {
     this.navigationPlaces.clearLayers();
@@ -74,13 +74,14 @@ export class MapView {
   /** The route is already selected: follow at driving zoom without refitting the whole trip every update. */
   setDrivingMode(on:boolean) {
     this.driving=on;
-    this.m3.setDrivingMode(this.drivingCamera);
+    if(!on)this.drivingHeading=undefined;
+    this.m3.setDrivingMode(on);
     if(on){this.recenter();this.map.setZoom(Math.max(this.map.getZoom(),17));}
   }
   private trafficLines = L.layerGroup();
   /** Display-only route preview; active turn guidance belongs to the native SDK. */
   setNavigationRoute(coords: [number, number][], congestion: string[] = []) {
-    this.navigationLine?.remove();
+    this.navigationLine?.remove(); this.navigationLine=undefined;
     this.trafficLines.clearLayers();
     if (coords.length < 2) { this.m3.setNavigationRoute([]); return; }
     this.navigationLine = L.polyline(coords.map(([lng,lat]) => [lat,lng] as [number,number]), { color: '#357FFF', weight: 7, opacity: 0.9, interactive: false }).addTo(this.map);
@@ -199,7 +200,7 @@ export class MapView {
   readonly loc = new Localizer();
   private meRenderer = L.svg({ pane: 'mePane' });
   private me?: L.CircleMarker; private meAcc?: L.Circle; private centered = false;
-  private smooth = new SmoothLocation(); private raf?: number; private lastFrame = 0; private flockTimer?: number;
+  private smooth = new SmoothLocation(); private raf?: number; private lastFrame = 0; private lastLeafletFollow = 0; private flockTimer?: number;
   /** Display-only "my location". Precise coords live only in these Leaflet layers and in memory, never stored or reported. */
   setUserLocation(lat: number, lng: number, accuracy: number, speed?: number | null, heading?: number | null, t = Date.now()) {
     this.startup?.locate(lat, lng);
@@ -218,8 +219,6 @@ export class MapView {
       this.patrolHeading = headingStep(this.patrolHeading, heading);
     const first = this.smooth.push({ lat, lng, acc: accuracy, t, speed, heading });
     const vel = this.smooth.vel, motion = speed ?? (vel ? Math.hypot(vel.vn, vel.ve) : 0);
-    if (document.body.dataset.experience !== 'navigation') this.navigationMoving = false;
-    else if (accuracy <= 35 && motion >= 4.5) this.navigationMoving = true;
     if (this.drivingCamera && accuracy <= 35 && motion > 1.5) {
       const course = heading != null && Number.isFinite(heading) && heading >= 0 && heading < 360 ? heading :
         vel ? (Math.atan2(vel.ve, vel.vn) * 180 / Math.PI + 360) % 360 : undefined;
@@ -243,17 +242,22 @@ export class MapView {
     this.raf = undefined;
     const dt = Math.min(100, ts - this.lastFrame); this.lastFrame = ts;
     const more = this.smooth.tick(Date.now(), dt); const d = this.smooth.disp!;
-    this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
-    this.moveRel(); // unknown-device dots + rings ride with the user dot (were redrawn only on the ~3/s data tick)
-    if (this.follow.onFix()) {
-      this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions);
-      // 3D camera jumps on every 60 Hz frame can churn tiles and outpace the dot redraw on slower Android phones.
-      if (ts - this.last3DFollow >= (this.patrolMoving ? 80 : 35)) {
-        this.last3DFollow = ts;
-        this.m3.follow(d.lat, d.lng, this.drivingCamera ? Math.max(17, this.map.getZoom()) : undefined, this.drivingCamera ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
-      }
+    const visible3D = this.m3.active;
+    // Leaflet is hidden behind MapLibre in 3D. Keep its layers/bounds warm at a lower rate.
+    const syncLeaflet = !visible3D || ts - this.lastLeafletFollow >= 350;
+    if (syncLeaflet) {
+      this.lastLeafletFollow = ts;
+      this.me!.setLatLng([d.lat, d.lng]); this.meAcc!.setLatLng([d.lat, d.lng]).setRadius(this.smooth.acc);
+      this.moveRel();
+      if (this.follow.onFix()) this.map.setView([d.lat, d.lng], this.map.getZoom(), { animate: false, noMoveStart: true } as L.ZoomPanOptions);
     }
-    if (this.m3.active && ts - this.lastMirror > 200) this.mirror3d();
+    if (visible3D && ts - this.last3DFollow >= (this.patrolMoving ? 80 : 50)) {
+      this.last3DFollow = ts;
+      // Update the location dot independently of expensive pin/ring mirroring.
+      this.m3.updateLocation(d.lat, d.lng, this.smooth.acc);
+      if (this.follow.onFix()) this.m3.follow(d.lat, d.lng, this.drivingCamera ? Math.max(17, this.map.getZoom()) : undefined, this.drivingCamera ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
+    }
+    if (visible3D && ts - this.lastMirror >= 400) this.mirror3d();
     if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
   };
   /** Recenter and resume follow-me. */
