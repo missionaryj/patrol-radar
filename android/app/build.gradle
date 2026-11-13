@@ -13,6 +13,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode((System.getenv("VERSION_CODE") ?: "1") as int)
+        // versionName is package.json. versionCode is VERSION_CODE, the workflow run number.
         versionName(System.getenv("VERSION_NAME") ?: new groovy.json.JsonSlurper().parse(file("../../package.json")).version)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Public runtime token; never use the secret Maven downloads token here.
