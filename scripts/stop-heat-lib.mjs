@@ -380,7 +380,13 @@ export class HeatAgg {
     let beat = null;
     if (stop.beatId && beatSet) beat = beatSet.byCode.get(normCode(stop.beatId)) ?? null;
     const ll = validLL(stop.lat, stop.lng);
-    if (!beat && ll) beat = this.spatial ? this.spatial.hit(stop.lng, stop.lat) : null;
+    // A publisher's coordinates must never fall back into another agency's beats.
+    // With no source-owned beat set, keep verified coordinates in their grid cells.
+    if (beat && ll && !pointInRings(stop.lng, stop.lat, beat.rings)) beat = null;
+    if (!beat && ll && beatSet) {
+      beatSet.spatial ??= new Spatial(beatSet.list);
+      beat = beatSet.spatial.hit(stop.lng, stop.lat);
+    }
     let unit;
     if (beat) {
       unit = this.units.get(beat.id);
