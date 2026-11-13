@@ -24,18 +24,29 @@ export async function findDestination(query: string, token: string, origin: Coor
   if (![origin.lat, origin.lng].every(Number.isFinite) || Math.abs(origin.lat)>90 || Math.abs(origin.lng)>180)
     throw new Error('Your GPS location is unavailable.');
   const url = new URL('https://photon.komoot.io/api');
-  for(const [k,v] of Object.entries({q:query.trim().slice(0,256),lon:String(origin.lng),lat:String(origin.lat),limit:'10'}))
+  // Request enough candidates to sort named businesses locally; Photon relevance is not strict nearest-first.
+  for(const [k,v] of Object.entries({q:query.trim().slice(0,256),lon:String(origin.lng),lat:String(origin.lat),zoom:'14',location_bias_scale:'0.1',limit:'30'}))
     url.searchParams.set(k,v);
   const json = await getJSON(url,signal,request);
-  const results: {poi:boolean;place:Destination}[] = (Array.isArray(json.features)?json.features:[]).flatMap((f:any)=>{
+  const results: {poi:boolean;place:Destination}[] = (Array.isArray(json.features)?json.features.slice(0,50):[]).flatMap((f:any)=>{
     const [lng,lat]=Array.isArray(f?.geometry?.coordinates)?f.geometry.coordinates:[];
     if(![lng,lat].every(Number.isFinite) || Math.abs(lng)>180 || Math.abs(lat)>90)return [];
     const p=f.properties??{}, street=[p.housenumber,p.street].filter(Boolean).join(' ');
     const label=[p.name||street,street && p.name ? street : '',p.city,p.state,p.country].filter(Boolean).join(', ').slice(0,180) || 'Destination';
     return [{poi:['amenity','shop','tourism','leisure','office','craft','healthcare'].includes(p.osm_key),place:{lat,lng,label}}];
   });
-  const nearby=results.filter(r=>r.poi).sort((a,b)=>distanceScore(origin,a.place)-distanceScore(origin,b.place));
-  return results.map(r=>(r.poi?nearby.shift()!:r).place);
+  // A typed street address should keep Photon relevance (the destination may intentionally be far away).
+  const addressQuery = /^\s*\d{1,6}\s+\S/.test(query) || /\b\d{5}(?:-\d{4})?\b/.test(query);
+  const ranked = addressQuery ? results : [
+    ...results.filter(r=>r.poi).sort((a,b)=>distanceScore(origin,a.place)-distanceScore(origin,b.place)),
+    ...results.filter(r=>!r.poi),
+  ];
+  const seen = new Set<string>();
+  return ranked.filter(({place})=>{
+    const key = [place.lat.toFixed(5),place.lng.toFixed(5),place.label.toLowerCase()].join(':');
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  }).slice(0,10).map(r=>r.place);
 }
 export async function drivingRoutes(origin: Coordinate, destination: Coordinate, token: string, signal: AbortSignal, request: typeof fetch = fetch): Promise<PreviewRoute[]> {
   if (!token.startsWith('pk.')) throw new Error('Mapbox public token not configured.');
