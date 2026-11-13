@@ -2,6 +2,9 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "io.github.missionaryj.patrolradar"
+    // AGP 8.9's default. Setting it makes the build download the NDK, which is what
+    // extracts native debug symbols from the Mapbox .so files into the bundle.
+    ndkVersion "27.0.12077973"
     // Keep the optional native implementation out of normal release builds until validated.
     if (System.getenv('MAPBOX_NAV_SDK_ENABLED') == 'true' &&
         (System.getenv('MAPBOX_DOWNLOADS_TOKEN') ?: rootProject.findProperty('MAPBOX_DOWNLOADS_TOKEN'))) {

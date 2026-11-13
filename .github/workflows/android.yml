@@ -30,7 +30,15 @@ jobs:
           MAPBOX_NAV_SDK_ENABLED: 'true'
       - name: Release bundle with R8
         if: github.event_name == 'pull_request'
-        run: cd android && ./gradlew bundleRelease --no-daemon
+        run: |
+          cd android && ./gradlew bundleRelease --no-daemon
+          test -s app/build/outputs/mapping/release/mapping.txt
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          unzip -l "$AAB" | grep -q 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map'
+          if unzip -l "$AAB" | grep -q '\.so$'; then
+            test -s app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
+            unzip -l "$AAB" | grep -q 'BUNDLE-METADATA/com.android.tools.build.debugsymbols/'
+          fi
         env:
           VITE_MAPBOX_PUBLIC_TOKEN: ${{ vars.VITE_MAPBOX_PUBLIC_TOKEN }}
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
