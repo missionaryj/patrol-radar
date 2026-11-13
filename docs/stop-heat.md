@@ -42,7 +42,7 @@ OPP archive `raw_row_number` is only a publisher-row identity. Where OPP perform
 
 Exact rejection reasons, source/date metadata, all acquisition checksums and Census boundary URLs/checksums are in `public/data/stop-heat/index.json`. Public tiles contain only aggregate buckets, outcome/reason categories and source counts.
 
-Chicago's previous 2,108,098 rows are withheld: OPP explicitly warns of unresolved duplicates and hourly time resolution. Urbana's previous 5,446 rows are withheld pending event identity and correct Urbana geometry; the old pipeline joined Urbana to Champaign beats. They remain named in `notMapped`, not silently counted. Unvalidated state/local overlaps are also excluded: no Cincinnati OPP plus official contact cards, no statewide NC plus its municipal subsets, and no overlapping CA RIPA/local/OPP years.
+Chicago's previous 2,108,098 rows are withheld: OPP explicitly warns of unresolved duplicates and hourly time resolution. Urbana's previous 5,446 rows are withheld because the uploaded Stop Sheet is an investigatory/person-stop dataset, not a standard Illinois Vehicle Code traffic-stop dataset; its MOTOR VEHICLE NON-IVC rows denote vehicle occupants outside the IVC traffic-stop collection. The old pipeline also joined Urbana to Champaign beats. See [the upload audit](urbana-stop-sheet-audit.md). They remain named in `notMapped`, not silently counted. Unvalidated state/local overlaps are also excluded: no Cincinnati OPP plus official contact cards, no statewide NC plus its municipal subsets, and no overlapping CA RIPA/local/OPP years.
 
 ## Objective coverage
 
