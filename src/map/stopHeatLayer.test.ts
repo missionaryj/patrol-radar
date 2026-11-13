@@ -26,6 +26,27 @@ describe('stop heat aggregate', () => {
     expect(classifyReason('DRIVING ON SUSPENDED LICENSE')).toBe(reasonIndex('license'));
     expect(classifyReason('Not Applicable')).toBeNull();
   });
+  it('does not move Urbana stops into Champaign beats with the same code', () => {
+    const square = (x: number) => [[[x, 0], [x + 1, 0], [x + 1, 1], [x, 1], [x, 0]]];
+    const urbana = new BeatSet('urbana', 'Urbana');
+    const champaign = new BeatSet('champaign', 'Champaign');
+    urbana.add('1', square(0));
+    champaign.add('1', square(2));
+    const agg = new HeatAgg();
+    agg.addBeatSet(urbana);
+    agg.addBeatSet(champaign);
+    agg.finishIndex();
+    const stop = {year: 2020, dow: 3, hour: 12, lat: 0.5, lng: 2.5, beatId: '1', cite: 0, warn: 0, arrest: 0, reason: null, src: 0};
+    agg.add(makeStop(stop), urbana);
+    expect(agg.units.get('champaign:1')).toBeUndefined();
+    expect([...agg.units.values()].find((u: {kind: string}) => u.kind === 'grid')?.n).toBe(1);
+    agg.add(makeStop({...stop, src: 1}), champaign);
+    expect(agg.units.get('champaign:1')?.n).toBe(1);
+    // An unscoped coordinate is a grid cell, not a guessed police beat.
+    agg.add(makeStop({...stop, beatId: '', src: 2}));
+    expect(agg.units.get('champaign:1')?.n).toBe(1);
+    expect(agg.mapped).toBe(3);
+  });
   it('counts a beat when the point is inside, otherwise a grid cell', () => {
     const ring = [[-88.2, 40.1], [-88.1, 40.1], [-88.1, 40.2], [-88.2, 40.2], [-88.2, 40.1]];
     const set = new BeatSet('t', 'Testville', () => 'Beat 1');
