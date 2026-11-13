@@ -47,13 +47,15 @@ Every published percentage must label its metric, year window, denominator, prec
 
 ## Safe next execution steps
 
-1. Acquire a privacy-minimized IDOT 2024–2025 extract through the official records channel (a request draft follows; **no request sent**). Reconcile the 2025 stop-count discrepancy against official event data.
+1. Await the already-sent IDOT request for a privacy-minimized 2024–2025 extract. Do not duplicate it. Reconcile the 2025 stop-count discrepancy against official event data.
 2. Obtain a lawful copy of the WBEZ/IPRE release and its data dictionary; identify agency, stop ID, date and beat fields and verify data reuse terms before ingestion.
 3. Restore Chicago only after deduplication audit and historical police-beat mapping; rebuild Urbana only with its own source identifiers and genuine Urbana geography.
 4. Create source-specific adapters and fixture tests using the existing PR #49 fail-closed pipeline. Calculate exact county and occupied-cell coverage after real records exist. Preserve PR #49 as a draft and do not publish or merge without a separate review.
 
-### Prepared request to IDOT — not sent
+### Original IDOT request text — request already sent
 
 Subject: Illinois Traffic Stop Study data request, 2024–2025 (non-identifying event fields)
 
 Please provide, if maintained and releasable, machine-readable 2024 and 2025 statewide traffic-stop data, limited to the fields necessary to count and geographically aggregate vehicle stops: stop date and time, reporting agency code, source event/stop identifier (if available), agency-defined stop beat/location code, stop reason and outcome. Please also provide the codebook, data dictionary, agency-code list, beat-code definitions or boundary references, a statement of incomplete/missing reporting agencies, and any conditions on public/commercial reuse. We do **not** request driver/officer identities, driver address, license plate, birth information, or demographic fields. Please indicate whether the source records support reliable location assignment and whether revised/corrected annual snapshots are available.
+
+Continuation: the exact WBEZ Urbana CSV was independently recovered and checksum matched. The [rerun audit and staging safeguards](urbana-wbez-traffic-stops-audit.md#independent-continuation-audit--2026-11-13) reproduce 60,229 source rows, 37 candidate duplicate excess rows in 36 groups, 193 unknown locations and one invalid time. The 166-row shortfall is localized by year but unresolved. Genuine effective-dated polygons/crosswalks and sufficient commercial terms remain missing. A research-only adapter exports no map features. Illinois remains at **0 accepted counties of 102 and zero occupied cells** in the audited snapshot; no coverage gain is claimed. Both records requests are already sent; no duplicate email was sent in this continuation.
