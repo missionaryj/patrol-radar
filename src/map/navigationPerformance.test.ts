@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('leaflet', () => ({ default: {} }));
-import { MapView } from './mapView';
+import { MapView, shouldSyncLeaflet } from './mapView';
 import { Map3D } from './map3d';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -16,25 +16,12 @@ describe('navigation camera lifecycle', () => {
     expect(view.m3.setDrivingMode).toHaveBeenCalledWith(false);
   });
 
-  it('does not move the hidden Leaflet map on every frame while 3D is active', () => {
-    vi.stubGlobal('document', { hidden: false });
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
-    const view = Object.create(MapView.prototype) as any;
-    const me = { setLatLng: vi.fn() }, acc = { setLatLng: vi.fn(() => acc), setRadius: vi.fn() };
-    Object.assign(view, {
-      driving: true, patrolMoving: false, lastFrame: 0, last3DFollow: 0, lastLeafletFollow: 0,
-      lastMirror: 1e9, mirror3d: vi.fn(), moveRel: vi.fn(),
-      smooth: { tick: vi.fn(() => true), disp: { lat: 41.88, lng: -87.63 }, acc: 12 },
-      me, meAcc: acc, map: { setView: vi.fn(), getZoom: () => 17 },
-      follow: { onFix: () => true },
-      m3: { active: true, follow: vi.fn(), updateLocation: vi.fn() },
-    });
-    view.frame(1000); view.frame(1050); view.frame(1400);
-    expect(view.map.setView).toHaveBeenCalledTimes(2);
-    expect(me.setLatLng).toHaveBeenCalledTimes(2);
-    expect(view.moveRel).toHaveBeenCalledTimes(2);
-    expect(view.m3.follow).toHaveBeenCalledTimes(3);
-    expect(view.m3.updateLocation).toHaveBeenCalledTimes(3);
+  it('throttles hidden Leaflet updates but never throttles visible 2D', () => {
+    expect(shouldSyncLeaflet(true, 1000, 0)).toBe(true);
+    expect(shouldSyncLeaflet(true, 1050, 1000)).toBe(false);
+    expect(shouldSyncLeaflet(true, 1349, 1000)).toBe(false);
+    expect(shouldSyncLeaflet(true, 1350, 1000)).toBe(true);
+    expect(shouldSyncLeaflet(false, 1050, 1000)).toBe(true);
   });
 
   it('updates only the 3D user dot and accuracy sources between full overlay mirrors', () => {
