@@ -48,6 +48,15 @@ describe('audited stop imports',()=>{
     expect(v.report()).toMatchObject({seen:4,accepted:0,duplicate_rows:0,rejected:4,rejection_reasons:{conflicting_event:4},time_range:[null,null]});
     expect(v.cells.size).toBe(0);
   });
+  it('rejects Urbana/WBEZ beat codes without invented coordinates',()=> {
+    // WBEZ Urbana stop records have agency-defined 4-, 5- or 2-digit codes,
+    // not GPS coordinates. They cannot enter a 150 m coordinate grid.
+    for (const code of ['4606', '54711', '61', '99999']) {
+      const v=fixture();
+      v.add({...row,key:code,lat:'',lng:'',beatId:code});
+      expect(v.report()).toMatchObject({seen:1,accepted:0,rejection_reasons:{missing_or_invalid_coordinates:1}});
+    }
+  });
   it('reconciles every excluded row exactly, including invalid and future dates',()=>{
     const v=fixture();v.add(row);v.add({...row,vehicle:false});v.add({...row,date:'2020-02-30'});v.add({...row,date:'2026-11-13'});
     v.add({...row,lat:''});v.add({...row,lat:5});v.add({...row,key:''});
