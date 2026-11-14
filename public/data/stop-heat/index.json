@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-12T07:53:37.958Z",
+ "generated": "2026-11-14T05:29:53.064Z",
  "gridM": 150,
  "tileDeg": 0.25,
  "yearBase": 1990,
@@ -93,8 +93,8 @@
   "investigatory",
   "other"
  ],
- "disclaimer": "Historical records only; coverage is uneven and regional. Coordinates are publisher supplied, sometimes anonymized. Counts use event IDs where available; OPP encounter uniqueness is unverified. Shading is visual only, not current police activity or a prediction.",
- "attribution": "Stanford Open Policing Project (ODC-BY); Cincinnati Police open data; NYPD Vehicle Stop Reports; dataMontgomery; U.S. Census Bureau 2020 geography and population.",
+ "disclaimer": "Historical records only; coverage is uneven and regional. Coordinates are publisher supplied, sometimes anonymized. Chicago collapses identical public stop rows and can still contain duplicate encounters. Urbana is a citywide total: the stops are not located inside the city on this map. Counts use event IDs where available. Shading is visual only, not current police activity or a prediction.",
+ "attribution": "Stanford Open Policing Project (ODC-BY), including Chicago vehicle stops; Cincinnati Police open data; NYPD Vehicle Stop Reports; dataMontgomery; City of Urbana stop-level traffic stops via data.illinois.gov; U.S. Census Bureau 2020 geography and population.",
  "sources": [
   {
    "id": "opp_mt",
@@ -102,7 +102,7 @@
    "url": "https://stacks.stanford.edu/file/druid:wb225bk3255/wb225bk3255_mt_statewide_2023_01_26.csv.zip",
    "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
    "last_updated": null,
-   "fetched": "2026-11-12",
+   "fetched": "2026-11-14",
    "stops": 920370,
    "mapped": 920370,
    "unmapped": 858,
@@ -140,7 +140,7 @@
    "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_vt_statewide_2020_04_01.csv.zip",
    "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
    "last_updated": null,
-   "fetched": "2026-11-12",
+   "fetched": "2026-11-14",
    "stops": 261621,
    "mapped": 261621,
    "unmapped": 21664,
@@ -177,7 +177,7 @@
    "url": "https://stacks.stanford.edu/file/druid:yg821jf8611/yg821jf8611_ca_san_francisco_2020_04_01.csv.zip",
    "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
    "last_updated": null,
-   "fetched": "2026-11-12",
+   "fetched": "2026-11-14",
    "stops": 898737,
    "mapped": 898737,
    "unmapped": 6333,
@@ -213,106 +213,106 @@
    "name": "Cincinnati Police Contact Cards — drivers",
    "url": "https://data.cincinnati-oh.gov/d/unm9-wj3w",
    "license": "Public Domain (publisher metadata)",
-   "last_updated": "2026-11-11",
-   "fetched": "2026-11-12",
-   "stops": 355120,
-   "mapped": 355120,
-   "unmapped": 394770,
+   "last_updated": "2026-11-12",
+   "fetched": "2026-11-14",
+   "stops": 355216,
+   "mapped": 355216,
+   "unmapped": 394807,
    "note": "Only explicit driver roles; passengers, pedestrians, owners without a driver role and unknown roles excluded. Report number deduplication; no personal or officer fields retained. Coordinates supplied by publisher.",
    "precision": "publisher coordinates; accuracy unverified",
    "identity": "publisher event identifier",
    "audit": {
-    "seen": 750258,
-    "accepted": 355120,
-    "duplicate_rows": 368,
-    "rejected": 394770,
+    "seen": 750392,
+    "accepted": 355216,
+    "duplicate_rows": 369,
+    "rejected": 394807,
     "rejection_reasons": {
-     "not_vehicle": 305167,
-     "missing_or_invalid_coordinates": 83427,
-     "outside_jurisdiction": 6126,
-     "invalid_date": 50
+     "missing_or_invalid_coordinates": 83436,
+     "not_vehicle": 305198,
+     "outside_jurisdiction": 6127,
+     "invalid_date": 46
     },
     "time_range": [
      "1990-09-21",
-     "2026-11-11"
+     "2026-11-12"
     ]
    },
    "download": {
     "url": "https://data.cincinnati-oh.gov/resource/unm9-wj3w.json",
-    "rowsUpdatedAt": 1794401776,
-    "expected_rows": 750258,
-    "fetched": "2026-11-12T07:30:20.550Z",
+    "selection": "reportnumber,eventdate,subjectrole,lat_x,lon_x,reasonsforstop,primaryactiontaken",
+    "rowsUpdatedAt": 1794488334,
+    "expected_rows": 750392,
+    "fetched": "2026-11-14T05:22:07.395Z",
     "pages": [
      {
       "offset": 0,
-      "sha256": "bd82abf1c076b2c87c0dfd30b3c3a4df108b77bdeda6d20a7c00989f465d7e84"
+      "sha256": "5003f3d5964bf2347688bab4da931140d2ee4241a84a8023f733c18ff08add65"
      },
      {
       "offset": 50000,
-      "sha256": "5c7b2114cd6b795521c615d711d8f37df490ec37f5902b7fa67662671963cfbf"
+      "sha256": "25bf01feec3f15367f309f640b1bbc58cd82be0f407e0453497bd5a163b71c70"
      },
      {
       "offset": 100000,
-      "sha256": "4c6348beb8c51990b381c3e703550eed4ff081854ef7dd0818fcb672999833d6"
+      "sha256": "5c1264832ba0ce51a9afd82a607af60df0a0c881aa9644590f5828ad2d8a9a72"
      },
      {
       "offset": 150000,
-      "sha256": "bac7be7e8a5af38b573617112c2f657f2353997e80263f75bccf7dec7982d2c5"
+      "sha256": "ec6d45665e2ddd24c88a0b114451d208e93645ba2ffc6a5e3c3df1e39728d3fa"
      },
      {
       "offset": 200000,
-      "sha256": "5bcde0b853fdda3af220c5d9ff25b36ef2aa856dcc50fb446d89c9977eadf007"
+      "sha256": "d6aded86087196356c47eb7b8c2ce76a7cde8d2e9b5b1d7bf702f349c1e5a463"
      },
      {
       "offset": 250000,
-      "sha256": "c8feff446474a6ccfd61d7f5b0fe910b1124f0682dfe9fcfcba408f0795b2899"
+      "sha256": "a03a333f1dcad5a9cba544eca00986bf05eb2881589b277ad12423681beba4ff"
      },
      {
       "offset": 300000,
-      "sha256": "e0307735af9fb0efb283ae7eb82859d2b479bc02215eba878b2662e1858a0be5"
+      "sha256": "b4c35fdb7142e2e294137922823f659f2f0e8e3961c2d93850280ad7b8bfc52c"
      },
      {
       "offset": 350000,
-      "sha256": "946d849c70d3c3de1c86f991fdb5b7356de31adeef30eafeea0a45a9f984a8e6"
+      "sha256": "543e7dfa0cec4bd26f13c26b8995ef47ac314358f89c497f8a96369d252d3c7a"
      },
      {
       "offset": 400000,
-      "sha256": "9d7e8d03adb74655b3884f15e8c36e36fc9ead4da76d2b556d2a2fbf81dbd14e"
+      "sha256": "a8bdbdd86342954fe4837d13217669f3de89fbcf5553cc50fac2f36dad5786f8"
      },
      {
       "offset": 450000,
-      "sha256": "0045a497ffaaaf122e13df3e7b03c7ba9419b2561c281115c4cdc071e7bf4a33"
+      "sha256": "0ad48733366139510364ddb43058c55538ec2d6ff7a7027aa8c7fb0913c5af42"
      },
      {
       "offset": 500000,
-      "sha256": "df26f5a83ecdc60193339edd16b5518e47863782362d14ba2cc8c14c9d49319a"
+      "sha256": "56f907ac3a5c238c904acfd66804bcb3a75a58004fb739b27b8832dad78dbd5b"
      },
      {
       "offset": 550000,
-      "sha256": "b292acf142cf9fff0651f5eb33d93f6fa5d1d1b109c983c37dd70c554497c4eb"
+      "sha256": "a2a640f68cc274121e2db97c644c99fa78d60d62269b7851bdc34b93eb6a7e47"
      },
      {
       "offset": 600000,
-      "sha256": "060e0aacf7dd8ade02cf8d14979cbef7befad08c87ddb5a4b0e797001616fd11"
+      "sha256": "4bb1b95fa776f3c479b88c97520a376a54544af5e814d07f54f18e536f0208ac"
      },
      {
       "offset": 650000,
-      "sha256": "483c6039a8d960b307abc1102cebd2e3f9374761c41dde73f70815d5450389ec"
+      "sha256": "356aa90eb48d492c85dcfbfe3d91b9d5394574892b3a22b957c34a757bb1d136"
      },
      {
       "offset": 700000,
-      "sha256": "cdddb4c7f24d4dfb02e9fda0994676ea63af582b0c9d9c8d0fd9efbb1fa0ed25"
+      "sha256": "43e79dfc0239d12440d78477bb08527104c099a09fdb1748b62af4c758d8b113"
      },
      {
       "offset": 750000,
-      "sha256": "b8df618368ddedd875063b1dd7b7677c868cb46ccee8137c428be1cfa5cb8e8a"
+      "sha256": "135173376b246d7cc36a5d99ca8e226c4326db20c0b82ffa5520bce72432440e"
      }
     ],
     "license": {
      "name": "Public Domain"
     },
-    "selection": "reportnumber,eventdate,subjectrole,lat_x,lon_x,reasonsforstop,primaryactiontaken",
-    "sha256": "63fb4012ff8e112f9e4a9894b658fb33afeb33a64610196459793e1e05426aae"
+    "sha256": "e5ad69646bdd6f286ec7ff920acad04a34e7ace8ca110f97414ce156efc6ea98"
    },
    "boundary": {
     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%273915000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
@@ -325,7 +325,7 @@
    "url": "https://data.cityofnewyork.us/d/hn9i-dwpr",
    "license": "NYC Open Data terms of use",
    "last_updated": "2026-07-27",
-   "fetched": "2026-11-12",
+   "fetched": "2026-11-14",
    "stops": 2309224,
    "mapped": 2309224,
    "unmapped": 661851,
@@ -348,9 +348,10 @@
    },
    "download": {
     "url": "https://data.cityofnewyork.us/resource/hn9i-dwpr.json",
+    "selection": "evnt_key,occur_dt,occur_tm,summon_issued_flg,arrest_made_flg,latitude,longitude",
     "rowsUpdatedAt": 1785166949,
     "expected_rows": 2971075,
-    "fetched": "2026-11-12T07:34:03.563Z",
+    "fetched": "2026-11-14T05:22:20.816Z",
     "pages": [
      {
       "offset": 0,
@@ -594,7 +595,6 @@
      }
     ],
     "license": null,
-    "selection": "evnt_key,occur_dt,occur_tm,summon_issued_flg,arrest_made_flg,latitude,longitude",
     "sha256": "99ed090ae1b0f2438cc1682a4f631c04cfafa7438ec356cbf60ed4f79b583468"
    },
    "boundary": {
@@ -607,35 +607,35 @@
    "name": "Montgomery County MD traffic violations — stop IDs",
    "url": "https://data.montgomerycountymd.gov/d/4mse-ku6q",
    "license": "dataMontgomery terms of use (verify reuse before commercialization)",
-   "last_updated": "2026-11-11",
-   "fetched": "2026-11-12",
-   "stops": 1115157,
-   "mapped": 1115157,
-   "unmapped": 222889,
+   "last_updated": "2026-11-13",
+   "fetched": "2026-11-14",
+   "stops": 1115455,
+   "mapped": 1115455,
+   "unmapped": 223043,
    "note": "Only known motor-vehicle categories 01–27; other/unknown and electric bicycle categories excluded. Violation rows collapse by publisher stop ID with outcomes merged. Conflicting valid locations/dates quarantine the entire event.",
    "precision": "publisher coordinates; accuracy unverified",
    "identity": "publisher event identifier",
    "audit": {
-    "seen": 2169987,
-    "accepted": 1115157,
-    "duplicate_rows": 831941,
-    "rejected": 222889,
+    "seen": 2170684,
+    "accepted": 1115455,
+    "duplicate_rows": 832186,
+    "rejected": 223043,
     "rejection_reasons": {
-     "missing_or_invalid_coordinates": 169207,
-     "not_vehicle": 47068,
+     "missing_or_invalid_coordinates": 169357,
+     "not_vehicle": 47072,
      "outside_jurisdiction": 6614
     },
     "time_range": [
      "2012-01-01",
-     "2026-11-10"
+     "2026-11-12"
     ]
    },
    "download": {
     "url": "https://data.montgomerycountymd.gov/resource/4mse-ku6q.json",
     "selection": "seq_id,date_of_stop,time_of_stop,latitude,longitude,vehicle_type,violation_type,description",
-    "rowsUpdatedAt": 1794391819,
-    "expected_rows": 2169987,
-    "fetched": "2026-11-12T07:47:35.297Z",
+    "rowsUpdatedAt": 1794564617,
+    "expected_rows": 2170684,
+    "fetched": "2026-11-14T05:22:50.982Z",
     "pages": [
      {
       "offset": 0,
@@ -811,11 +811,11 @@
      },
      {
       "offset": 2150000,
-      "sha256": "a19fe593e0cf63acb6a400bb565b548be36e571c63e4cdae21a1e3cd13c79748"
+      "sha256": "e0dfa987ec96da4222776a86afe6285afbb4cf2b40184a582e1c9ef8033d306f"
      }
     ],
     "license": null,
-    "sha256": "3fa04b1659c7d2b0c91f5d83a77790c067cb29969f8914777875a01542baeb84"
+    "sha256": "a024e3b7e3e107f9fc8a9b65fa74bdbadfd9a5af92f4136df1b28fa2b250c59b"
    },
    "boundary": {
     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/82/query?where=GEOID%3D%2724031%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
@@ -824,20 +824,110 @@
    "disclaimer": "The data made available here has been modified for use from its original source, which is Montgomery County, Maryland (\"the County\"). THE COUNTY MAKES NO REPRESENTATIONS OR WARRANTIES AS TO THE COMPLETENESS, ACCURACY, OR TIMELINESS OF ANY DATA. THE COUNTY EXPRESSLY DISCLAIMS ALL WARRANTIES, WHETHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. THE COUNTY MAKES NO REPRESENTATION OR WARRANTY AS TO THE WEBISTE OR APPLICATION USING DATA DRAWN FROM DATA.MONTGOMERYCOUNTYMD.GOV OR FOR THE USEFULNESS OR INTEGRITY OF THE WEB SITE OR APPLICATION. The data is subject to change and possible deletion, temporarily or permanently. It is understood that the information contained in the web feed is being used at one's own risk.",
    "license_url": "https://data.montgomerycountymd.gov/terms-of-use",
    "license_notice_sha256": "839f41460a3ebe7f39b0ea48601a7f6f59380a9d132b6066732693e55cc98f27"
+  },
+  {
+   "id": "opp_chicago",
+   "name": "Chicago Police (Stanford OPP) — vehicle stops",
+   "url": "https://stacks.stanford.edu/file/druid:wb225bk3255/wb225bk3255_il_chicago_2023_01_26.csv.zip",
+   "license": "Open Data Commons Attribution License (ODC-BY 1.0)",
+   "last_updated": null,
+   "fetched": "2026-11-14",
+   "stops": 1877250,
+   "mapped": 1877250,
+   "unmapped": 202626,
+   "note": "Vehicle stops only, clipped to the 2020 Chicago city boundary. Identical public attributes (date, time, latitude, longitude, type, violation, citation, arrest, outcome, and beat) collapse to one row. Rows that differ in any of those stay separate: a shared hour and a geocoded intersection can be two vehicles. Stanford still warns that duplicates can remain because many times are hourly and officer ids are incomplete, so this is not a certified unique-stop count. Publisher geocodes; accuracy unverified. ODC-BY.",
+   "precision": "publisher coordinates; accuracy unverified",
+   "identity": "identical public stop attributes; residual duplicates possible",
+   "audit": {
+    "seen": 2108098,
+    "accepted": 1877250,
+    "duplicate_rows": 28222,
+    "rejected": 202626,
+    "rejection_reasons": {
+     "outside_jurisdiction": 87133,
+     "missing_or_invalid_coordinates": 105960,
+     "not_vehicle": 9533
+    },
+    "time_range": [
+     "2012-01-01",
+     "2020-05-16"
+    ]
+   },
+   "download": {
+    "url": "https://stacks.stanford.edu/file/druid:wb225bk3255/wb225bk3255_il_chicago_2023_01_26.csv.zip",
+    "sha256": "d7c671d3fa0f03ae07900b39753f1d9c1decbe3131b4736b1ff720a7dd6fabea",
+    "snapshot": "pinned archive"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%271714000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "8814dc0cf2ab122e65f79678566749297704754d5194e62921d01d869988d63f"
+   }
+  },
+  {
+   "id": "urbana_ivc",
+   "name": "Urbana Police IDOT traffic stops — stop level",
+   "url": "https://data.illinois.gov/d/5r4s-jwyk",
+   "license": "City of Urbana data hosted on data.illinois.gov; attribute the dataset. Portal policy: 20 ILCS 45/15 and 45/25.",
+   "last_updated": "2025-09-11",
+   "fetched": "2026-11-14",
+   "stops": 28241,
+   "mapped": 28241,
+   "unmapped": 160,
+   "note": "Official stop-level Illinois traffic stops for Urbana police, not the investigatory stop sheet and not the offense-level table. Incident number is the event key; conflicting copies of one incident are dropped. Location values are geocodes such as NNN-NN or beat labels 61–65, and 999-99 is excluded as unknown. This file has no coordinates. The public Urbana GIS folder publishes a residency buffer, not beat or geocode polygons, so every accepted stop is shaded once on the 2020 Census city boundary. That shade is a citywide total, not a street, a 150 m cell, or a Champaign beat. 2023 in this file is not a certified full year. The WBEZ department extract is not used: it has no coordinates and no explicit commercial data license.",
+   "precision": "2020 Census city boundary; agency geocodes are not drawn and no 150 m cells are created",
+   "identity": "publisher incident number; conflicting copies quarantined",
+   "audit": {
+    "seen": 28425,
+    "accepted": 28241,
+    "duplicate_rows": 24,
+    "rejected": 160,
+    "rejection_reasons": {
+     "unknown_location": 160
+    },
+    "time_range": [
+     "2013-01-01",
+     "2023-02-14"
+    ]
+   },
+   "download": {
+    "url": "https://data.illinois.gov/resource/5r4s-jwyk.json",
+    "selection": "date_of_contact,time_of_contact,incident_number,geo_code,reason_for_stop,type_of_violation",
+    "rowsUpdatedAt": 1757627921,
+    "expected_rows": 28425,
+    "fetched": "2026-11-14T05:24:38.897Z",
+    "pages": [
+     {
+      "offset": 0,
+      "sha256": "3c4591758adb5d13bac1920c9b5fe659f9f51c0231b42c603d955a6c2d8eb86d"
+     }
+    ],
+    "license": null,
+    "sha256": "c40de13ccffc46c8902fd1c9821dce0f33be613410d6b1a7971dc2c5e9e7671e"
+   },
+   "boundary": {
+    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%271777005%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+    "sha256": "d616da72cb14752a13178c8cb4c8f321df4b7b82c93f877b030115d2db301927"
+   }
   }
  ],
  "notMapped": [
   {
-   "id": "opp_chicago",
-   "name": "Chicago OPP",
-   "url": "https://github.com/stanford-policylab/opp/blob/master/data_readme.md",
-   "why": "OPP documents unresolved duplicates and hourly time resolution. The previous 2,108,098 rows cannot be claimed as unique encounters; withheld pending a defensible encounter rule."
-  },
-  {
    "id": "urbana",
    "name": "Urbana IDOT stop sheets",
    "url": "https://data.illinois.gov/d/vnxf-tjw4",
-   "why": "Prior build joined Urbana codes to Champaign beats. Withheld pending source event-key and correct Urbana geography validation."
+   "why": "Person-level investigatory stops. MOTOR VEHICLE NON-IVC means a vehicle occupant outside the traffic-stop collection, not an ordinary vehicle stop. The mapped Urbana layer uses stop-level dataset 5r4s-jwyk instead. These rows are never joined to Champaign beats."
+  },
+  {
+   "id": "urbana_offenses",
+   "name": "Urbana IDOT traffic-stop offenses",
+   "url": "https://data.illinois.gov/d/vzjr-d62i",
+   "why": "Offense-level rows for the same stops as dataset 5r4s-jwyk. Not summed with the stop-level layer."
+  },
+  {
+   "id": "urbana_wbez",
+   "name": "WBEZ Urbana traffic-stop extract",
+   "url": "https://interactive.wbez.org/traffic-stops/urbana-police/",
+   "why": "Not published. The extract has no coordinates, no public beat polygons were available, and WBEZ has not stated a commercial data license. The official stop-level file is the mapped source."
   },
   {
    "id": "ct_stops",
@@ -849,13 +939,14 @@
  "coverage": {
   "states_with_records": [
    "CA",
+   "IL",
    "MD",
    "MT",
    "NY",
    "OH",
    "VT"
   ],
-  "state_count": 6,
+  "state_count": 7,
   "state_denominator": 51,
   "jurisdictions": [
    {
@@ -929,20 +1020,44 @@
      "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/82/query?where=GEOID%3D%2724031%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
      "sha256": "1b3dde736cfd646c857de502e903b23ad47ced82ca5b9bb38ff88adc98fb1200"
     }
+   },
+   {
+    "geoid": "1714000",
+    "name": "Chicago city",
+    "state": "IL",
+    "population_2020": 2746388,
+    "land_m2": 589818463,
+    "water_m2": 17621529,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%271714000%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "8814dc0cf2ab122e65f79678566749297704754d5194e62921d01d869988d63f"
+    }
+   },
+   {
+    "geoid": "1777005",
+    "name": "Urbana city",
+    "state": "IL",
+    "population_2020": 38336,
+    "land_m2": 30640577,
+    "water_m2": 186870,
+    "boundary": {
+     "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/26/query?where=GEOID%3D%271777005%27&outFields=GEOID%2CNAME%2CPOP100%2CAREALAND%2CAREAWATER&returnGeometry=true&outSR=4326&f=geojson",
+     "sha256": "d616da72cb14752a13178c8cb4c8f321df4b7b82c93f877b030115d2db301927"
+    }
    }
   ],
-  "population_of_jurisdictions": 12776835,
+  "population_of_jurisdictions": 15561559,
   "us_population_2020": 331449281,
-  "occupied_grid_cells": 163060,
-  "occupied_cell_footprint_m2": 3654242110.767179,
+  "occupied_grid_cells": 183115,
+  "occupied_cell_footprint_m2": 4097702668.447472,
   "us_total_area_m2": 9849259423576,
-  "occupied_cell_us_area_percent": 0.03710169418443872,
+  "occupied_cell_us_area_percent": 0.041604170346441205,
   "point_area_m2": 0,
   "denominator": {
    "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer/80/query?where=1%3D1&outFields=GEOID,NAME,POP100,AREALAND,AREAWATER&returnGeometry=false&f=json",
    "sha256": "769fc713c2d9d86b811ddae88766f43a49bc84ea786ef6e530fa5af4159db8f9"
   },
-  "note": "Jurisdiction population is agency footprint context, not residents covered by stop observations. Occupied 150 m cells clipped to 2020 Census jurisdiction polygons measure a coarse observation footprint (including water), not road coverage or complete state coverage. Points themselves have zero area. Source positional accuracy is not independently verified. No 75% coverage claim."
+  "note": "Jurisdiction population is agency footprint context, not residents covered by stop observations. Occupied 150 m cells clipped to 2020 Census jurisdiction polygons measure a coarse observation footprint (including water), not road coverage or complete state coverage. Points themselves have zero area. A citywide boundary shade is not an occupied-cell footprint and is not added here. Source positional accuracy is not independently verified. No 75% coverage claim."
  },
  "tiles": {
   "47.5_-112": 294,
@@ -1568,7 +1683,7 @@
   "37.5_-122.75": 71,
   "37.5_-123.25": 1,
   "39_-84.75": 4022,
-  "39_-84.5": 2942,
+  "39_-84.5": 2943,
   "40.75_-74": 7225,
   "40.5_-74": 10868,
   "40.5_-73.75": 970,
@@ -1577,23 +1692,30 @@
   "40.75_-73.75": 174,
   "40.5_-74.5": 9,
   "40.25_-74.25": 3,
-  "39_-77.25": 11821,
+  "39_-77.25": 11824,
   "38.75_-77": 96,
   "38.75_-77.25": 1697,
   "39_-77.5": 2692,
   "39_-77": 1722,
   "39.25_-77.25": 684,
   "39.25_-77.5": 220,
-  "39_-77.75": 4
+  "39_-77.75": 4,
+  "41.75_-87.75": 12026,
+  "41.5_-87.75": 4410,
+  "41.75_-88": 3077,
+  "42_-88": 134,
+  "42_-87.75": 404
  },
- "beatFiles": [],
+ "beatFiles": [
+  "beats/urbana_ivc.json"
+ ],
  "totals": {
-  "stops": 5860229,
-  "mapped": 5860229,
-  "unmapped": 1308365,
-  "beats": 0,
-  "cells": 163060
+  "stops": 7766114,
+  "mapped": 7766114,
+  "unmapped": 1511342,
+  "beats": 1,
+  "cells": 183115
  },
- "counting_note": "Accepted source stop records, not a verified count of unique encounters across all publishers. OPP lacks an independently validated encounter key.",
+ "counting_note": "Accepted source stop records, not a verified count of unique encounters across all publishers. Chicago deduplicates identical public attributes only. Urbana counts are incident numbers shaded on the city boundary, not 150 m cells.",
  "subscription": "not-gated"
 }
