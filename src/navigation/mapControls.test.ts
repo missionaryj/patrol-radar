@@ -13,7 +13,7 @@ function button() {
 
 describe('navigation map controls', () => {
   it('recenters from the pre-route navigation panel', () => {
-    const location = button(), threeD = button(), recenter = vi.fn();
+    const location = button(), threeD = button(), recenter = vi.fn(() => true);
     wireNavigationMapControls(location, threeD, { recenter, set3D: vi.fn(async () => {}) }, false);
     location.onclick?.();
     expect(recenter).toHaveBeenCalledOnce();
