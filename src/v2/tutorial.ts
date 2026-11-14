@@ -1,4 +1,4 @@
-/** Optional first-run walkthrough (v2). Skippable on every step; a saved flag stops it re-appearing. */
+/** Optional first-run walkthrough (v2). Shown on the first Patrol Radar entry, not the mode picker. Skippable; a saved flag stops it re-appearing. */
 export interface TutorialStep { id: string; title: string; body: string; target?: string }
 type Store = Pick<Storage, 'getItem' | 'setItem'>;
 export const TUTORIAL_KEY = 'pr.tutorial.done';
@@ -8,8 +8,8 @@ export const STEPS: TutorialStep[] = [
   { id: 'scan', target: '#scan', title: 'Scan', body: 'Tap <b>Scan</b> to start listening and <b>Stop</b> to end. The pill at the top shows Idle / Scanning and the gear count. To send a debug file, open Live detections and tap <b>● Record</b>.' },
   { id: 'map', target: '#map-legend', title: 'Reading the map', body: 'Your location dot is <b>You</b>; red pins are <b>Gear hits</b>; <b>Flock camera</b> marks mapped plate readers. Tap the legend to expand its categories. ◎ recenters and follows you; <b>3D</b> tilts the map.' },
   { id: 'sheet', target: '#sheet', title: 'Live detections', body: 'Swipe up or tap the handle. Each card shows a grade (<b>strong</b>, <b>likely</b>, <b>hint</b>), a confidence %, signal (<b>RSSI</b>) and rough range (📍 ~m). Grouped signals appear as one 🚓 Vehicle card. The list scrolls on its own.' },
-  { id: 'bell', target: '#open-updates', title: 'Updates & Accuracy reports', body: 'The bell shows app news, with a dot when something is new. The <b>Accuracy reports</b> tab explains how reliable each detection type is.' },
-  { id: 'settings', target: '#open-settings', title: 'Settings', body: 'Set <b>Travel mode</b> to <b>Car</b> or <b>On foot</b> (shorter range, stricter filtering). <b>3D buildings</b> is on by default. You can also adjust scan mode, sounds, layers and replay this tutorial here.' },
+  { id: 'bell', target: '#open-updates', title: 'Updates', body: 'The bell shows app news, with a dot when something is new.' },
+  { id: 'settings', target: '#open-settings', title: 'Settings', body: 'Set <b>Travel mode</b> to <b>Car</b> or <b>On foot</b> (shorter range, stricter filtering). <b>3D buildings</b> is on by default. <b>Appearance</b> is Light, Dark, or Match system. You can also adjust scan mode, sounds, layers and replay this tutorial here.' },
   { id: 'chat', target: '#open-chat', title: 'City chat', body: 'Anonymous, city-level chat with people nearby. Be civil: no names, plates or addresses. Posts delete after 24 h. That’s it, enjoy.' },
 ];
 
@@ -36,7 +36,8 @@ export function cardSide(rect: { top: number; bottom: number } | undefined, vh: 
 export function mountTutorial(o: { store?: Store; steps?: TutorialStep[]; onStep?: (s: TutorialStep) => void } = {}) {
   const store = o.store ?? localStorage, steps = o.steps ?? STEPS;
   let root: HTMLElement | undefined, st: TutorialState, onResize: (() => void) | undefined;
-  const close = () => { markTutorialDone(store); root?.remove(); root = undefined; if (onResize) removeEventListener('resize', onResize); };
+  const detach = () => { root?.remove(); root = undefined; if (onResize) { removeEventListener('resize', onResize); onResize = undefined; } };
+  const close = () => { markTutorialDone(store); detach(); };
   const render = () => {
     if (!root) return;
     const s = steps[st.i]; o.onStep?.(s);
@@ -70,5 +71,5 @@ export function mountTutorial(o: { store?: Store; steps?: TutorialStep[]; onStep
     addEventListener('resize', onResize = render);
     render();
   };
-  return { open, close, get step() { return root ? st.i : -1; } };
+  return { open, close, hide: detach, get step() { return root ? st.i : -1; } };
 }

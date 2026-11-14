@@ -51,6 +51,13 @@ export function parseNativeHealth(detail?: string): NativeScanHealth | null {
   } catch { return null; }
 }
 
+/** Shown when the Android 6-hour cap stops a scan. Keep equal to PoliceAlertNotifications.SCAN_ENDED_TEXT. */
+export function backgroundScanEndedMessage(stopReason?: string): string {
+  return stopReason === 'limit'
+    ? "The 6-hour scan ended. You're no longer protected. Tap Scan to start again."
+    : 'Android background scan stopped. Tap Scan to restart.';
+}
+
 export function nativePlugin(): any | undefined {
   const cap = (globalThis as any).Capacitor;
   if (!cap?.isNativePlatform?.() || cap.getPlatform?.() !== 'android') return undefined;
@@ -107,7 +114,7 @@ export class NativeScanner implements Scanner {
 
   async isSupported() { return !!this.plugin; }
   /** An active native session may temporarily be running=false while bounded retries occur. */
-  async serviceStatus(): Promise<{ sessionActive: boolean; running: boolean } | undefined> {
+  async serviceStatus(): Promise<{ sessionActive: boolean; running: boolean; stopReason?: string } | undefined> {
     return this.plugin?.status?.();
   }
   async start(onAdv: AdvListener) {

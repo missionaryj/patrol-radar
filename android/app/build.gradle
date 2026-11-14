@@ -13,6 +13,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode((System.getenv("VERSION_CODE") ?: "1") as int)
+        // versionName is package.json. versionCode is VERSION_CODE, the workflow run number.
         versionName(System.getenv("VERSION_NAME") ?: new groovy.json.JsonSlurper().parse(file("../../package.json")).version)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Public runtime token; never use the secret Maven downloads token here.
@@ -45,7 +46,12 @@ android {
     buildTypes {
         debug { signingConfig signingConfigs.debug }
         release {
-            minifyEnabled false
+            // Shrink and obfuscate. Resource shrinking stays off: Capacitor looks up some
+            // mipmap, drawable, and raw files by name (AssetUtil.getIdentifier).
+            minifyEnabled true
+            // Package native debug symbols when a dependency still has them. Mapbox's
+            // published .so files are already stripped, so this is a no-op for those libs.
+            ndk { debugSymbolLevel 'FULL' }
             if (System.getenv('ANDROID_UPLOAD_KEYSTORE')) { signingConfig signingConfigs.release }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

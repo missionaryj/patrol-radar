@@ -87,13 +87,25 @@ public class PatrolScanPlugin extends Plugin {
         try { ScanService.start(getContext(), mode, filtered, cids, uuids, wifiRules, ouis); call.resolve(); }
         catch (Exception e) { call.reject("Could not start background scan: " + e.getMessage()); }
     }
+    /** Saved appearance choice. Light and Dark stick; anything else follows the phone. */
+    @PluginMethod public void setThemeBars(PluginCall call) {
+        String choice = call.getString("choice", "system");
+        if (!"light".equals(choice) && !"dark".equals(choice)) choice = "system";
+        SystemBars.saveChoice(getContext(), choice);
+        android.app.Activity activity = getActivity();
+        if (activity != null) {
+            String saved = choice;
+            activity.runOnUiThread(() -> SystemBars.paint(activity, SystemBars.light(activity, saved)));
+        }
+        call.resolve();
+    }
     @PluginMethod public void setAlertSound(PluginCall call) {
         getContext().getSharedPreferences("patrol_alerts", android.content.Context.MODE_PRIVATE)
             .edit().putBoolean("sound", call.getBoolean("enabled", true)).apply();
         call.resolve();
     }
     @PluginMethod public void stop(PluginCall call) { ScanService.stop(getContext()); call.resolve(); }
-    @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); r.put("sessionActive", ScanService.sessionActive); call.resolve(r); }
+    @PluginMethod public void status(PluginCall call) { JSObject r = result(); r.put("running", ScanService.running); r.put("sessionActive", ScanService.sessionActive); r.put("stopReason", ScanService.stopReason); call.resolve(r); }
 
     /** Read-only setup information; opening this screen never requests permissions. */
     @PluginMethod public void setupStatus(PluginCall call) {

@@ -79,7 +79,40 @@ export class Map3D {
     }
   }
   private heatFC: { type: 'FeatureCollection'; features: any[] } = { type: 'FeatureCollection', features: [] };
+  private restyle = false;
   constructor(private el: HTMLElement, private theme: 'light' | 'dark', private onUserPan: () => void, private onFailure: () => void = () => {}) {}
+  /** Swap the basemap. Overlay pins are drawn again after the new style loads. */
+  setTheme(theme: 'light' | 'dark') {
+    if (this.theme === theme) return;
+    this.theme = theme;
+    if (!this.map) return;
+    this.restyle = true;
+    this.ready = false;
+    this.map.setStyle(style3d(theme), { diff: false });
+  }
+  private onPtsClick = (e: any) => {
+    const f = e.features?.[0]; const h = f?.properties?.html; const map = this.map;
+    if (h && this.ml && map) new this.ml.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat(f.geometry.coordinates).setHTML(h).addTo(map);
+  };
+  private mountStyleLayers(map: import('maplibre-gl').Map) {
+    if (!map.getSource('pts')) {
+      for (const id of ['acc', 'polys', 'pts', 'me']) map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'polys-fill', type: 'fill', source: 'polys', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'cell'], 0.25, 0.1] } });
+      map.addLayer({ id: 'polys-line', type: 'line', source: 'polys', paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.8 } });
+      map.addLayer({ id: 'pts', type: 'circle', source: 'pts', paint: { 'circle-color': ['get', 'color'], 'circle-radius': ['get', 'r'], 'circle-stroke-color': '#111', 'circle-stroke-width': ['case', ['get', 'veh'], 3, 1], 'circle-pitch-alignment': 'viewport' } });
+      map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': this.patrolMoving ? 0.025 : 0.12 } });
+      map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
+    }
+    map.off('click', 'pts', this.onPtsClick);
+    map.on('click', 'pts', this.onPtsClick);
+  }
+  private onStyle(map: import('maplibre-gl').Map) {
+    this.mountStyleLayers(map);
+    this.ready = true;
+    if (this.patrolMoving) map.jumpTo({ zoom: patrolZoom(map.getZoom(), true), pitch: Math.min(map.getPitch(), 48) });
+    if (this.pending) this.update(this.pending);
+    this.applyHeat(); this.applyNavigationRoute(); this.applyNavigationPlaces();
+  }
   onMoveEnd?: () => void;
   /** Driving presentation only: do not alter scan data or GPS session. */
   setPatrolMoving(on: boolean) {
@@ -110,7 +143,7 @@ export class Map3D {
     map.on('dragstart', () => this.onUserPan());
     map.on('moveend', () => this.onMoveEnd?.());
     await new Promise<void>((resolve, reject) => {
-      let settled = false;
+      let settled = false, opened = false;
       const finish = (error?: Error) => {
         if (settled) return; settled = true; clearTimeout(timer); this.cancelOpen = undefined;
         if (error) { this.close(); reject(error); } else resolve();
@@ -122,23 +155,20 @@ export class Map3D {
         if (!settled) finish(new Error('3D map graphics context lost'));
         else { this.close(); this.onFailure(); }
       });
+      map.on('style.load', () => {
+        if (generation !== this.generation) return;
+        try {
+          this.onStyle(map);
+          // A theme change before the first frame must still reveal the map. Later changes keep it visible.
+          if (this.restyle && !opened) { opened = true; this.el.style.visibility = ''; finish(); }
+          this.restyle = false;
+        } catch { /* the load handler reports a failed first open */ }
+      });
       map.on('load', () => {
       if (generation !== this.generation) return;
       try {
-      for (const id of ['acc', 'polys', 'pts', 'me']) map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'polys-fill', type: 'fill', source: 'polys', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'cell'], 0.25, 0.1] } });
-      map.addLayer({ id: 'polys-line', type: 'line', source: 'polys', paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.8 } });
-      map.addLayer({ id: 'pts', type: 'circle', source: 'pts', paint: { 'circle-color': ['get', 'color'], 'circle-radius': ['get', 'r'], 'circle-stroke-color': '#111', 'circle-stroke-width': ['case', ['get', 'veh'], 3, 1], 'circle-pitch-alignment': 'viewport' } });
-      // Tap a mapped traffic camera in 3D: same popup as 2D.
-      map.on('click', 'pts', e => { const f = e.features?.[0]; const h = f?.properties?.html; if (h && this.ml) new this.ml.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat((f!.geometry as any).coordinates).setHTML(h).addTo(map); });
-      // Own location: drawn last so it stays on top of buildings and pins.
-      map.addLayer({ id: 'acc', type: 'fill', source: 'acc', paint: { 'fill-color': '#2a7fff', 'fill-opacity': this.patrolMoving ? 0.025 : 0.12 } });
-      map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-color': '#2a7fff', 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-pitch-alignment': 'viewport' } });
-      this.ready = true;
-      // GPS may start while 3D is loading; apply the moving camera once the style exists.
-      if (this.patrolMoving) map.jumpTo({ zoom: patrolZoom(map.getZoom(), true), pitch: Math.min(map.getPitch(), 48) });
-      if (this.pending) this.update(this.pending); this.applyHeat(); this.applyNavigationRoute(); this.applyNavigationPlaces();
-      this.el.style.visibility = ''; finish();
+      if (!map.getSource('pts')) this.onStyle(map);
+      this.el.style.visibility = ''; opened = true; finish();
       } catch (e) { finish(e instanceof Error ? e : new Error('3D map initialization failed')); }
     });
     });
@@ -175,8 +205,18 @@ export class Map3D {
       map.addLayer({ id: 'heat-fill', type: 'fill', source: 'heat', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'opacity'] } }, before);
     } else src.setData?.(this.heatFC);
   }
+  /** Refresh only the driver dot and accuracy circle between less-frequent overlay mirrors. */
+  updateLocation(lat: number, lng: number, acc: number) {
+    if (this.pending) this.pending.me = { lat, lng, acc };
+    if (!this.map || !this.ready) return;
+    const point = {type:'FeatureCollection' as const,features:[{type:'Feature' as const,properties:{},geometry:{type:'Point' as const,coordinates:[lng,lat]}}]};
+    const ring = {type:'FeatureCollection' as const,features:[{type:'Feature' as const,properties:{},geometry:{type:'Polygon' as const,coordinates:[circlePoly(lat,lng,Math.max(3,acc))]}}]};
+    (this.map.getSource('me') as import('maplibre-gl').GeoJSONSource | undefined)?.setData(point);
+    (this.map.getSource('acc') as import('maplibre-gl').GeoJSONSource | undefined)?.setData(ring);
+  }
   update(m: Mirror) {
-    if (!this.map || !this.ready) { this.pending = m; return; }
+    this.pending = m;
+    if (!this.map || !this.ready) return;
     const g = toGeoJSON(m);
     for (const k of ['pts', 'polys', 'me', 'acc'] as const) (this.map.getSource(k) as any)?.setData(g[k]);
   }

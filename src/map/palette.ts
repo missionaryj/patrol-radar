@@ -1,8 +1,8 @@
-/** Basemap palette (cool slate). Police pins are red/orange/yellow; slate land keeps them high-contrast. */
+/** Free OSM/OpenFreeMap cartography: natural water/park colors retain Patrol Radar's red alert contrast. */
 export interface Palette { land: string; water: string; park: string; road: string; roadMajor: string; building: string; buildingTop: string; label: string; }
 export const PALETTE: Record<'light' | 'dark', Palette> = {
-  light: { land: '#e6e9ee', water: '#b9c7d6', park: '#d9e2dc', road: '#ffffff', roadMajor: '#f4f6f9', building: '#cfd5de', buildingTop: '#c3cad4', label: '#4b5563' },
-  dark: { land: '#172235', water: '#0d1c2c', park: '#1b3540', road: '#6b7d95', roadMajor: '#c0d0e2', building: '#243246', buildingTop: '#374b64', label: '#e3edf7' },
+  light: { land: '#f3f2ee', water: '#b9d8f4', park: '#d7e8cf', road: '#ffffff', roadMajor: '#e7e8eb', building: '#d7d9dc', buildingTop: '#c6c9cf', label: '#4e545b' },
+  dark: { land: '#171b20', water: '#183247', park: '#20372c', road: '#6e7781', roadMajor: '#c4cbd3', building: '#283039', buildingTop: '#3c4652', label: '#edf1f5' },
 };
 /** 2D raster basemap: OSM tiles restyled to cool slate via CSS filters (.tiles-slate / .tiles-slate-dark), no API key. */
 export const RASTER_2D = {

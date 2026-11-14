@@ -1,6 +1,8 @@
 import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
+import { mountTheme, readThemeChoice } from '../settings/theme';
 import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate, type Destination } from '../navigation/mapboxPreview';
 import { NavigationPlaces, samePlace } from '../navigation/places';
+import { wireNavigationMapControls } from '../navigation/mapControls';
 import { routeRemaining, remainingSeconds, speedMph, arrivalTime, distanceToNextTurn } from '../navigation/tripDisplay';
 import { Guidance } from '../navigation/guidance';
 import './v2.css';
@@ -9,12 +11,13 @@ import { MapView, coarsen } from '../map';
 import { LocalReportStore } from '../reports';
 import { ScanStats } from '../ble/stats';
 import { BluefyScanner } from '../ble/bluefyScanner';
-import { NativeScanner, nativePlugin, type NativeScanMode } from '../ble/nativeScanner';
+import { NativeScanner, nativePlugin, backgroundScanEndedMessage, type NativeScanMode } from '../ble/nativeScanner';
 import { setupScannerPhrase, syncSetupScanner, webSetupMessage } from './setupCard';
 import { LiveDeviceTracker, colorFor, WIFI_COLOR, bandRadius, type LiveDevice } from '../map/liveDevices';
 import { corroborationText, type Vehicle } from '../fusion/vehicles';
 import { bandOfMHz } from '../wifi/context';
 import { WIFI_EVIDENCE_LINE, VEHICLE_EVIDENCE_LINE } from '../wifi/identity';
+import { GROUPED_RELIABILITY, reliabilityLine } from './reliability';
 import { planWifi } from '../wifi/observe';
 import { SessionRecorder } from '../recorder/recorder';
 import { mountRecorder } from '../recorder/ui';
@@ -145,6 +148,8 @@ document.addEventListener('keydown',event=>{
   NavigationPlaces.clearRecents();refreshPlaces();
 };
 
+let showPatrolTour = () => {};
+let hidePatrolTour = () => {};
 function chooseExperience(mode: MapExperience) {
   welcome.hidden=true;
   navigationPanel.hidden=mode!=='navigation' || !!activeGuidance;
@@ -156,10 +161,12 @@ function chooseExperience(mode: MapExperience) {
   if(deferredMapLayers.length) void map.ready.then(() => requestAnimationFrame(() => {
     for(const load of deferredMapLayers.splice(0)) load();
   }));
+  if(mode==='patrol') showPatrolTour();
 }
 (document.getElementById('choose-navigation') as HTMLButtonElement).onclick=()=>chooseExperience('navigation');
 (document.getElementById('choose-patrol') as HTMLButtonElement).onclick=()=>chooseExperience('patrol');
 function showModeChoices() {
+  hidePatrolTour();
   navigationRequest?.abort();
   if(activeGuidance || nativeGuidanceActive)stopGuidance();
   if(scanner)stop(); else ++scanGeneration;
@@ -180,7 +187,7 @@ function stopGuidance() {
   map.setDrivingMode(false);map.setNavigationRoute([]);
 }
 navStop.onclick=()=>{stopGuidance();previewStatus.textContent='Trip ended. Search for another destination.';navSearchOpen.focus();};
-(document.getElementById('navigation-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
+
 
 async function startGuidance(route:PreviewRoute,destination:Destination){
   if(!route.steps.length){navSearchStatus.textContent='Turn-by-turn directions unavailable for this route. Try another destination.';return;}
@@ -301,13 +308,29 @@ const fusion = new ScanFusion();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const store = new LocalReportStore();
 mountLegend($('map-legend'));
-const map = new MapView($('map'), undefined, { dark: true, legend: false, layersControl: false, zoomControl: false, waitForLocation: true, initial3D: savedMap3D() });
+const map = new MapView($('map'), undefined, { dark: document.documentElement.dataset.theme !== 'light', legend: false, layersControl: false, zoomControl: false, waitForLocation: true, initial3D: savedMap3D() });
 map.onPresentationChange = state => {
   const loading = document.getElementById('map-startup');
   if (loading) { loading.hidden = state !== 'loading3d'; loading.textContent = 'Loading 3D map…'; }
   if (state === 'fallback') toast('3D map unavailable. Showing 2D instead.', true);
 };
 mountMapSettings(map);
+wireNavigationMapControls(
+  document.getElementById('navigation-recenter') as HTMLButtonElement,
+  document.getElementById('navigation-3d') as HTMLButtonElement,
+  map,
+  savedMap3D(),
+  enabled => {
+    try { localStorage.setItem('pr.map3d', enabled ? '1' : '0'); } catch { /* ignore */ }
+    const setting = document.getElementById('map3d') as HTMLInputElement | null;
+    const pitch = document.getElementById('pitch') as HTMLButtonElement | null;
+    if (setting) setting.checked = enabled;
+    if (pitch) pitch.hidden = !enabled;
+  }
+);
+
+(document.getElementById('navigation-driving-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
+(document.getElementById('navigation-driving-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
 void map.ready.then(() => { if (!map.wants3D) { const loading = document.getElementById('map-startup'); if (loading) loading.hidden = true; } });
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;
@@ -353,6 +376,9 @@ const bootScanStop = Promise.resolve(nativePlugin()?.stop?.()).catch(()=>{});
 sel.value = isNativeApp ? 'native' : new URLSearchParams(location.search).get('backend') ?? pickDefaultBackend();
 applyPlatformSettings(document, isNativeApp);
 { const sm = document.getElementById('scanmode') as HTMLSelectElement | null; const v = localStorage.getItem('pr.scanmode'); if (sm && v) sm.value = v; }
+const themeCtl = mountTheme(theme => map.setTheme(theme === 'dark'));
+const themeSel = document.getElementById('theme') as HTMLSelectElement | null;
+if (themeSel) { themeSel.value = themeCtl.choice(); themeSel.onchange = () => themeCtl.set(readThemeChoice(themeSel.value)); }
 { const pl = nativePlugin(); const b = document.getElementById('battery') as HTMLButtonElement | null; if (pl && b) { b.hidden = false; b.onclick = () => pl.openBatterySettings(); } }
 document.querySelectorAll<HTMLSelectElement>('select[data-seg]').forEach(mountSegmented);
 if (sel.value === 'native') status('Android app: tap Scan. Scanning keeps running with the screen off (see the notification).', 'ok');
@@ -383,7 +409,8 @@ const drawLive = () => { liveLast = performance.now(); if (liveTimer !== undefin
 let liveLast = 0; let liveTimer: number | undefined;
 const drawLiveSoon = () => { if (liveTimer !== undefined) return; liveTimer = window.setTimeout(drawLive, Math.max(0, 300 - (performance.now() - liveLast))); };
 setInterval(drawLive, 2000);
-document.getElementById('showother')?.addEventListener('change', () => drawLive());
+{ const other = document.getElementById('showother') as HTMLInputElement | null;
+  if (other) { other.checked = localStorage.getItem('pr.showother') === '1'; other.addEventListener('change', () => { localStorage.setItem('pr.showother', other.checked ? '1' : '0'); drawLive(); }); } }
 function startGeo() {
   if (!navigator.geolocation) { map.locationUnavailable(); $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
@@ -431,6 +458,7 @@ function renderCards() {
     return `<li class="card${stale ? ' stale' : ''}${wifi ? ' wifi' : ''}" style="--c:${wifi ? WIFI_COLOR : d.color}">
       <div class="row"><span class="badge ${b.cls}">${b.text}</span><span class="name">${esc(d.label)}</span><span class="ago">${ago(d.lastSeen)}</span></div>
       ${d.kind === 'match' ? `<div class="conf"><span class="grade">${gradeOf(conf)}</span><div class="bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${Math.round(conf * 100)}%</b></div>` : ''}
+      ${d.kind === 'match' ? `<p class="evidence">${esc(reliabilityLine({ radio: m?.radio ?? d.radio, category: m?.signature.category, vendor: m?.signature.vendor }))}</p>` : ''}
       ${d.kind === 'match' && m ? confirmRow(d.key) : ''}
       ${wifi ? `<p class="evidence">${esc(WIFI_EVIDENCE_LINE)}</p>` : ''}
       <div class="row meta"><span class="prox ${d.band}">${d.band}</span><span>RSSI ${d.rssi}</span><span class="loc">📍 ~${bandRadius(d.band)} m${map.anchors.get(d.key) ? ' · pinned' : ''}</span>${m?.corroborated ? '<span class="tag">2 signals agree</span>' : ''}${m ? `<span class="muted">${m.signature.status}</span>` : ''}<span class="sid">${wifi ? (d.key.startsWith('wifi:') ? 'signature only' : `AP ${esc(d.key.slice(0, 6))}`) : `#${esc(d.key.slice(0, 6))}`}</span></div>
@@ -465,6 +493,7 @@ function vehicleCard(v: Vehicle) {
     <div class="row"><span class="badge veh">🚓 Vehicle</span><span class="name">Possible patrol vehicle · ${v.members.length} signals</span><span class="ago">${ago(v.lastSeen)}</span></div>
     <div class="conf"><span class="grade">${gradeOf(v.confidence)}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
     <div class="vmembers">${rows}</div>
+    <p class="evidence">${esc(GROUPED_RELIABILITY)}</p>
     <p class="evidence">${esc(VEHICLE_EVIDENCE_LINE)}</p>
     ${confirmRow(v.id)}
     <div class="row meta"><span>${v.radios.map(r => (r === 'wifi' ? 'Wi-Fi' : 'BLE')).join(' + ')}</span>${v.rssiCorrelated ? '<span class="tag">signals move together</span>' : ''}<span class="muted">${corroborationText(v)}</span></div>
@@ -509,11 +538,17 @@ async function start() {
   }
   if (scanner instanceof NativeScanner) {
     const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
-    scanner.filtered = picker.value !== 'all';
+    // Always preserve hardware police filters for reliable Android screen-off scanning and notifications.
+    scanner.filtered = true;
     scanner.alertSound = soundEnabled();
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
-    scanner.onError = msg => { if(scanner!==candidate)return; recorder.event('error', kind, `native: ${msg}`); stop(); status(`[scan] ${msg}`, 'err'); };
+    scanner.onError = msg => {
+      if (scanner !== candidate) return;
+      recorder.event('error', kind, `native: ${msg}`);
+      const limit = msg === backgroundScanEndedMessage('limit');
+      stop(); status(limit ? msg : `[scan] ${msg}`, 'err', limit ? 'Stopped' : undefined);
+    };
     scanner.onHealth = h => { recorder.setNativeHealth(h); setScanQuiet(h.quiet); };
     scanner.onSupervisor = (k, detail) => {
       if (k === 'quiet') { recorder.event('scanner-quiet', kind, detail); setScanQuiet(true); }
@@ -552,7 +587,7 @@ async function start() {
     setScanning(true); $('add').hidden = !(scanner instanceof BluefyScanner);
     setTimeout(() => {
       if (generation!==scanGeneration || scanner!==candidate || stats.raw !== 0 || kind === 'mock') return;
-      if (kind === 'native' && picker.value !== 'all') status('No police gear heard in 20 s. "Police gear only" ignores phones, earbuds and cars, so 0 is normal with no police nearby. To test that scanning works, set Devices to "All devices" in Settings.', '');
+      if (kind === 'native') status('No police match heard in 20 s. This is normal when no supported equipment is nearby; background alert filtering remains active.', '');
       else status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err');
     }, 20_000);
   } catch (e) { if(generation!==scanGeneration)return; scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
@@ -571,8 +606,9 @@ document.addEventListener('visibilitychange', () => {
   void candidate.serviceStatus().then(state => {
     if (!state || generation !== scanGeneration || scanner !== candidate) return;
     if (!state.sessionActive) {
-      recorder.event('error', 'native', 'Android scan service ended while backgrounded');
-      stop(); status('Android background scan stopped. Tap Scan to restart.', 'err');
+      const limit = state.stopReason === 'limit';
+      recorder.event('error', 'native', limit ? '6-hour scan limit' : 'Android scan service ended while backgrounded');
+      stop(); status(backgroundScanEndedMessage(state.stopReason), 'err', limit ? 'Stopped' : undefined);
     } else if (!state.running) status('Android scanner is recovering; waiting for native callbacks.', '', 'Recovering');
     else status('Scanning (Android background service active).', 'ok');
   }).catch(() => {});
@@ -780,17 +816,20 @@ mountCityChat(() => (here ? pos : undefined)); // coarse cell only; `here` is ju
 import { mountTutorial, shouldAutoShow } from './tutorial';
 { const tour = mountTutorial({ onStep: s => { if (s.id !== 'sheet') sheet.classList.add('collapsed'); } });
   $('replay-tour').onclick = () => { setSettings(false); tour.open(); };
-  if (shouldAutoShow(localStorage, location.search) && !location.hash) setTimeout(tour.open, 600); }
+  // First Patrol Radar entry only. The mode picker stays a plain choice; Skip/Done sets pr.tutorial.done.
+  showPatrolTour = () => { if (shouldAutoShow(localStorage, location.search) && !location.hash) tour.open(); };
+  hidePatrolTour = () => tour.hide(); }
 
 // Settings summaries reflect the controls rather than storing a second copy of their state.
 function updateSettingsSummaries() {
   const mode = $<HTMLSelectElement>('scanmode');
   const modeLabel = ({ lowPower: 'Saver', balanced: 'Balanced', lowLatency: 'Fastest' } as Record<string, string>)[mode.value] ?? mode.value;
   $('settings-mode').textContent = isNativeApp ? `Scan mode: ${modeLabel}` : `Scanner: ${sel.options[sel.selectedIndex]?.text ?? sel.value}`;
-  $('scanning-section-summary').textContent = `${isNativeApp ? modeLabel + ' · ' : ''}${picker.value === 'all' ? 'All devices' : 'Police gear'}`;
+  $('scanning-section-summary').textContent = `${isNativeApp ? modeLabel + ' · ' : ''}All devices · police alert filters active`;
   $('alerts-section-summary').textContent = `Police ping ${soundBox.checked ? 'on' : 'off'} · camera alerts in Map layers`;
   $('crowd-section-summary').textContent = `Sharing ${shareBox.checked ? 'on' : 'off'} · crowd layer ${$<HTMLInputElement>('crowd').checked ? 'on' : 'off'}`;
   $('travel-section-summary').textContent = `${$<HTMLSelectElement>('travelmode').value === 'foot' ? 'On foot' : 'Car'} · 3D buildings ${$<HTMLInputElement>('map3d').checked ? 'on' : 'off'}`;
+  $('appearance-summary').textContent = ({ light: 'Light', dark: 'Dark', system: 'Match system' } as Record<string, string>)[$<HTMLSelectElement>('theme').value] ?? 'Match system';
   $('layers-section-summary').textContent = `Flock cameras ${$<HTMLInputElement>('flockmap').checked ? 'on' : 'off'} · traffic cameras · Stop History`;
 }
 $('settings').addEventListener('change', updateSettingsSummaries);

@@ -43,7 +43,7 @@ screen off. "All devices" scans everything but Android pauses unfiltered scans w
 - Android allows ~5 scan starts per 30 s; toggling Scan quickly gives "Scan failed (code 6)". Wait 30 s.
 - Low-power mode reports less often; some phones batch results while the screen is off, so hits can arrive late.
 - The map UI runs in a WebView; with the screen off Android may slow the page down. The native scan keeps running; if hits look delayed, open the app to catch up.
-- The scan has a 6-hour wake-lock cap per session; start it again after that.
+- A scan session stops after 6 hours. If notifications are allowed, one local notice says scanning has stopped; tap Scan to start again.
 
 ## Building locally
 ```

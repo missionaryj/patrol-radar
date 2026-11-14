@@ -1,4 +1,3 @@
-import { accuracyHtml } from '../settings/accuracyReports';
 import { loadUpdates, readIds, markRead, unreadCount, debugMailto, LIVE_UPDATES_URL, type UpdatePost } from './updates';
 declare const __APP_VERSION__: string;
 const ver = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
@@ -20,13 +19,6 @@ export function mountUpdates(o: { native: boolean; openSettings: () => void }) {
     drawer.classList.toggle('open', open); drawer.setAttribute('aria-hidden', String(!open)); $('scrim').hidden = !open;
     if (!open && posts.length) { markRead(localStorage, posts.map(p => p.id)); render(); } // unread dots stay visible while the sheet is open
   };
-  $('accuracy-body').innerHTML = accuracyHtml();
-  const tab = (acc: boolean) => {
-    $('tab-updates').classList.toggle('on', !acc); $('tab-accuracy').classList.toggle('on', acc);
-    $('tab-updates').setAttribute('aria-selected', String(!acc)); $('tab-accuracy').setAttribute('aria-selected', String(acc));
-    $('pane-updates').hidden = acc; $('pane-accuracy').hidden = !acc;
-  };
-  $('tab-updates').onclick = () => tab(false); $('tab-accuracy').onclick = () => tab(true);
   $('open-updates').onclick = () => { render(); setOpen(true); };
   $('close-updates').onclick = () => setOpen(false);
   const local = `${import.meta.env.BASE_URL}updates.json`;
@@ -34,7 +26,6 @@ export function mountUpdates(o: { native: boolean; openSettings: () => void }) {
   ($('mail-debug') as HTMLAnchorElement).href = debugMailto(ver);
   $('updates-help').onclick = () => { setOpen(false); o.openSettings(); ($('help-section') as HTMLDetailsElement).open = true; const h = $('help') as HTMLDetailsElement; h.open = true; h.scrollIntoView({ block: 'start' }); };
   if (location.hash === '#updates') setOpen(true);
-  if (location.hash === '#accuracy') { tab(true); setOpen(true); }
   if (location.hash === '#help') $('updates-help').click();
   return { close: () => { if (drawer.classList.contains('open')) setOpen(false); } };
 }

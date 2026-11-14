@@ -1,7 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
-<meta name="theme-color" content="#07080a"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title>
-<style>html,body{margin:0;background:#07080a;color:#eee}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style></head>
+<meta name="theme-color" content="#07080a"/>
+<script>
+/* Dark is the first-launch default. Explicit Light, Dark, and Match system choices still win. */
+(function(){try{var p=localStorage.getItem('pr.theme');var dark=p==='light'?false:p==='system'?matchMedia('(prefers-color-scheme: dark)').matches:true;var t=dark?'dark':'light';var h=document.documentElement;h.dataset.theme=t;h.style.colorScheme=t;var c=dark?'#07080a':'#f4f6f8';h.style.background=c;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',c);}catch(e){}})();
+</script>
+<style>html,body{margin:0;background:#07080a;color:#eee}html[data-theme="light"],html[data-theme="light"] body{background:#f4f6f8;color:#16181d}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title></head>
 <body>
 <div id="map"></div>
 <section id="mode-welcome" class="mode-welcome" aria-labelledby="mode-welcome-title">
@@ -19,6 +24,10 @@
 <section id="navigation-panel" class="navigation-panel" hidden aria-label="Navigation destination">
   <div class="navigation-panel-head"><strong>Navigation</strong></div>
   <button id="navigation-open-search" type="button" class="navigation-open-search" aria-haspopup="dialog"><span aria-hidden="true">⌕</span><span>Where to?</span><span aria-hidden="true">›</span></button>
+  <div class="navigation-map-controls" role="group" aria-label="Navigation map controls">
+    <button id="navigation-recenter" type="button" aria-label="Recenter on my location" title="Recenter map">◎ <span>My location</span></button>
+    <button id="navigation-3d" type="button" aria-label="Switch to 3D view" aria-pressed="false" title="Switch to 3D view">3D</button>
+  </div>
   <p id="navigation-provider-status" role="status">Search for a destination to see traffic-aware driving routes.</p>
 </section>
 <section id="navigation-search-screen" class="navigation-search-screen" role="dialog" aria-modal="true" aria-labelledby="navigation-search-title" hidden>
@@ -42,7 +51,7 @@
 </section>
 <section id="navigation-driving" class="navigation-driving" aria-label="Turn-by-turn driving guidance" hidden>
   <div class="navigation-driving-banner" aria-live="polite" aria-atomic="true"><span class="navigation-driving-eyebrow">NEXT TURN</span><strong id="navigation-instruction">Continue</strong><span id="navigation-distance">Preparing GPS guidance…</span></div>
-  <button type="button" id="navigation-recenter" class="navigation-recenter" aria-label="Recenter driving map">◎</button>
+  <button type="button" id="navigation-driving-recenter" class="navigation-recenter" aria-label="Recenter driving map">◎</button>
   <div class="navigation-driving-dashboard">
     <div class="navigation-speed"><strong id="navigation-speed">—</strong><span>MPH</span></div>
     <div class="navigation-trip-stats"><span class="navigation-arrival-label">ARRIVAL TIME</span><strong id="navigation-eta">—</strong><span id="navigation-time-remaining">— min remaining</span><span id="navigation-trip-distance">— mi left</span></div>
@@ -95,6 +104,14 @@
   <div class="control-status"><span class="status-kicker">SCANNER STATUS</span><strong id="settings-scan-status">Scan is stopped</strong><span id="settings-mode">Scan mode: Balanced</span><div id="status-full" class="status-full" role="status">Idle</div><button type="button" id="check-setup" class="setup-button">Check my setup <span aria-hidden="true">›</span></button></div>
   <div id="setup-results" class="setup-results" hidden aria-live="polite"></div>
 
+  <details class="settings-section" id="appearance-section"><summary><span><b>Appearance</b><small id="appearance-summary">Dark</small></span></summary>
+  <div class="group">
+    <div class="field"><span>Theme</span>
+      <select id="theme" data-seg data-labels="Light|Dark|Match system"><option value="light">Light</option><option value="dark" selected>Dark</option><option value="system">Match system</option></select>
+      <small>Match system follows this phone's dark mode and updates if you change it.</small></div>
+  </div>
+  </details>
+
   <details class="settings-section" id="scanning-section"><summary><span><b>Scanning</b><small id="scanning-section-summary">Scan mode and device filter</small></span></summary>
   <div class="group">
     <label class="field" id="backend-wrap">Scanner backend
@@ -103,10 +120,9 @@
       <select id="scanmode" data-seg data-labels="Saver|Balanced|Fastest"><option value="lowPower">Battery saver (slower)</option><option value="balanced" selected>Balanced</option><option value="lowLatency">Fastest (more battery)</option></select>
       <small>Saver uses less battery; Balanced balances battery and scan frequency; Fastest scans more often and uses more battery. Results and range vary by phone and conditions.</small></div>
     <button type="button" id="battery" class="row-btn" hidden>Let it run in the background (battery settings)</button>
-    <details class="advanced-scan"><summary>Advanced: device filter</summary><div class="field"><span>Devices (Bluefy picker / Android app filter)</span>
-      <select id="picker" data-seg data-labels="Police gear|All devices"><option value="police">Police gear only</option><option value="all">All devices</option></select>
-      <small>Police gear only: the phone delivers only police-gear signals, so the count stays 0 with no police nearby. All devices: hears every Bluetooth device (screen on); use it to check scanning works.</small></div>
-    <label class="switch"><input type="checkbox" id="showother"/><span></span><em>Show other devices<small>Phones, earbuds… hidden by default</small></em></label></details>
+    <details class="advanced-scan"><summary>Advanced settings</summary>
+    <input id="picker" type="hidden" value="police"/>
+    <label class="switch"><input type="checkbox" id="showother"/><span></span><em>Show other devices<small>Phones and earbuds are hidden by default. Police matching and screen-off alerts continue using the Android filtered scanner.</small></em></label></details>
   </div>
 
   </details>
@@ -255,12 +271,8 @@
 </aside>
 <aside id="updates" class="drawer" aria-label="Updates" aria-hidden="true">
   <header><h2>Updates</h2><button id="close-updates" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
-  <div class="seg updates-tabs" role="tablist"><button type="button" role="tab" id="tab-updates" class="on" aria-selected="true" aria-controls="pane-updates">Updates</button><button type="button" role="tab" id="tab-accuracy" aria-selected="false" aria-controls="pane-accuracy">Accuracy reports</button></div>
-  <div id="pane-updates" role="tabpanel">
-    <ul id="updates-list" class="updates-list"><li class="empty">Loading…</li></ul>
-    <button type="button" id="updates-help" class="help-link">Not seeing police on the map? Send debug info →</button>
-  </div>
-  <div id="pane-accuracy" role="tabpanel" class="accuracy-reports" hidden><div class="help-body" id="accuracy-body"></div></div>
+  <ul id="updates-list" class="updates-list"><li class="empty">Loading…</li></ul>
+  <button type="button" id="updates-help" class="help-link">Not seeing police on the map? Send debug info →</button>
 </aside>
 <script type="module" src="/src/v2/main.ts"></script>
 </body></html>
