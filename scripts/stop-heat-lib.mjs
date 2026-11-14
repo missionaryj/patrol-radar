@@ -81,14 +81,18 @@ export function partsFromDate(s) {
     m = +a[1]; d = +a[2]; y = +a[3];
   }
   if (y < YEAR_BASE || y > YEAR_BASE + 60 || m < 1 || m > 12 || d < 1 || d > 31) return null;
-  return { year: y, dow: new Date(Date.UTC(y, m - 1, d)).getUTCDay() };
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null;
+  return { year: y, dow: date.getUTCDay() };
 }
 
 export function parseHour(s) {
   if (s == null) return null;
-  const m = String(s).trim().match(/^(\d{1,2})/);
+  const m = String(s).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*(AM|PM)?$/i);
   if (!m) return null;
-  const h = +m[1];
+  let h = +m[1];
+  if (+m[2] > 59 || (m[3] != null && +m[3] > 59)) return null;
+  if (m[4]) { if (h < 1 || h > 12) return null; h = h % 12 + (m[4].toUpperCase() === 'PM' ? 12 : 0); }
   return h >= 0 && h <= 23 ? h : null;
 }
 
@@ -105,7 +109,9 @@ export function normCode(v) {
 }
 
 export function validLL(lat, lng) {
-  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) > 0.5 && Math.abs(lng) > 0.5 && lat >= 17 && lat <= 72 && lng >= -170 && lng <= -65;
+  // Source-specific Census polygons establish jurisdiction, including Alaska's
+  // Aleutians; a continental-US bounding box is not geographic validation.
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(lat === 0 && lng === 0);
 }
 
 /** ~GRID_M metres. Longitude step uses the snapped latitude so every point in a row shares one cell. */
@@ -276,6 +282,16 @@ export function flattenRings(geom) {
   return [];
 }
 
+/** One source-owned polygon for stops whose file has no coordinates.
+ *  The code is the literal city boundary, not a police beat and not another city's layer. */
+export function cityBeat(geometry, { prefix, place, label }) {
+  const set = new BeatSet(prefix, place, () => label);
+  const rings = geometry?.type === 'Polygon' ? geometry.coordinates : geometry?.type === 'MultiPolygon' ? geometry.coordinates.flat() : [];
+  set.add('city', rings, label);
+  if (!set.list.length) throw new Error('City boundary has no rings');
+  return set;
+}
+
 export function beatsFromGeoJSON(gj, { prefix, place, codeField, labelOf }) {
   const set = new BeatSet(prefix, place, labelOf);
   for (const f of gj.features ?? []) {
@@ -374,7 +390,13 @@ export class HeatAgg {
     let beat = null;
     if (stop.beatId && beatSet) beat = beatSet.byCode.get(normCode(stop.beatId)) ?? null;
     const ll = validLL(stop.lat, stop.lng);
-    if (!beat && ll) beat = this.spatial ? this.spatial.hit(stop.lng, stop.lat) : null;
+    // A publisher's coordinates must never fall back into another agency's beats.
+    // With no source-owned beat set, keep verified coordinates in their grid cells.
+    if (beat && ll && !pointInRings(stop.lng, stop.lat, beat.rings)) beat = null;
+    if (!beat && ll && beatSet) {
+      beatSet.spatial ??= new Spatial(beatSet.list);
+      beat = beatSet.spatial.hit(stop.lng, stop.lat);
+    }
     let unit;
     if (beat) {
       unit = this.units.get(beat.id);

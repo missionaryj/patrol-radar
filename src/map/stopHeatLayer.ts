@@ -5,16 +5,23 @@ export const YEAR_BASE = 1990;
 export const BUCKET = 56;
 export const HEAT_GRID_MIN_ZOOM = 11;
 export const HEAT_CELL_CAP = 1800;
-export const STOP_HEAT_ATTRIBUTION = 'Stop history: <a href="https://openpolicing.stanford.edu/">Stanford Open Policing Project</a> (ODC-BY) and city open data. Coverage is uneven.';
+export const STOP_HEAT_ATTRIBUTION = 'Stop history: <a href="https://openpolicing.stanford.edu/">Stanford Open Policing Project</a> (ODC-BY) and city open data. Chicago collapses identical rows and may still contain duplicate encounters. Urbana is a citywide total, not street locations. Coverage is uneven.';
 
 export interface HeatTod { id: string; label: string; hint: string }
-export interface HeatSource { id: string; name: string; url: string; license: string; last_updated: string | null; fetched: string; stops: number; mapped: number; unmapped: number; note?: string }
+export interface HeatSource { id: string; name: string; url: string; license: string; last_updated: string | null; fetched: string; stops: number; mapped: number; unmapped: number; note?: string; disclaimer?: string; license_url?: string; audit?: { seen: number; accepted: number; duplicate_rows: number; rejected: number; time_range: [string, string] } }
 export interface HeatGap { id: string; name: string; url: string; why: string }
 export interface StopHeatIndex {
   generated: string; gridM: number; tileDeg: number; yearBase: number; years: number[];
   tod: HeatTod[]; dow: string[]; reasons: string[]; disclaimer: string; attribution: string;
   sources: HeatSource[]; notMapped: HeatGap[]; tiles: Record<string, number>; beatFiles: string[];
   totals: { stops: number; mapped: number; unmapped: number; beats: number; cells: number };
+  coverage?: { states_with_records: string[]; population_of_jurisdictions: number; occupied_cell_footprint_m2: number; occupied_cell_us_area_percent: number };
+}
+
+export function coverageCaption(idx: StopHeatIndex) {
+  const c = idx.coverage;
+  if (!c) return 'Regional historical source records · coverage not measured';
+  return `${c.states_with_records.length} states with records · ${(c.occupied_cell_footprint_m2 / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 })} km² occupied cell footprint · ${c.occupied_cell_us_area_percent.toFixed(4)}% of U.S. area. Jurisdictions have ${c.population_of_jurisdictions.toLocaleString()} residents (2020); this is not population coverage.`;
 }
 /** [lat, lng, src pairs, bucket pairs, outcome tuples, reason tuples] */
 export type HeatCell = [number, number, number[], number[], number[], number[]];
