@@ -2,6 +2,7 @@ import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
 import { mountTheme, readThemeChoice } from '../settings/theme';
 import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate, type Destination } from '../navigation/mapboxPreview';
 import { NavigationPlaces, samePlace } from '../navigation/places';
+import { wireNavigationMapControls } from '../navigation/mapControls';
 import { routeRemaining, remainingSeconds, speedMph, arrivalTime, distanceToNextTurn } from '../navigation/tripDisplay';
 import { Guidance } from '../navigation/guidance';
 import './v2.css';
@@ -186,7 +187,18 @@ function stopGuidance() {
   map.setDrivingMode(false);map.setNavigationRoute([]);
 }
 navStop.onclick=()=>{stopGuidance();previewStatus.textContent='Trip ended. Search for another destination.';navSearchOpen.focus();};
-(document.getElementById('navigation-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
+wireNavigationMapControls(
+  document.getElementById('navigation-recenter') as HTMLButtonElement,
+  document.getElementById('navigation-3d') as HTMLButtonElement,
+  map,
+  savedMap3D(),
+  enabled => {
+    const setting = document.getElementById('map3d') as HTMLInputElement | null;
+    const pitch = document.getElementById('pitch') as HTMLButtonElement | null;
+    if (setting) setting.checked = enabled;
+    if (pitch) pitch.hidden = !enabled;
+  }
+);
 
 async function startGuidance(route:PreviewRoute,destination:Destination){
   if(!route.steps.length){navSearchStatus.textContent='Turn-by-turn directions unavailable for this route. Try another destination.';return;}
