@@ -193,6 +193,7 @@ wireNavigationMapControls(
   map,
   savedMap3D(),
   enabled => {
+    try { localStorage.setItem('pr.map3d', enabled ? '1' : '0'); } catch { /* ignore */ }
     const setting = document.getElementById('map3d') as HTMLInputElement | null;
     const pitch = document.getElementById('pitch') as HTMLButtonElement | null;
     if (setting) setting.checked = enabled;
