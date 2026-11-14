@@ -70,11 +70,14 @@ export function occupiedArea(cells, geometries) {
     return area;
 }
 export class StopValidator {
-    constructor({ contains, start, end, asOf }) {
+    constructor({ contains, start, end, asOf, placement = 'point' }) {
         this.contains = contains;
         this.start = start;
         this.end = end;
         this.asOf = asOf;
+        // 'city' counts an official stop on a source-owned boundary when the
+        // file has a location code and no coordinates. It never invents a point.
+        this.placement = placement === 'city' ? 'city' : 'point';
         this.events = new Map();
         this.conflicts = new Set();
         this.seen = 0;
@@ -92,11 +95,20 @@ export class StopValidator {
         const parts = partsFromDate(row.date);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date) || !parts || row.date < this.start || row.date > this.end || row.date > this.asOf)
             return this.reject('invalid_date');
-        const lat = number(row.lat), lng = number(row.lng);
-        if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180 || (lat === 0 && lng === 0))
-            return this.reject('missing_or_invalid_coordinates');
-        if (!this.contains(lng, lat))
-            return this.reject('outside_jurisdiction');
+        const city = this.placement === 'city';
+        let lat = null, lng = null;
+        if (city) {
+            // A geocode is not a coordinate and is not drawn. Unknown codes drop.
+            if (!row.locationCode)
+                return this.reject('unknown_location');
+        } else {
+            lat = number(row.lat);
+            lng = number(row.lng);
+            if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180 || (lat === 0 && lng === 0))
+                return this.reject('missing_or_invalid_coordinates');
+            if (!this.contains(lng, lat))
+                return this.reject('outside_jurisdiction');
+        }
         if (!String(row.key ?? '').trim())
             return this.reject('missing_event_key');
         if (this.conflicts.has(row.key))
@@ -104,7 +116,8 @@ export class StopValidator {
         const prior = this.events.get(row.key);
         if (prior) {
             // Inconsistent event identity must never silently choose a location.
-            if (prior.date !== row.date || prior.time !== row.time || prior.lat !== lat || prior.lng !== lng) {
+            const samePlace = city ? prior.locationCode === row.locationCode : prior.lat === lat && prior.lng === lng;
+            if (prior.date !== row.date || prior.time !== row.time || !samePlace) {
                 this.events.delete(row.key);
                 this.conflicts.add(row.key);
                 this.duplicates -= prior.rows - 1;
@@ -120,7 +133,7 @@ export class StopValidator {
             return;
         }
         // Deliberate allow-list: source event keys are retained only in memory.
-        this.events.set(row.key, { date: row.date, time: row.time, lat, lng, ...parts, hour: row.hour, cite: row.cite, warn: row.warn, arrest: row.arrest, reason: row.reason, rows: 1 });
+        this.events.set(row.key, { date: row.date, time: row.time, lat, lng, locationCode: city ? row.locationCode : undefined, ...parts, hour: row.hour, cite: row.cite, warn: row.warn, arrest: row.arrest, reason: row.reason, rows: 1 });
     }
     report() {
         this.minDate = null;
@@ -129,6 +142,8 @@ export class StopValidator {
         for (const row of this.events.values()) {
             this.minDate = this.minDate === null || row.date < this.minDate ? row.date : this.minDate;
             this.maxDate = this.maxDate === null || row.date > this.maxDate ? row.date : this.maxDate;
+            if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng))
+                continue;
             const p = snap(row.lat, row.lng);
             this.cells.set(`${p.lat},${p.lng}`, [p.lat, p.lng]);
         }

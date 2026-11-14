@@ -8,14 +8,23 @@ import {StopValidator,number,jurisdictionContains,occupiedArea,cellPolygon,geome
 import {partsFromDate,parseHour} from '../../scripts/stop-heat-lib.mjs';
 // @ts-expect-error build script
 import {normalize,rows,build} from '../../scripts/build-verified-stop-heat.mjs';
+// @ts-expect-error identity rules
+import {chicagoEncounterKey,urbanaLocationCode,urbanaReason} from '../../scripts/stop-heat-identity.mjs';
+// @ts-expect-error beat helper
+import {cityBeat,HeatAgg,makeStop,serialize,BeatSet,reasonIndex} from '../../scripts/stop-heat-lib.mjs';
 
 const geometry={type:'Polygon',coordinates:[[[0,0],[2,0],[2,2],[0,2],[0,0]],[[0.5,0.5],[1,0.5],[1,1],[0.5,1],[0.5,0.5]]]};
 const fixture=()=>new StopValidator({contains:jurisdictionContains(geometry),start:'2000-01-01',end:'2026-12-31',asOf:'2026-11-12'});
 const row={key:'one',vehicle:true,date:'2020-02-29',time:'12:00:00',hour:12,lat:1.5,lng:1.5,cite:1,warn:0,arrest:0,reason:0};
 describe('Illinois source eligibility', () => {
-  it('quarantines Urbana person stop sheets instead of treating vehicle occupants as IVC traffic stops', () => {
+  it('quarantines Urbana person stop sheets and maps the stop-level file only as a city shade', () => {
     expect(SOURCES.some((s: {id: string}) => s.id === 'urbana')).toBe(false);
+    expect(SOURCES.find((s: {id: string; geography?: string}) => s.id === 'urbana_ivc')?.geography).toBe('city');
     expect(QUARANTINED.find((s: {id: string}) => s.id === 'urbana')?.why).toMatch(/NON-IVC/);
+    expect(QUARANTINED.some((s: {id: string}) => s.id === 'urbana_offenses')).toBe(true);
+    expect(QUARANTINED.some((s: {id: string}) => s.id === 'urbana_wbez')).toBe(true);
+    expect(QUARANTINED.some((s: {id: string}) => s.id === 'opp_chicago')).toBe(false);
+    expect(SOURCES.some((s: {id: string}) => s.id === 'opp_chicago')).toBe(true);
   });
 });
 describe('audited stop imports',()=>{
@@ -47,6 +56,57 @@ describe('audited stop imports',()=>{
     const v=fixture();v.add(row);v.add(row);v.add({...row,lat:1.6});v.add(row);
     expect(v.report()).toMatchObject({seen:4,accepted:0,duplicate_rows:0,rejected:4,rejection_reasons:{conflicting_event:4},time_range:[null,null]});
     expect(v.cells.size).toBe(0);
+  });
+  it('collapses only identical Chicago public attributes', () => {
+    const row = {date:'2016-05-01', time:'14:00', lat:'41.88000', lng:'-87.63000', type:'vehicular', violation:'SPEEDING', outcome:'citation', citation_issued:'TRUE', arrest_made:'FALSE', beat:'1234', subject_race:'PRIVATE'};
+    expect(chicagoEncounterKey(row)).toBe(chicagoEncounterKey({...row, subject_race:'OTHER'}));
+    expect(chicagoEncounterKey(row)).not.toBe(chicagoEncounterKey({...row, time:'14:30'}));
+    expect(chicagoEncounterKey(row)).not.toBe(chicagoEncounterKey({...row, violation:'EQUIPMENT'}));
+    expect(chicagoEncounterKey(row)).not.toBe(chicagoEncounterKey({...row, beat:'1235'}));
+    const key = chicagoEncounterKey(row);
+    const v = fixture();
+    const base = {key, vehicle:true, date:'2016-05-01', time:'14:00', hour:14, lat:1.5, lng:1.5, cite:1, warn:0, arrest:0, reason:0};
+    v.add(base); v.add({...base, arrest:1});
+    expect(v.report()).toMatchObject({seen:2, accepted:1, duplicate_rows:1, rejected:0});
+    expect(normalize({id:'opp_chicago', archive:'x'}, {...row, type:'pedestrian'}).vehicle).toBe(false);
+    expect(normalize({id:'opp_chicago', archive:'x'}, row).key).toBe(key);
+  });
+  it('shades Urbana stop-level rows on the city and never on a coordinate or Champaign beat', () => {
+    expect(urbanaLocationCode('547-08')).toBe('547-08');
+    expect(urbanaLocationCode('61 -')).toBe('61 -');
+    expect(urbanaLocationCode('999-99')).toBeNull();
+    expect(urbanaLocationCode('000-00')).toBeNull();
+    expect(urbanaLocationCode('547110')).toBeNull();
+    expect(urbanaLocationCode('99 -')).toBeNull();
+    expect(urbanaReason('LICENSE PLATE/REG.', 'NOT A MOVING VIOLATION')).toBe(reasonIndex('registration'));
+    expect(urbanaReason('MOVING VIOLATION', 'SPEED')).toBe(reasonIndex('speeding'));
+    const normalized = normalize({id:'urbana_ivc'}, {date_of_contact:'2018-06-02T00:00:00.000', time_of_contact:'19:30', incident_number:'A1', geo_code:'547-08', reason_for_stop:'MOVING VIOLATION', type_of_violation:'SPEED', race_description:'PRIVATE'});
+    expect(normalized.lat).toBeNull();
+    expect(normalized.lng).toBeNull();
+    expect(normalized.locationCode).toBe('547-08');
+    expect(normalized.hour).toBe(19);
+    const city = new StopValidator({contains:()=>false, start:'2013-01-01', end:'2023-12-31', asOf:'2026-11-14', placement:'city'});
+    expect(normalize({id:'urbana_ivc'}, {date_of_contact:'2018-06-02T00:00:00.000', time_of_contact:'19:30', incident_number:'Z', geo_code:'999-99'}).locationCode).toBeNull();
+    city.add(normalized); city.add({...normalized, key:'A1'});
+    city.add({...normalized, key:'bad', locationCode:null});
+    city.add({...normalized, key:'A2', locationCode:null});
+    const report = city.report();
+    expect(report).toMatchObject({seen:4, accepted:1, duplicate_rows:1, rejected:2, rejection_reasons:{unknown_location:2}});
+    expect(report.time_range).toEqual(['2018-06-02','2018-06-02']);
+    expect(city.cells.size).toBe(0);
+    const urbana = cityBeat({type:'Polygon', coordinates:[[[-88.24, 40.08], [-88.18, 40.08], [-88.18, 40.14], [-88.24, 40.14], [-88.24, 40.08]]]}, {prefix:'urbana_ivc', place:'Urbana city', label:'Urbana citywide total'});
+    const champaign = new BeatSet('champaign', 'Champaign');
+    champaign.add('547110', [[[2, 0], [3, 0], [3, 1], [2, 1], [2, 0]]]);
+    const agg = new HeatAgg();
+    agg.addBeatSet(urbana);
+    agg.addBeatSet(champaign);
+    agg.add(makeStop({year:2018, dow:6, hour:19, lat:null, lng:null, beatId:'city', cite:0, warn:0, arrest:0, reason:0, src:0}), urbana);
+    expect(agg.units.get('champaign:547110')).toBeUndefined();
+    expect(agg.units.get('urbana_ivc:CITY')?.n).toBe(1);
+    const built = serialize(agg);
+    expect(built.cells).toBe(0);
+    expect(built.beatFiles.has('urbana_ivc')).toBe(true);
+    expect(JSON.stringify(built.beatFiles.get('urbana_ivc'))).not.toMatch(/Champaign|547110/);
   });
   it('rejects Urbana/WBEZ beat codes without invented coordinates',()=> {
     // WBEZ Urbana stop records have agency-defined 4-, 5- or 2-digit codes,

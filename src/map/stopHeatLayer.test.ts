@@ -110,9 +110,19 @@ describe('stop heat processed files', () => {
     expect(idx.disclaimer).toMatch(/uneven/);
     expect(idx.attribution).toMatch(/Open Policing Project/);
     expect(idx.sources.some((s: { id: string }) => s.id === 'opp_mt')).toBe(true);
-    expect(idx.notMapped.some((s: { id: string }) => s.id === 'opp_chicago')).toBe(true);
+    expect(idx.sources.some((s: { id: string }) => s.id === 'opp_chicago')).toBe(true);
+    expect(idx.notMapped.some((s: { id: string }) => s.id === 'opp_chicago')).toBe(false);
+    const chicago = idx.sources.find((s: { id: string }) => s.id === 'opp_chicago');
+    expect(chicago.note).toMatch(/not a certified unique-stop count/);
+    expect(chicago.audit.duplicate_rows).toBeGreaterThan(0);
+    expect(chicago.audit.seen).toBe(2108098);
+    const urbana = idx.sources.find((s: { id: string }) => s.id === 'urbana_ivc');
+    expect(urbana.note).toMatch(/citywide total/);
+    expect(urbana.note).toMatch(/Champaign/);
+    expect(urbana.precision).toMatch(/no 150 m cells/);
     expect(idx.totals.mapped).toBeGreaterThan(1000);
     expect(idx.notMapped.some((g: { id: string }) => g.id === 'ct_stops')).toBe(true);
+    expect(idx.notMapped.some((g: { id: string }) => g.id === 'urbana')).toBe(true);
     const files = [dir + 'index.json', ...idx.beatFiles.map((f: string) => dir + f), ...Object.keys(idx.tiles).map((k: string) => `${dir}tiles/${k}.json`)];
     const banned = /officer_id|subject_age|subject_race|driver_city|driver_name|mapping_address|badge_no|date_of_birth|"ssn"|anonymous_house/;
     for (const f of files) {
@@ -121,21 +131,30 @@ describe('stop heat processed files', () => {
       JSON.parse(text);
     }
     expect(readdirSync(dir, { recursive: true }).some((f: string | Buffer) => String(f).endsWith('.csv') || String(f).endsWith('.zip'))).toBe(false);
-    expect(idx.beatFiles).toEqual([]); // no officer-assignment or guessed beat joins
+    expect(idx.beatFiles).toEqual(['beats/urbana_ivc.json']);
+    const beat = JSON.parse(readFileSync(dir + 'beats/urbana_ivc.json', 'utf8'));
+    expect(beat.features).toHaveLength(1);
+    expect(beat.features[0].properties.place).toBe('Urbana city');
+    expect(beat.features[0].properties.label).toMatch(/citywide/);
+    expect(JSON.stringify(beat)).not.toMatch(/Champaign/);
     const totals = new Map<number, number>(); let buckets = 0;
+    const addBuckets = (src: number[], b: number[]) => {
+      for (let i = 0; i < src.length; i += 2) totals.set(src[i], (totals.get(src[i]) ?? 0) + src[i + 1]);
+      for (let i = 1; i < b.length; i += 2) buckets += b[i];
+    };
+    for (const feature of beat.features) addBuckets(feature.properties.src, feature.properties.b);
     for (const key of Object.keys(idx.tiles)) {
       const cells = JSON.parse(readFileSync(`${dir}tiles/${key}.json`, 'utf8'));
-      for (const cell of cells) {
-        for (let i = 0; i < cell[2].length; i += 2) totals.set(cell[2][i], (totals.get(cell[2][i]) ?? 0) + cell[2][i + 1]);
-        for (let i = 1; i < cell[3].length; i += 2) buckets += cell[3][i];
-      }
+      for (const cell of cells) addBuckets(cell[2], cell[3]);
     }
     expect(buckets).toBe(idx.totals.mapped);
     idx.sources.forEach((s: { mapped: number; audit: { seen: number; accepted: number; rejected: number; duplicate_rows: number } }, i: number) => {
       expect(totals.get(i)).toBe(s.mapped);
       expect(s.audit.seen).toBe(s.audit.accepted + s.audit.rejected + s.audit.duplicate_rows);
     });
-    expect(idx.coverage.states_with_records).toEqual(['CA', 'MD', 'MT', 'NY', 'OH', 'VT']);
+    expect(idx.coverage.states_with_records).toEqual(['CA', 'IL', 'MD', 'MT', 'NY', 'OH', 'VT']);
+    expect(idx.attribution).toMatch(/Urbana/);
+    expect(idx.disclaimer).toMatch(/citywide total/);
     expect(idx.coverage.occupied_cell_us_area_percent).toBeLessThan(1);
     expect(idx.coverage.point_area_m2).toBe(0);
   });

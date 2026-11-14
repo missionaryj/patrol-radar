@@ -282,6 +282,16 @@ export function flattenRings(geom) {
   return [];
 }
 
+/** One source-owned polygon for stops whose file has no coordinates.
+ *  The code is the literal city boundary, not a police beat and not another city's layer. */
+export function cityBeat(geometry, { prefix, place, label }) {
+  const set = new BeatSet(prefix, place, () => label);
+  const rings = geometry?.type === 'Polygon' ? geometry.coordinates : geometry?.type === 'MultiPolygon' ? geometry.coordinates.flat() : [];
+  set.add('city', rings, label);
+  if (!set.list.length) throw new Error('City boundary has no rings');
+  return set;
+}
+
 export function beatsFromGeoJSON(gj, { prefix, place, codeField, labelOf }) {
   const set = new BeatSet(prefix, place, labelOf);
   for (const f of gj.features ?? []) {

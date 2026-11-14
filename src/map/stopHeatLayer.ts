@@ -5,7 +5,7 @@ export const YEAR_BASE = 1990;
 export const BUCKET = 56;
 export const HEAT_GRID_MIN_ZOOM = 11;
 export const HEAT_CELL_CAP = 1800;
-export const STOP_HEAT_ATTRIBUTION = 'Stop history: <a href="https://openpolicing.stanford.edu/">Stanford Open Policing Project</a> (ODC-BY) and city open data. Coverage is uneven.';
+export const STOP_HEAT_ATTRIBUTION = 'Stop history: <a href="https://openpolicing.stanford.edu/">Stanford Open Policing Project</a> (ODC-BY) and city open data. Chicago collapses identical rows and may still contain duplicate encounters. Urbana is a citywide total, not street locations. Coverage is uneven.';
 
 export interface HeatTod { id: string; label: string; hint: string }
 export interface HeatSource { id: string; name: string; url: string; license: string; last_updated: string | null; fetched: string; stops: number; mapped: number; unmapped: number; note?: string; disclaimer?: string; license_url?: string; audit?: { seen: number; accepted: number; duplicate_rows: number; rejected: number; time_range: [string, string] } }

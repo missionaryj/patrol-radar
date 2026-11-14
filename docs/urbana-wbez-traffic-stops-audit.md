@@ -1,6 +1,6 @@
 # Urbana Police traffic-stop file audit — 2026-11-13
 
-**Status: genuine Illinois Traffic Stop Study source identified, but NOT added to published map until agency-specific historic polygons, source rights, and identity audit are verified.** This is separate from the investigatory/pedestrian Stop Sheet [excluded in an earlier audit](urbana-stop-sheet-audit.md).
+**Status: not published.** The extract is genuine traffic-stop data, but it has no coordinates, no public beat polygons were found, and WBEZ has not stated a commercial data license. The mapped Urbana layer uses the official stop-level file on data.illinois.gov instead (`5r4s-jwyk`), shaded on the Urbana city boundary. This file stays research-only. It is separate from the investigatory/pedestrian Stop Sheet [excluded in an earlier audit](urbana-stop-sheet-audit.md).
 
 ## Uploaded WBEZ source — privacy-safe verification
 

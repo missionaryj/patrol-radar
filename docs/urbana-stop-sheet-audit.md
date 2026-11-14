@@ -21,7 +21,7 @@ The user supplied `City_Of_Urbana__IDOT_Stop_Sheet_(Police_Data)_20261113.csv` a
 2. Official source **`Urbana Police Traffic Stops – Offense Level (2012–Feb 2023)`** must *not* be summed at the violation level. Deduplicate reliably to stop-level identifiers and avoid overlap with item 1.
 3. WBEZ's [Urbana Police traffic stops page](https://interactive.wbez.org/traffic-stops/urbana-police/) provides a separate **[Download Urbana Police data](https://drive.google.com/file/d/1A4PjkwvioJ2d05KOs8V5wCigFub1jmXZ/view)** link. Acquire and inspect its schema, provenance, spatial precision, and commercial reuse terms before adding anything to Pro. It may overlap the original IDOT source, so it cannot be naively summed with the city source.
 
-Only after source acquisition, identity/precision verification, licencing, and privacy checks can a new reviewed source adapter be considered. Never join Urbana data to Champaign city beat polygons. A zero accepted number is better than a misleading heat map.
+The separate stop-level table is public at `https://data.illinois.gov/d/5r4s-jwyk`. That file is the mapped source. It has incident numbers and agency geocodes, not coordinates. It is shaded on the Urbana city boundary. This stop sheet stays excluded. Never join either file to Champaign city beat polygons. The offense-level table `vzjr-d62i` is the same stops at a finer grain and is not summed.
 
 ## Reproducibility and privacy notes
 
