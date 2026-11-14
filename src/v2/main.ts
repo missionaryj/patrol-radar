@@ -2,6 +2,7 @@ import { mountMapSettings, savedMap3D } from '../settings/mapSettings';
 import { mountTheme, readThemeChoice } from '../settings/theme';
 import { findDestination, drivingRoutes, type PreviewRoute, type Coordinate, type Destination } from '../navigation/mapboxPreview';
 import { NavigationPlaces, samePlace } from '../navigation/places';
+import { wireNavigationMapControls } from '../navigation/mapControls';
 import { routeRemaining, remainingSeconds, speedMph, arrivalTime, distanceToNextTurn } from '../navigation/tripDisplay';
 import { Guidance } from '../navigation/guidance';
 import './v2.css';
@@ -186,7 +187,7 @@ function stopGuidance() {
   map.setDrivingMode(false);map.setNavigationRoute([]);
 }
 navStop.onclick=()=>{stopGuidance();previewStatus.textContent='Trip ended. Search for another destination.';navSearchOpen.focus();};
-(document.getElementById('navigation-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
+
 
 async function startGuidance(route:PreviewRoute,destination:Destination){
   if(!route.steps.length){navSearchStatus.textContent='Turn-by-turn directions unavailable for this route. Try another destination.';return;}
@@ -314,6 +315,22 @@ map.onPresentationChange = state => {
   if (state === 'fallback') toast('3D map unavailable. Showing 2D instead.', true);
 };
 mountMapSettings(map);
+wireNavigationMapControls(
+  document.getElementById('navigation-recenter') as HTMLButtonElement,
+  document.getElementById('navigation-3d') as HTMLButtonElement,
+  map,
+  savedMap3D(),
+  enabled => {
+    try { localStorage.setItem('pr.map3d', enabled ? '1' : '0'); } catch { /* ignore */ }
+    const setting = document.getElementById('map3d') as HTMLInputElement | null;
+    const pitch = document.getElementById('pitch') as HTMLButtonElement | null;
+    if (setting) setting.checked = enabled;
+    if (pitch) pitch.hidden = !enabled;
+  }
+);
+
+(document.getElementById('navigation-driving-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
+(document.getElementById('navigation-driving-recenter') as HTMLButtonElement).onclick=()=>map.recenter();
 void map.ready.then(() => { if (!map.wants3D) { const loading = document.getElementById('map-startup'); if (loading) loading.hidden = true; } });
 let pos = { lat: 41.88, lng: -87.63 };
 let scanner: Scanner | undefined;

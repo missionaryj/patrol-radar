@@ -24,6 +24,10 @@
 <section id="navigation-panel" class="navigation-panel" hidden aria-label="Navigation destination">
   <div class="navigation-panel-head"><strong>Navigation</strong></div>
   <button id="navigation-open-search" type="button" class="navigation-open-search" aria-haspopup="dialog"><span aria-hidden="true">⌕</span><span>Where to?</span><span aria-hidden="true">›</span></button>
+  <div class="navigation-map-controls" role="group" aria-label="Navigation map controls">
+    <button id="navigation-recenter" type="button" aria-label="Recenter on my location" title="Recenter map">◎ <span>My location</span></button>
+    <button id="navigation-3d" type="button" aria-label="Switch to 3D view" aria-pressed="false" title="Switch to 3D view">3D</button>
+  </div>
   <p id="navigation-provider-status" role="status">Search for a destination to see traffic-aware driving routes.</p>
 </section>
 <section id="navigation-search-screen" class="navigation-search-screen" role="dialog" aria-modal="true" aria-labelledby="navigation-search-title" hidden>
@@ -47,7 +51,7 @@
 </section>
 <section id="navigation-driving" class="navigation-driving" aria-label="Turn-by-turn driving guidance" hidden>
   <div class="navigation-driving-banner" aria-live="polite" aria-atomic="true"><span class="navigation-driving-eyebrow">NEXT TURN</span><strong id="navigation-instruction">Continue</strong><span id="navigation-distance">Preparing GPS guidance…</span></div>
-  <button type="button" id="navigation-recenter" class="navigation-recenter" aria-label="Recenter driving map">◎</button>
+  <button type="button" id="navigation-driving-recenter" class="navigation-recenter" aria-label="Recenter driving map">◎</button>
   <div class="navigation-driving-dashboard">
     <div class="navigation-speed"><strong id="navigation-speed">—</strong><span>MPH</span></div>
     <div class="navigation-trip-stats"><span class="navigation-arrival-label">ARRIVAL TIME</span><strong id="navigation-eta">—</strong><span id="navigation-time-remaining">— min remaining</span><span id="navigation-trip-distance">— mi left</span></div>

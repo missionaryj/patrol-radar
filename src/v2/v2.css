@@ -462,6 +462,11 @@ body[data-navigation-driving="true"] .mode-return{display:none!important}
 .navigation-open-search{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:var(--nav-fg);background:var(--nav-search);border:1px solid var(--nav-search-line);border-radius:16px;padding:16px;font:inherit;font-size:17px;font-weight:700}
 .navigation-open-search span:first-child{font-size:28px;line-height:20px;color:#91b9ff}
 .navigation-open-search span:last-child{margin-left:auto;color:var(--nav-muted)}
+.navigation-map-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.navigation-map-controls button{min-height:44px;padding:9px 12px;border:1px solid var(--nav-line);border-radius:14px;background:var(--nav-btn);color:var(--nav-fg);font:inherit;font-weight:650}
+.navigation-map-controls button:active{background:var(--nav-search)}
+.navigation-map-controls button[aria-pressed="true"]{border-color:#6f9de0;box-shadow:inset 0 0 0 1px #6f9de0}
+.navigation-map-controls button:focus-visible{outline:3px solid #8bb8ff;outline-offset:2px}
 .navigation-panel p{font-size:12px;color:var(--nav-note);line-height:1.45;margin:10px 2px 0}
 body[data-experience="navigation"] .sheet,body[data-experience="navigation"] .fab,body[data-experience="navigation"] .fab-col,body[data-experience="navigation"] .map-legend{display:none!important}
 body[data-navigation-driving="true"] .navigation-panel,body[data-navigation-driving="true"] .top{display:none!important}
