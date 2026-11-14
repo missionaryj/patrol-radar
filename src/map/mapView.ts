@@ -265,11 +265,12 @@ export class MapView {
     if (visible3D && ts - this.lastMirror >= 400) this.mirror3d();
     if (more && !document.hidden) this.raf = requestAnimationFrame(this.frame);
   };
-  /** Recenter and resume follow-me. */
+  /** Recenter and resume follow-me at one close street-level zoom in both renderers. */
   recenter(): boolean { this.follow.resume(); if (!this.me) return false; const c = this.smooth.disp ?? this.me.getLatLng();
-    const zoom = this.drivingCamera ? Math.max(17, this.map.getZoom()) : this.patrolMoving ? patrolZoom(this.map.getZoom(), true) : Math.max(this.map.getZoom(), 15);
-    this.map.setView(c, zoom);
-    this.m3.follow(c.lat, c.lng, this.drivingCamera || this.patrolMoving ? zoom : undefined, this.drivingCamera ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
+    // Never retain a far manual zoom. Active driving stays at its existing close-or-closer camera.
+    const zoom = this.drivingCamera ? Math.max(17, this.map.getZoom()) : this.patrolMoving ? Math.max(16, patrolZoom(this.map.getZoom(), true)) : 16;
+    this.map.setView(c, zoom, { animate: true });
+    this.m3.follow(c.lat, c.lng, zoom, this.drivingCamera ? this.drivingHeading : this.patrolMoving ? this.patrolHeading : undefined);
     this.kick(); return true; }
   // ---- 3D view (extruded buildings). Leaflet keeps all state; the 3D map mirrors pins + own dot. ----
   get is3D() { return this.m3.active; }

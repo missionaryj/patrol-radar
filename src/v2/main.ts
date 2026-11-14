@@ -392,7 +392,8 @@ const drawLive = () => { liveLast = performance.now(); if (liveTimer !== undefin
 let liveLast = 0; let liveTimer: number | undefined;
 const drawLiveSoon = () => { if (liveTimer !== undefined) return; liveTimer = window.setTimeout(drawLive, Math.max(0, 300 - (performance.now() - liveLast))); };
 setInterval(drawLive, 2000);
-document.getElementById('showother')?.addEventListener('change', () => drawLive());
+{ const other = document.getElementById('showother') as HTMLInputElement | null;
+  if (other) { other.checked = localStorage.getItem('pr.showother') === '1'; other.addEventListener('change', () => { localStorage.setItem('pr.showother', other.checked ? '1' : '0'); drawLive(); }); } }
 function startGeo() {
   if (!navigator.geolocation) { map.locationUnavailable(); $('geo').textContent = 'Location unavailable'; return; }
   if (geoWatch !== undefined) navigator.geolocation.clearWatch(geoWatch);
@@ -520,7 +521,8 @@ async function start() {
   }
   if (scanner instanceof NativeScanner) {
     const sm = $<HTMLSelectElement>('scanmode'); scanner.mode = sm.value as NativeScanMode; localStorage.setItem('pr.scanmode', sm.value);
-    scanner.filtered = picker.value !== 'all';
+    // Always preserve hardware police filters for reliable Android screen-off scanning and notifications.
+    scanner.filtered = true;
     scanner.alertSound = soundEnabled();
     // Record the filter so a debug file with 0 adverts says whether only police gear was being listened for.
     recorder.event('start', kind, `native ${scanner.mode} · ${scanner.filtered ? 'police filters (hardware: only police-gear adverts are delivered)' : 'all devices'}`);
@@ -568,7 +570,7 @@ async function start() {
     setScanning(true); $('add').hidden = !(scanner instanceof BluefyScanner);
     setTimeout(() => {
       if (generation!==scanGeneration || scanner!==candidate || stats.raw !== 0 || kind === 'mock') return;
-      if (kind === 'native' && picker.value !== 'all') status('No police gear heard in 20 s. "Police gear only" ignores phones, earbuds and cars, so 0 is normal with no police nearby. To test that scanning works, set Devices to "All devices" in Settings.', '');
+      if (kind === 'native') status('No police match heard in 20 s. This is normal when no supported equipment is nearby; background alert filtering remains active.', '');
       else status('No advertisements received in 20 s. The device may not be advertising; pick another, or check Debug in Settings.', 'err');
     }, 20_000);
   } catch (e) { if(generation!==scanGeneration)return; scanner = undefined; setScanning(false); const se = classify(e); recorder.event(/permission|denied|notallowed/i.test(se.kind + se.message) ? 'permission-denied' : 'error', kind, `${se.kind}: ${se.message}`); status(`[${se.kind}] ${se.message}`, 'err'); }
@@ -806,7 +808,7 @@ function updateSettingsSummaries() {
   const mode = $<HTMLSelectElement>('scanmode');
   const modeLabel = ({ lowPower: 'Saver', balanced: 'Balanced', lowLatency: 'Fastest' } as Record<string, string>)[mode.value] ?? mode.value;
   $('settings-mode').textContent = isNativeApp ? `Scan mode: ${modeLabel}` : `Scanner: ${sel.options[sel.selectedIndex]?.text ?? sel.value}`;
-  $('scanning-section-summary').textContent = `${isNativeApp ? modeLabel + ' · ' : ''}${picker.value === 'all' ? 'All devices' : 'Police gear'}`;
+  $('scanning-section-summary').textContent = `${isNativeApp ? modeLabel + ' · ' : ''}All devices · police alert filters active`;
   $('alerts-section-summary').textContent = `Police ping ${soundBox.checked ? 'on' : 'off'} · camera alerts in Map layers`;
   $('crowd-section-summary').textContent = `Sharing ${shareBox.checked ? 'on' : 'off'} · crowd layer ${$<HTMLInputElement>('crowd').checked ? 'on' : 'off'}`;
   $('travel-section-summary').textContent = `${$<HTMLSelectElement>('travelmode').value === 'foot' ? 'On foot' : 'Car'} · 3D buildings ${$<HTMLInputElement>('map3d').checked ? 'on' : 'off'}`;

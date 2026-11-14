@@ -5,7 +5,8 @@ export type ThemeChoice = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
 export function readThemeChoice(raw: string | null | undefined): ThemeChoice {
-  return raw === 'light' || raw === 'dark' ? raw : 'system';
+  // Dark is the safe no-preference default; Match system remains an explicit choice.
+  return raw === 'light' || raw === 'system' ? raw : 'dark';
 }
 
 /** Match system follows the phone. Light and Dark stay put when the phone changes. */

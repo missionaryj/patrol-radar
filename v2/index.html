@@ -2,8 +2,8 @@
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
 <meta name="theme-color" content="#07080a"/>
 <script>
-/* Apply the saved appearance before first paint. Match system is the default. Keep in step with src/settings/theme.ts. */
-(function(){try{var p=localStorage.getItem('pr.theme');var dark=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);var t=dark?'dark':'light';var h=document.documentElement;h.dataset.theme=t;h.style.colorScheme=t;var c=dark?'#07080a':'#f4f6f8';h.style.background=c;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',c);}catch(e){}})();
+/* Dark is the first-launch default. Explicit Light, Dark, and Match system choices still win. */
+(function(){try{var p=localStorage.getItem('pr.theme');var dark=p==='light'?false:p==='system'?matchMedia('(prefers-color-scheme: dark)').matches:true;var t=dark?'dark':'light';var h=document.documentElement;h.dataset.theme=t;h.style.colorScheme=t;var c=dark?'#07080a':'#f4f6f8';h.style.background=c;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',c);}catch(e){}})();
 </script>
 <style>html,body{margin:0;background:#07080a;color:#eee}html[data-theme="light"],html[data-theme="light"] body{background:#f4f6f8;color:#16181d}#map-startup{position:fixed;inset:40% 0 auto;text-align:center;font:16px system-ui;pointer-events:none;z-index:500}</style>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="../manifest.webmanifest"/><link rel="icon" href="../favicon.png"/><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"/><title>Patrol Radar · v2</title></head>
@@ -100,10 +100,10 @@
   <div class="control-status"><span class="status-kicker">SCANNER STATUS</span><strong id="settings-scan-status">Scan is stopped</strong><span id="settings-mode">Scan mode: Balanced</span><div id="status-full" class="status-full" role="status">Idle</div><button type="button" id="check-setup" class="setup-button">Check my setup <span aria-hidden="true">›</span></button></div>
   <div id="setup-results" class="setup-results" hidden aria-live="polite"></div>
 
-  <details class="settings-section" id="appearance-section"><summary><span><b>Appearance</b><small id="appearance-summary">Match system</small></span></summary>
+  <details class="settings-section" id="appearance-section"><summary><span><b>Appearance</b><small id="appearance-summary">Dark</small></span></summary>
   <div class="group">
     <div class="field"><span>Theme</span>
-      <select id="theme" data-seg data-labels="Light|Dark|Match system"><option value="light">Light</option><option value="dark">Dark</option><option value="system" selected>Match system</option></select>
+      <select id="theme" data-seg data-labels="Light|Dark|Match system"><option value="light">Light</option><option value="dark" selected>Dark</option><option value="system">Match system</option></select>
       <small>Match system follows this phone's dark mode and updates if you change it.</small></div>
   </div>
   </details>
@@ -116,10 +116,9 @@
       <select id="scanmode" data-seg data-labels="Saver|Balanced|Fastest"><option value="lowPower">Battery saver (slower)</option><option value="balanced" selected>Balanced</option><option value="lowLatency">Fastest (more battery)</option></select>
       <small>Saver uses less battery; Balanced balances battery and scan frequency; Fastest scans more often and uses more battery. Results and range vary by phone and conditions.</small></div>
     <button type="button" id="battery" class="row-btn" hidden>Let it run in the background (battery settings)</button>
-    <details class="advanced-scan"><summary>Advanced: device filter</summary><div class="field"><span>Devices (Bluefy picker / Android app filter)</span>
-      <select id="picker" data-seg data-labels="Police gear|All devices"><option value="police">Police gear only</option><option value="all">All devices</option></select>
-      <small>Police gear only: the phone delivers only police-gear signals, so the count stays 0 with no police nearby. All devices: hears every Bluetooth device (screen on); use it to check scanning works.</small></div>
-    <label class="switch"><input type="checkbox" id="showother"/><span></span><em>Show other devices<small>Phones, earbuds… hidden by default</small></em></label></details>
+    <details class="advanced-scan"><summary>Advanced settings</summary>
+    <input id="picker" type="hidden" value="police"/>
+    <label class="switch"><input type="checkbox" id="showother"/><span></span><em>Show other devices<small>Phones and earbuds are hidden by default. Police matching and screen-off alerts continue using the Android filtered scanner.</small></em></label></details>
   </div>
 
   </details>
