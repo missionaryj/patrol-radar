@@ -28,10 +28,11 @@ function harness(systemDark: boolean, stored?: string) {
 }
 
 describe('appearance theme', () => {
-  it('defaults to match system and ignores unknown saved values', () => {
-    expect(readThemeChoice(null)).toBe('system');
-    expect(readThemeChoice('blue')).toBe('system');
+  it('defaults to dark and preserves explicit appearance choices', () => {
+    expect(readThemeChoice(null)).toBe('dark');
+    expect(readThemeChoice('blue')).toBe('dark');
     expect(readThemeChoice('light')).toBe('light');
+    expect(readThemeChoice('system')).toBe('system');
     expect(resolveTheme('system', true)).toBe('dark');
     expect(resolveTheme('system', false)).toBe('light');
     expect(resolveTheme('light', true)).toBe('light');
@@ -50,7 +51,7 @@ describe('appearance theme', () => {
     expect(meta.content).toBe(THEME_COLOR.dark);
   });
   it('follows live system changes only while the choice is match system', () => {
-    const h = harness(true);
+    const h = harness(true, 'system');
     expect(h.ctl.choice()).toBe('system');
     expect(h.doc.documentElement.dataset.theme).toBe('dark');
     expect(h.native).toHaveBeenCalledWith('system', 'dark');
@@ -79,9 +80,10 @@ describe('appearance theme', () => {
     const head = html.slice(0, html.indexOf('<body'));
     expect(head.indexOf(THEME_KEY)).toBeGreaterThan(-1);
     expect(head.indexOf(THEME_KEY)).toBeLessThan(head.indexOf('/src/v2/main.ts') === -1 ? head.length : head.indexOf('/src/v2/main.ts'));
-    expect(head).toContain("prefers-color-scheme: dark");
+    expect(head).toContain("p==='light'?false");
     expect(head).toContain('dataset.theme');
     expect(html).toContain('id="theme"');
+    expect(html).toContain('value="dark" selected');
     expect(html).toContain('value="system"');
     expect(html).toContain('Match system');
   });
